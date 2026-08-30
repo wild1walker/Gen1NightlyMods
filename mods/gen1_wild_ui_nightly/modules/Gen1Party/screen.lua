@@ -517,11 +517,49 @@ return function(mod, C)
 
   -- ------- drawing
 
+
+  -- ------- the matte behind true-colour art
+  --
+  -- `PaletteFX.markTrueColor` blits a rectangle RAW so a coloured icon keeps
+  -- its own colours instead of being read as four shades.  Raw means raw: the
+  -- white page under it stays white when everything around it goes black,
+  -- which is the white box behind every icon on a dark screen.
+  --
+  -- So the rectangle is painted with what the theme will make of it BEFORE
+  -- the art goes in.  Only ever inside a rectangle about to be marked -- a
+  -- dark rectangle anywhere else is shade-3 pixels, which the theme maps to
+  -- the page's ink and puts a hole in the page.
+  --
+  -- Under LIGHT the colour is white, which is what this drew before the theme
+  -- existed, so a build with no theme in it is unchanged.
+  local function matte(x, y, w, h, hint)
+    local theme = type(mod.theme) == "function" and mod.theme() or nil
+    local colour = theme and type(theme.matte) == "function"
+      and theme.matte(hint) or nil
+    if type(colour) ~= "table" then return end
+    love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+  end
+
+  -- The four a Pokemon's card wears under COLORFUL: its own light shade as
+  -- paper, its dark one kept, black ink.  One function because the card zone
+  -- and the matte under the icon ON that card have to be the same colour, and
+  -- two spellings of the same four numbers drift.
+  local function cardRamp(game, mon)
+    local colors = PaletteFX.monPal(game.data, mon.species)
+    if not colors then return nil end
+    return { colors[2], colors[2], colors[3], colors[4] }
+  end
+
   local function drawIcon(self, mon, y, selected)
+    -- before the art, and only where the art will be marked
+    local rect = fullColour(self.game, mon)
+    if rect then
+      matte(ICON_X, y, rect.w, rect.h, cardRamp(self.game, mon))
+    end
     C.white()
     pcall(PartyMenu.drawIcon, self.game, mon, ICON_X, y, selected,
           self.blink or 0)
-    local rect = fullColour(self.game, mon)
     if rect then
       pcall(PaletteFX.markTrueColor, ICON_X, y, rect.w, rect.h)
     end
@@ -787,13 +825,11 @@ return function(mod, C)
 
     local party = self.party or (game.save and game.save.party) or {}
     for i, mon in ipairs(party) do
-      local colors = PaletteFX.monPal(game.data, mon.species)
+      local colors = cardRamp(game, mon)
       if colors then
         local ty = BODY_TY + (i - 1) * 2
-        -- the species' light shade as paper, its dark one kept, black ink
-        out[#out + 1] = PaletteFX.zone(
-          { colors[2], colors[2], colors[3], colors[4] },
-          0, ty, 19, ty + 1)
+        -- the same four the matte under this Pokemon's icon uses
+        out[#out + 1] = PaletteFX.zone(colors, 0, ty, 19, ty + 1)
       end
     end
     return out

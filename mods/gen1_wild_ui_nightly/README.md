@@ -48,6 +48,26 @@ are pictures rather than pages (the intro, Oak's speech, the credits, the
 slots, the trade animation, the title screen) are deliberately left out, and so
 is the COLORS picker, which has to show colours as they are.
 
+**Menu boxes are themed by their own rectangle.** A box drawn *on* a screen —
+the START menu over the map, the bag's windows, a field-move list — owns no
+palettes, so the engine hands the frame to whatever is underneath and the theme
+correctly declines it. Those are themed as **panels** instead: a state that
+carries `tx`/`ty`/`tw`/`th` (which is every `src/ui/Menu.lua` box, and the
+suite's own windows) gets a zone over exactly that rectangle, so a white menu
+goes black over a map that does not move. A screen with several boxes can say
+where they are with `state:gen1wildThemePanels()`.
+
+**True-colour art gets a matte.** `PaletteFX.markTrueColor` blits a rectangle
+raw so a coloured icon keeps its own colours — and raw means the white page
+under it stays white when everything around it goes black. Every screen in the
+suite that marks a rectangle now paints `theme.matte(hint)` into it first, so
+the box behind an icon goes with the page. Under `LIGHT` that colour is white,
+which is what those screens always drew.
+
+Engine screens that draw true-colour art and that this suite does not replace —
+the trainer card's portrait and its badges — still show a light box. Fixing
+those means replacing those screens' draw, which has not been done yet.
+
 One honest limit: this works by changing the colours a zone carries, so it
 works in the display modes that use them — `SGB`, `SGB INV`, `ADVANCED`,
 `OG RED`. The flat modes (`OG`, `OG INV`, `CLASSIC`, and a custom ramp) are the

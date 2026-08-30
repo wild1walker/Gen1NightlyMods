@@ -251,6 +251,22 @@ function Facade.new(feature, context)
   -- across (a feature in the paired bundle, reached through its exports), then
   -- out to the engine for genuinely external mods.
 
+  -- ------- the bundle's UI THEME
+  --
+  -- A FUNCTION rather than a field, and that is the whole design note: the
+  -- theme is built AFTER the features are, because its `render.zones` hook has
+  -- to sit outside theirs, so a feature that captured a field at install time
+  -- would capture nil forever.  Read at call time it is there by the first
+  -- frame anyone draws.
+  --
+  -- Returns nil when there is no theme -- a half of the suite running without
+  -- the bundle runtime, or a theme that failed to build -- so every caller has
+  -- to cope with that, and coping with it is what makes a themeless build draw
+  -- exactly what it drew before themes existed.
+  function facade.theme()
+    return context.theme
+  end
+
   function facade.find(a, b)
     local name = nameFrom(a, b)
     if not name then return nil end

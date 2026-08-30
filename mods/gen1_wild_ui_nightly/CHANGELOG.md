@@ -6,6 +6,69 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.6.0] - 2026-08-30
+
+### Fixed
+
+- **The white box behind every icon on a dark screen.** The party menu, the
+  box, the Pokédex and the bag all came out black with a bright white square
+  around each Pokémon and each item.
+
+  `PaletteFX.markTrueColor` is the engine's opt-out from the shade pass: a
+  marked rectangle is blitted **raw**, so an animated sprite or a coloured item
+  icon keeps its own colours instead of being read as four shades. Raw means
+  raw. The page the screen cleared to white is white inside that rectangle too,
+  and it stays white when everything around it goes black.
+
+  Every screen in the suite that marks a rectangle now paints `theme.matte()`
+  into it before the art goes in — the colour that spot is going to *end up*,
+  which is black under `DARK`, the screen's paper under `COLORFUL`, and white
+  under `LIGHT`. On the party screen the hint is the Pokémon's own card ramp,
+  because a party icon sits on its Pokémon's card and not on the page.
+
+  Only ever inside a rectangle about to be marked: a dark rectangle anywhere
+  else is shade-3 pixels, which the theme would map to the page's ink and put a
+  hole in the page.
+
+  **Not fixed:** engine screens this suite does not replace still show a light
+  box around their true-colour art — the trainer card's portrait and badges 5-8
+  are the visible case. Those need the screen's draw replaced, which is its own
+  piece of work.
+
+- **The START menu never changed.** Nor did the bag's windows, or any other box
+  drawn over the map.
+
+  A menu box owns no palettes. The engine hands the zone list to the topmost
+  state that has some, a menu box has none, so the **map** answered for the
+  whole frame — and the map is not a page, quite rightly, so the theme declined
+  the frame and the menu with it. Inverting the frame to catch the menu would
+  have inverted the map with it.
+
+  So a box is now themed by its own rectangle and nothing else. Two ways to
+  find one: `state:gen1wildThemePanels()` for a screen that draws several boxes
+  and knows where they are, and failing that `tx`/`ty`/`tw`/`th` read straight
+  off the state. That second one is not a guess — `src/ui/Menu.lua` is every
+  menu box in this game and it computes those four in `Menu.new`, and the
+  suite's own windows are built to the same four. Which means the START menu,
+  the PC menu, field-move lists, the bag's windows and boxes nobody has taught
+  this file about all theme, over a map that does not move.
+
+  Deliberately narrow: `src/render/TextBox.lua` carries no box rect, so
+  dialogue is not a panel and battles are not touched. Panels are also only
+  ever taken from states **above** whatever owns the frame — a page is themed
+  as a page, and painting its own box again would be a second coat at best.
+
+### Added
+
+- `theme.matte(hint)` and `mod.theme()` — a feature reaches the bundle's theme
+  through a function rather than a field, because the theme is built *after*
+  the features are (its hook has to sit outside theirs) and a field captured at
+  install time would be nil forever.
+
+23 new assertions in `tests/runtime_test.lua` cover both: the panel rect and
+its palette, panels declared by a screen, a page not panelling its own box, a
+screen whose panels raise, and the matte under each of the three themes.
+
 ## [0.5.0] - 2026-08-30
 
 ### Changed

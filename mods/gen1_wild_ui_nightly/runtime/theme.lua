@@ -268,6 +268,13 @@ local function reversed(colors)
   return { colors[4], colors[3], colors[2], colors[1] }
 end
 
+-- Plain black-and-white, swapped: the page a DARK screen falls back to, and
+-- the colour a screen's true-colour matte takes under DARK.  File-wide rather
+-- than per instance because it is a constant, and because self.matte needs it
+-- in scope well before the DARK section that used to own it.
+local DARK_PAGE = reversed({ { 255, 255, 255 }, { 170, 170, 170 },
+                             { 85, 85, 85 }, { 0, 0, 0 } })
+
 -- Is this the four DMG greys?  By value, and only the four -- a palette that
 -- is grey-ish but not those numbers is somebody's deliberate choice.
 local function isGreys(colors)
@@ -301,6 +308,45 @@ local function basePage(zones)
   if not isWhole(first) then return nil end
   if not isGreys(first.colors) then return nil end
   return 1
+end
+
+-- ------- panels
+--
+-- A page is a screen that owns the frame.  A PANEL is a box drawn ON one --
+-- the START menu over the map, the bag's two windows, a field-move list, the
+-- PC's menu.  None of those owns the frame's palettes: the engine hands the
+-- zone list to the topmost state that has any, and a menu box has none, so
+-- the map underneath answers for the whole screen and the theme quite
+-- correctly declines it.  That is why the START menu stayed white in a dark
+-- game, and it is not something the page rule can fix -- inverting the frame
+-- to catch the menu would inverting the map with it.
+--
+-- So a panel is themed by its own rectangle and nothing else.  Two ways to
+-- find one, and a screen only needs the first if the second is wrong:
+--
+--   * `state:gen1wildThemePanels()` returns rects in pixels, for a screen
+--     that draws several boxes and knows where they are.
+--   * failing that, `tx`/`ty`/`tw`/`th` on the state itself, in tiles.  That
+--     is not a guess: `src/ui/Menu.lua` -- every menu box in this game --
+--     keeps its box there and computes it in `Menu.new`, and the suite's own
+--     windows are built to the same four fields.  Reading them off the object
+--     costs nothing and covers screens nobody has taught this file about.
+local function panelRect(state)
+  local tx, ty, tw, th = state.tx, state.ty, state.tw, state.th
+  if type(tx) ~= "number" or type(ty) ~= "number" then return nil end
+  if type(tw) ~= "number" or type(th) ~= "number" then return nil end
+  if tw <= 0 or th <= 0 then return nil end
+  return { x = tx * 8, y = ty * 8, w = tw * 8, h = th * 8 }
+end
+
+local function panelsOf(state)
+  if type(state.gen1wildThemePanels) == "function" then
+    local ok, got = pcall(state.gen1wildThemePanels, state)
+    if ok and type(got) == "table" then return got end
+    return nil
+  end
+  local one = panelRect(state)
+  return one and { one } or nil
 end
 
 -- Rec. 709, the same weighting tests/runtime_test.lua measures the tints
@@ -407,15 +453,49 @@ function Theme.new(context)
       if type(state) == "table" then
         local named = state.gen1wildTheme
         if type(named) == "string" and Theme.TINTS[named] then
-          return state, named, true
+          return state, named, i
         end
         tintOf = tintOf or classTints()
         local byClass = tintOf[getmetatable(state)]
-        if byClass then return state, byClass, false end
-        if state.sgbPalettes then return nil end
+        if byClass then return state, byClass, i end
+        -- owns the frame and is not a page: the frame is not ours, but
+        -- anything stacked ON it still might be, so say where it sits
+        if state.sgbPalettes then return nil, nil, i end
       end
     end
     return nil
+  end
+
+  -- Every panel on the stack ABOVE whatever owns the frame, bottom up so a
+  -- menu over a menu paints in the order the two were drawn.
+  --
+  -- Above the owner, and only above: a page IS the owner and is themed as a
+  -- page, so painting its own box again would be a second coat of the same
+  -- colour at best and a box over its own content at worst.  What is left
+  -- above the owner is exactly the overlays -- the START menu on the map, the
+  -- bag's windows, a field-move list, a battle's command box.
+  local function panelZones(game, theme, ownerAt)
+    local states = game and game.stack and game.stack.states
+    if type(states) ~= "table" then return nil end
+    local out
+    for index = (ownerAt or 0) + 1, #states do
+      local state = states[index]
+      if type(state) == "table" then
+        local rects = panelsOf(state)
+        if rects then
+          local colors = (theme == "dark") and DARK_PAGE or tintFor(state)
+          for _, rect in ipairs(rects) do
+            if type(rect) == "table" and type(rect.w) == "number"
+                and type(rect.h) == "number" and rect.w > 0 and rect.h > 0 then
+              out = out or {}
+              out[#out + 1] = { colors = colors, x = rect.x or 0,
+                                y = rect.y or 0, w = rect.w, h = rect.h }
+            end
+          end
+        end
+      end
+    end
+    return out
   end
 
   -- The list to theme, for a page we have found.
@@ -449,6 +529,37 @@ function Theme.new(context)
     return Theme.TINTS.page
   end
 
+  -- ------- the matte
+  --
+  -- What a shade-0 pixel ENDS UP as, for the one thing a palette swap cannot
+  -- reach: art drawn in true colour.
+  --
+  -- `PaletteFX.markTrueColor` is the engine's opt-out -- a marked rectangle is
+  -- blitted raw so an animated sprite or a coloured item icon keeps its own
+  -- colours instead of being read as four shades.  Raw means RAW: the page
+  -- the screen cleared to white is white inside that rectangle too, and stays
+  -- white when everything around it goes black.  That is the white box behind
+  -- every icon in a dark party menu, box and Pokedex.
+  --
+  -- A screen fixes it by painting the rectangle this colour before it draws
+  -- the art into it.  Only ever inside a rectangle it is about to mark: a
+  -- black rectangle anywhere else is shade-3 pixels, which the theme would
+  -- then map to the page's INK and put a hole in the page.
+  --
+  -- The hint is a tint name, or a ramp for a screen that knows the exact
+  -- palette covering that spot -- a party icon sits on its Pokemon's card, not
+  -- on the page.  Under LIGHT it is white, which is what every screen drew
+  -- before this existed, so the call costs a build with no theme nothing.
+  local MATTE_WHITE = { 255, 255, 255 }
+
+  function self.matte(hint)
+    local theme = self.read()
+    if theme == "light" then return MATTE_WHITE end
+    if theme == "dark" then return DARK_PAGE[1] end
+    local ramp = type(hint) == "table" and hint or self.tint(hint)
+    return ramp[1] or MATTE_WHITE
+  end
+
   local function reverse(colors)
     local cached = reversals[colors]
     if not cached then
@@ -467,7 +578,6 @@ function Theme.new(context)
   -- icon's paper on the page's black and reads it light-on-dark in its own
   -- colour, which is what the engine's SGB INV mode does and is why that mode
   -- holds together at all.
-  local DARK_PAGE = reversed(GREYS)
 
   -- ------- a theme never writes into the list it was handed
   --
@@ -588,18 +698,36 @@ function Theme.new(context)
     local theme = self.read()
     if theme == "light" then return zones end
 
-    local state, tintName = pageState(game)
+    local state, tintName, ownerAt = pageState(game)
+    local out
     if state then
-      zones = pageZones(zones, state)
+      out = pageZones(zones, state)
+      if theme == "dark" then
+        out = dark(out, 1)
+      else
+        out = colorful(out, 1, state, tintName)
+      end
+    elseif basePage(zones) then
+      -- no page state, but the list itself says it is a page
+      out = (theme == "dark") and dark(zones, 1)
+        or colorful(zones, 1, nil, "page")
+      ownerAt = ownerAt or 0
     else
-      -- no page state: the frame is only ours if the list itself says so
-      if not basePage(zones) then return zones end
-      tintName = "page"
+      out = zones
     end
 
-    if theme == "dark" then return dark(zones, 1) end
-    if theme == "colorful" then return colorful(zones, 1, state, tintName) end
-    return zones
+    -- Panels last, because they are drawn last: a menu box over a map is on
+    -- top of the map, and the zone that colours it has to be on top of the
+    -- zones that colour the map.  This is also the ONE path that can theme a
+    -- frame that is not a page at all -- which is the whole point, because
+    -- the START menu has never been one.
+    local panels = panelZones(game, theme, ownerAt)
+    if not panels then return out end
+
+    local spread = {}
+    for _, zone in ipairs(out or {}) do spread[#spread + 1] = zone end
+    for _, zone in ipairs(panels) do spread[#spread + 1] = zone end
+    return spread
   end
 
   function self.install()

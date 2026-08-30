@@ -49,6 +49,29 @@
 -- without this mod being told.  What is here is the fallback, not the rule.
 
 return function(mod)
+
+  -- ------- the matte behind true-colour art
+  --
+  -- `PaletteFX.markTrueColor` blits a rectangle RAW so a coloured icon keeps
+  -- its own colours instead of being read as four shades.  Raw means raw: the
+  -- white page under it stays white when everything around it goes black,
+  -- which is the white box behind every icon on a dark screen.
+  --
+  -- So the rectangle is painted with what the theme will make of it BEFORE
+  -- the art goes in.  Only ever inside a rectangle about to be marked -- a
+  -- dark rectangle anywhere else is shade-3 pixels, which the theme maps to
+  -- the page's ink and puts a hole in the page.
+  --
+  -- Under LIGHT the colour is white, which is what this drew before the theme
+  -- existed, so a build with no theme in it is unchanged.
+  local function matte(x, y, w, h, hint)
+    local theme = type(mod.theme) == "function" and mod.theme() or nil
+    local colour = theme and type(theme.matte) == "function"
+      and theme.matte(hint) or nil
+    if type(colour) ~= "table" then return end
+    love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+  end
   local W, H = 16, 16
   local DIR = "assets/items/"
 
@@ -128,6 +151,12 @@ return function(mod)
   -- caller can keep drawing text without knowing this happened.
   function C.draw(image, x, y)
     if not image then return end
+    -- the page under the icon, before the icon: a marked rectangle is blitted
+    -- raw, so the white it was cleared to survives a dark page unless this
+    -- paints over it first
+    if PaletteFX and PaletteFX.markTrueColor then
+      matte(x, y, W, H, "bag")
+    end
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(image, x, y)
     if PaletteFX and PaletteFX.markTrueColor then

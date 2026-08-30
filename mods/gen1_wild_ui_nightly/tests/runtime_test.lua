@@ -1367,6 +1367,122 @@ do
 end
 
 do
+  io.write("a menu box over the map is themed by its own rectangle\n")
+  -- The bug this is for: START > OPTION said DARK and the START menu behind
+  -- it was still white.  A menu box owns no palettes, so the engine hands the
+  -- frame to the map underneath -- and the map is not a page, quite rightly,
+  -- so the theme declined the whole frame and the menu with it.  A panel is
+  -- themed by its rect and nothing else, which is what lets a white menu go
+  -- black over a map that does not move.
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  -- src/ui/Menu.lua keeps its box in tx/ty/tw/th, in tiles, and computes it in
+  -- Menu.new.  The START menu is the default: 10 tiles in, 10 wide.
+  local world = { sgbPalettes = true }
+  local start = { tx = 10, ty = 0, tw = 10, th = 12 }
+  local zones = overworldZones()
+  local out = theme.apply({ stack = { states = { world, start } } }, zones)
+
+  eq(#out, 2, "the map's own zone, and one for the menu")
+  eq(hex(out[1].colors[1]), "ffefff", "the map is not touched")
+  eq(out[2].x, 80, "the panel starts where the box starts, in pixels")
+  eq(out[2].y, 0, "...top edge")
+  eq(out[2].w, 80, "and is as wide as the box")
+  eq(out[2].h, 96, "...and as tall")
+  eq(hex(out[2].colors[1]), "000000", "a dark menu is a black box")
+  eq(hex(out[2].colors[4]), "ffffff", "with white type in it")
+
+  -- and the caller's list is still the caller's list
+  eq(#zones, 1, "the frame's own zone list was not written into")
+end
+
+do
+  io.write("a panel is only ever an overlay\n")
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  -- A page that happens to carry a box of its own is themed as a PAGE.
+  -- Painting its box again would be a second coat at best, and a box over its
+  -- own content at worst.
+  local page = { gen1wildTheme = "settings", sgbPalettes = true,
+                 tx = 2, ty = 2, tw = 16, th = 12 }
+  local out = theme.apply({ stack = { states = { page } } }, menuZones())
+  eq(#out, 2, "the page is themed, and no panel is added for its own box")
+
+  -- but a menu stacked ON that page still gets one
+  local over = { tx = 0, ty = 0, tw = 8, th = 6 }
+  local stacked = theme.apply({ stack = { states = { page, over } } },
+                              menuZones())
+  eq(#stacked, 3, "a box on top of a page is a panel")
+  eq(stacked[3].w, 64, "...its own rectangle")
+
+  -- a state with no box and no palettes contributes nothing either way
+  local bare = {}
+  local plain = theme.apply({ stack = { states = { page, bare } } },
+                            menuZones())
+  eq(#plain, 2, "and a state with no rectangle is not a panel")
+end
+
+do
+  io.write("a screen with several boxes says where they are\n")
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  -- The bag draws two windows over the map, so tx/ty/tw/th on the state
+  -- cannot describe it.  A screen that knows better says so.
+  local world = { sgbPalettes = true }
+  local bag = {
+    gen1wildThemePanels = function()
+      return { { x = 0, y = 16, w = 96, h = 96 },
+               { x = 96, y = 0, w = 64, h = 144 } }
+    end,
+  }
+  local out = theme.apply({ stack = { states = { world, bag } } },
+                          overworldZones())
+  eq(#out, 3, "the map, and one zone per window")
+  eq(out[2].w, 96, "the first window")
+  eq(out[3].x, 96, "and the second")
+
+  -- a screen whose panels raise must not take the frame down with it
+  bag.gen1wildThemePanels = function() error("nope") end
+  local survived = theme.apply({ stack = { states = { world, bag } } },
+                               overworldZones())
+  eq(#survived, 1, "a screen that raises simply contributes no panels")
+end
+
+do
+  io.write("the matte is what a true-colour rectangle sits on\n")
+  -- markTrueColor blits a rectangle RAW so a coloured icon keeps its colours.
+  -- Raw means the white page under it stays white too, which is the white box
+  -- behind every icon on a dark screen.  A screen paints this colour into the
+  -- rectangle before it draws the art, and the box goes with the page.
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+
+  eq(hex(theme.matte()), "ffffff",
+    "under LIGHT it is white, which is what every screen drew before this "
+    .. "existed -- so a build with no theme pays nothing for the call")
+
+  theme.write("dark")
+  eq(hex(theme.matte()), "000000", "under DARK it is the dark page")
+  eq(hex(theme.matte("dex")), "000000", "whatever screen is asking")
+
+  theme.write("colorful")
+  eq(hex(theme.matte("dex")), hex(Theme.TINTS.dex[1]),
+    "under COLORFUL it is that screen's own paper")
+  eq(hex(theme.matte()), hex(Theme.TINTS.page[1]), "or the default paper")
+  -- a screen that knows the exact palette covering the spot passes it: a
+  -- party icon sits on its Pokemon's card, not on the page
+  local card = { { 0x63, 0xc8, 0x4a }, { 0x63, 0xc8, 0x4a },
+                 { 0x21, 0x73, 0x21 }, { 0, 0, 0 } }
+  eq(hex(theme.matte(card)), "63c84a", "...and gets that palette's paper")
+end
+
+do
   io.write("every tint is a colour, and reads both ways\n")
   -- The rule this replaced was the bug.  0.2.0 held every ramp to the DMG
   -- ramp's own lightness within a few values -- paper at 246 against 255 --
