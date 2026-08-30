@@ -6,6 +6,62 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.2.0] - 2026-08-30
+
+### Fixed
+
+- **The white bar above a wide arena.** A battle asks the renderer for a
+  *white surround*: `Renderer:endFrame` clears the void around the blit to
+  `PaletteFX.paperShade` for any state that sets `letterboxWhite`, and a battle
+  sets it. That is right for the game it was written for — the field is white
+  paper, so a white surround makes the paper look like it runs off the edges of
+  the screen instead of stopping at a rectangle.
+
+  Put a BACKDROP in the field and the reasoning inverts. The paper is gone, the
+  surround is the only white left, and instead of disappearing it becomes a
+  bright frame around the art. A WIDE battle is 304x144 — very wide and no
+  taller — so in an ordinary window the bars above and below it are the biggest
+  thing on the screen. That is the bar.
+
+  Gen1Arena now carries the backdrop into them, through `render.letterbox` —
+  the seam the engine documents for exactly this ("SGB borders / custom void
+  art in the bars around the 160x144 (or world) blit"), which runs after the
+  void is cleared and before the game canvas, so the playfield still lands on
+  top and nothing here can cover the battle.
+
+  By **edge clamp**, not by scaling the picture up to the window: a magnified
+  copy behind a 1:1 copy meets at a visible seam — two different scales of the
+  same tree. Stretching the outermost row of pixels gives the bars the colour
+  the field already has where it meets them, so sky continues as sky and ground
+  as ground. `EDGE TO EDGE` is a row of its own, and `OFF` is the white bars
+  back. `BATTLE BG = world` and `FAITHFUL RATIO`'s mobile lock both stand it
+  down — the first has no bars, and the second promises they stay black.
+
+- **`BLACK OUTRO` holds at the cut.** It went straight from the last frame of
+  the fade out to the first of the fade in, so it was at full black for exactly
+  one frame — and that frame is the one that does all the work: it pops the
+  fade off the stack, runs the engine's own `finish`, and pushes it back.
+
+  It was also the only frame the whole outro was fully covered on, which made
+  it the only one anything looking for a covered frame could find.
+  Gen1WildQOL's autosave asks exactly that question, found that frame, and
+  wrote its save into the middle of the cut — every battle. The two halves of
+  that are fixed together; see Gen1WildQOL Nightly 0.2.0.
+
+  Ten frames, which is the engine's own pause before `GBFadeInFromWhite`
+  (`home/overworld.asm:351-352`) — the fade this one replaces. So the outro
+  now reads the way the return it stands in for does, the work has a frame to
+  itself, and a covered moment is a moment rather than an instant.
+
+### Changed
+
+- **Gen1Arena's `DIAGNOSTIC` and `FIELD TEST` rows are always here.** Upstream
+  they exist only when the loader was started with developer mode on. The
+  nightly channel *is* the developer build, and a toggle that only exists under
+  a flag nobody running a nightly has set is a toggle nobody running a nightly
+  can use. On a release build the line reads `mod.developer == true` and both
+  rows go with it.
+
 ## [0.1.0] - 2026-08-30
 
 Forked from Gen1WildUI 1.21.0.

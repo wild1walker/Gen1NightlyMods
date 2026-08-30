@@ -1,0 +1,84 @@
+-- Sharing metadata read by tooling and the mod manager's detail pane; never
+-- by the loader's merge.
+return {
+  summary = "The quality-of-life half of the Gen1Wild suite in one mod: "
+    .. "sprinting, autosave, auto continue, sound fixes, followers, all 151 "
+    .. "catchable, EXP share and later-generation conveniences. Every "
+    .. "feature switches on and off by itself.",
+  author = "wild1walker",
+  contact = "https://github.com/wild1walker/Gen1WildQOL",
+  tags = { "quality-of-life", "bundle", "sprint", "autosave", "followers",
+    "exp-share", "collection" },
+  differences = {
+    added = {
+      "a GEN1WILD QOL row on the OPTION screen: one row per feature, "
+        .. "switched on or off there, with that feature's own settings one "
+        .. "press of A away",
+      "thirteen features drawn from ten sources. Eight remain their own "
+        .. "repositories and are pinned here as submodules; EXP SHARE and "
+        .. "the four later-generation conveniences began as other people's "
+        .. "mods and are maintained in this repository now, which changes "
+        .. "who looks after the code and not who wrote it -- the credits "
+        .. "below stand either way",
+      "MENU LAYOUT and MOD MANAGER, which Gen1WildUI also carries. They "
+        .. "are the furniture every other feature is reached through, so "
+        .. "neither half goes without them. With both bundles installed the "
+        .. "first to load sets one up and the other stands down, and their "
+        .. "settings are stored under a shared id so they do not move when "
+        .. "the winner does",
+    },
+    changed = {
+      "EXP SHARE ships as GEN 5+ rather than OFF -- the fighters keep their "
+        .. "full experience and every living bench Pokemon gains half a "
+        .. "fighter's share. Seeded once on a save that has never carried "
+        .. "the setting; a stored choice is never overwritten",
+      "the area banner is a plaque sized to the name it carries, anchored "
+        .. "top-left and sliding in from that edge, rather than the "
+        .. "dialogue box's full-width geometry flush with the bottom of the "
+        .. "screen. POSITION: BOTTOM restores the original placement",
+      "the XP bar is not in this bundle: it is XP BAR in Gen1BattleUI, which "
+        .. "ships in Gen1WildUI. Drawn from here it went down in a wrapper "
+        .. "around battle.draw, which runs after every battle.overlay link "
+        .. "whatever priority they carry, so it could not be drawn over and "
+        .. "clipped itself to x=88 -- where the VANILLA move panel ends. "
+        .. "Gen1BattleUI's panel ends at 112, so the bar lay across its PP "
+        .. "row. Drawn from inside that mod it goes down before the panel "
+        .. "and is covered by it, with nothing to keep in step",
+      "the three remaining Quality of Life features are three separate rows "
+        .. "rather than one submenu, because they have nothing to do with "
+        .. "each other, and all three ship on -- the caught marker, a "
+        .. "three-second area banner and easy HM use",
+      "EXP SHARE is configured in this bundle's menu rather than on the "
+        .. "engine's OPTIONS screen, so every feature here has one home",
+    },
+    known = {
+      "a feature whose upstream mod has no off switch of its own -- SOUND, "
+        .. "FOLLOWERS, EXP SHARE and three of the four Quality of Life "
+        .. "features -- is gated at load, so switching it takes effect on "
+        .. "the next launch. The menu marks those rows with an asterisk and "
+        .. "says so in the footer. The rest are live",
+      "installing this alongside any of the eight mods it is built from is "
+        .. "a conflict, and the manifest declares it: they would both "
+        .. "install the same hooks",
+      "settings are stored under this bundle's id, not the individual "
+        .. "mods', so moving from the standalone mods to the bundle starts "
+        .. "them at their defaults",
+    },
+  },
+  credits = {
+    { who = "unxpected-uxp", for_ = "the Quality of Life mod: the caught "
+      .. "marker, easy interactions and the location banner this one "
+      .. "redraws, and the XP bar that now ships in Gen1BattleUI. "
+      .. "Maintained here now, theirs by origin" },
+    { who = "ShaneMcGovernIE", for_ = "exp_share, essentially whole -- a "
+      .. "different default and a different menu around it. Maintained here "
+      .. "now, theirs by origin" },
+    { who = "Antigravity, gamecorner33 and the PokePC Followers lineage",
+      for_ = "the follower work Gen1Follower is built from" },
+    { who = "Wowabox (Darklinkduck)", for_ = "All Pokemon Catchable 151, "
+      .. "which got to a complete Kanto dex in one save first" },
+    { who = "Gen1Recomp", for_ = "the mod API every one of these is built on" },
+    { who = "pret", for_ = "the disassemblies underneath all of it" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}

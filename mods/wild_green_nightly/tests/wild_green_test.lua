@@ -776,7 +776,8 @@ end
 
 local function fakeMod(options)
   local log = {}
-  local mod = { log = {}, calls = log, hooks = { wrapped = {} } }
+  local mod = { log = {}, calls = log, exports = {},
+                hooks = { wrapped = {} } }
   function mod.hooks:wrap(name, fn)
     self.wrapped[name] = fn
     log[#log + 1] = "wrap " .. name
@@ -789,6 +790,10 @@ local function fakeMod(options)
     defined = nil,
     define = function(self, rows) self.defined = rows end,
     get = function(_, key) return options[key] end,
+    -- The engine writes the value where the reader will find it, so the stub
+    -- does too -- otherwise a test could not tell a row that was really
+    -- turned from one whose write went nowhere.
+    set = function(_, key, value) options[key] = value end,
   }
   mod.assets = {
     path = function(_, rel) return "mods/wild_green/" .. rel end,
@@ -1856,6 +1861,37 @@ do
              "assets/generated/battle/redb.png", {}),
     "assets/generated/green/battle/redb.png",
     "and the flat copy the moment the row moves")
+end
+
+
+io.write("main.lua -- what the bench drives\n")
+do
+  local options = { player = "green", ribbon = true, title_figure = true }
+  local mod = fakeMod(options)
+  chunk(MOD .. "main.lua")(mod)
+
+  local suits = mod.exports.suits
+  ok(type(suits) == "function", "the suits are published")
+  eq(#suits(), 10, "all ten of them, RED included")
+  eq(suits()[1], "green", "green first, because it is the default")
+
+  eq(mod.exports.suit(), "green", "and the current one can be read")
+
+  ok(mod.exports.setSuit("purple"), "the bench can turn the row")
+  eq(mod.exports.suit(), "purple", "...and it turns")
+  eq(options.player, "purple",
+    "through mod.options:set, so the manager and the save see it too -- not "
+    .. "into an upvalue only this mod can read")
+
+  local zones = zonesThrough(mod, advancedTitleZones())
+  eq(hex(zones[2].colors[3]), "54377e",
+    "the title screen follows it on the very next frame")
+
+  ok(not mod.exports.setSuit("chartreuse"),
+    "a colour that is not a suit is refused")
+  eq(mod.exports.suit(), "purple", "and nothing moves")
+  ok(mod.exports.setSuit("red"), "RED is a suit the row can be set to")
+  eq(mod.exports.suit(), "red", "...because it is a value, not an absence")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))

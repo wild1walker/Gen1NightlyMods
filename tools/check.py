@@ -8,6 +8,8 @@ carried in the fork and is run from here, so a palette that has drifted or a
 changelog with no heading still fails.  What that cannot see is anything ABOUT
 the channel, and this is that list:
 
+  * a mod with no checks of its own has every Lua file compiled here, so a
+    mod written for this channel is not the one thing nothing looks at.
   * every mod in `mods/` carries the CHANNEL's version.  The nightly ships as
     one tag with one release on it and several archives, which is what lets
     the cart and every mod it pins go out together; cartkit resolves a github
@@ -37,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -162,13 +165,47 @@ def check_packed():
           [sys.executable, str(ROOT / "tools" / "pack.py"), "--check"], ROOT)
 
 
+def lua_binary():
+    for candidate in ("luajit", "lua5.1", "lua"):
+        if shutil.which(candidate):
+            return candidate
+    return None
+
+
+def check_lua(directory, quiet):
+    """Every Lua file in a mod compiles.
+
+    Only for a mod with no checks of its own.  The two forked bundles run a
+    syntax pass as the first thing their own check.py does, so doing it again
+    here would be doing it twice; a mod written for this channel has no
+    check.py and would otherwise have nothing at all standing between a typo
+    and a release.
+    """
+    binary = lua_binary()
+    if binary is None:
+        fail(directory.name, "no lua interpreter found, so nothing was "
+                             "compiled")
+        return
+    flag = "-bl" if binary == "luajit" else "-p"
+    files = sorted(path for path in directory.rglob("*.lua")
+                   if ".git" not in path.parts)
+    for path in files:
+        run = subprocess.run([binary, flag, str(path)],
+                             capture_output=True, text=True)
+        if run.returncode != 0:
+            fail(directory.name, "%s: %s"
+                 % (path.relative_to(directory),
+                    (run.stderr or run.stdout).strip()))
+    if not quiet:
+        print("  %-22s %d lua file(s) compile" % (directory.name, len(files)))
+
+
 def check_each_mod(quiet):
     """Every mod's own checks, from its own directory."""
     for directory in mod_dirs():
         own = directory / "tools" / "check.py"
         if not own.is_file():
-            if not quiet:
-                print("  %-22s no checks of its own" % directory.name)
+            check_lua(directory, quiet)
             continue
         ok = rerun(directory.name + "/tools/check.py",
                    [sys.executable, "tools/check.py"], directory)

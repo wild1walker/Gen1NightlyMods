@@ -6,6 +6,21 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.2.0] - 2026-08-30
+
+### Added
+
+- **`suits`, `suit` and `setSuit`, published.** `PLAYER` is the one row in this
+  mod worth turning repeatedly — it is live now, and "live" is a claim somebody
+  has to be able to check — so the three things needed to turn it are exported
+  rather than left to be reached for.
+
+  `setSuit` goes through `mod.options:set`, so the mod manager, the save and
+  this mod all see the same value, and then does the same work the
+  `mod.options_changed` listener does rather than keeping a second copy of it.
+  A build with no test bench installed simply has three exports nobody asks
+  for.
+
 ## [0.1.0] - 2026-08-30
 
 Forked from Wild Green 1.26.0.

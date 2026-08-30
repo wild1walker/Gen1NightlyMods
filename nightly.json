@@ -1,6 +1,6 @@
 {
   "channel": "nightly",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "forks": {
     "gen1_wild_ui_nightly": {
       "upstream": "wild1walker/Gen1WildUI",
@@ -10,6 +10,11 @@
     "wild_green_nightly": {
       "upstream": "wild1walker/Gen1MakeItGreen",
       "upstream_id": "wild_green",
+      "base": "1.26.0"
+    },
+    "gen1_wild_qol_nightly": {
+      "upstream": "wild1walker/Gen1WildQOL",
+      "upstream_id": "gen1_wild_qol",
       "base": "1.26.0"
     }
   }

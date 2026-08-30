@@ -24,11 +24,22 @@ tell at a glance which one you are opening.
 |---|---|---|
 | **[Wild Green Nightly](mods/wild_green_nightly)** | the player in green, the names, and `WILD GREEN VERSION` on the title screen | [Gen1MakeItGreen][green] |
 | **[Gen1WildUI Nightly](mods/gen1_wild_ui_nightly)** | the visual half of the suite: backdrops, battle menus, the Pokédex, the box, the party menu, the bag, the mod manager — and `UI THEME` | [Gen1WildUI][ui] |
-| **[`cart.json`](cart.json)** | the **Wild Green Nightly** cart: the nightly mods pinned together with the stable [Gen1WildQOL][qol] and Crystal animated sprites | — |
+| **[Gen1WildQOL Nightly](mods/gen1_wild_qol_nightly)** | the quality-of-life half: sprinting, autosave, auto continue, followers, all 151, EXP share, menu layout | [Gen1WildQOL][qol] |
+| **[Test Bench](mods/gen1_bench_nightly)** | **nightly only.** A `BENCH` row on the START menu with everything this channel is changing on one screen | — |
+| **[`cart.json`](cart.json)** | the **Wild Green Nightly** cart: the four above, plus Crystal animated sprites pinned as it is | — |
 
-The quality-of-life half is not forked. Nothing in the current work touches it,
-and a fork with no changes in it is a fork that only rots — the nightly cart
-pins the released [Gen1WildQOL][qol] exactly as the stable cart does.
+### The bench ships on no release
+
+The test bench is a **mod of its own**, and that is the whole design. Gutting
+the testing weight out of a release is not a refactor, an option to switch off,
+or a flag somebody has to remember: it is *not pinning this mod*. The stable
+cart pins four mods and this is not one of them, so no release carries a line
+of it.
+
+The price is that the bench cannot see the insides of anything — every row goes
+through what another mod publishes, and a row whose mod is missing reads `--`.
+That is the right price: a bench wired into a mod's locals breaks the mod every
+time the mod is edited, and this channel edits them constantly.
 
 ## How a nightly is built
 
@@ -93,6 +104,31 @@ No relaunch. The recipe already writes all nine suits at install, so switching
 colour repoints the record and rebuilds the renderers that had read out of it.
 `PORTRAIT SKIN` moves with it. The ribbon's *artwork* and the name list are boot
 data and still wait for a restart — the ribbon's *colour* does not.
+
+### Autosave stopped landing in the middle of the fade out of a battle
+
+Two mistakes about the same blind spot: the mod knew a fade is an animation,
+and only knew it about the *overworld's* fades. The end of a battle is a stack
+state with a veil of its own, and both of the overworld's flags are false the
+whole way through it — so the frames of the fade every player watches all the
+way through were treated as the quietest in the game, and the expensive half of
+a sync cycle ran over them.
+
+And the write itself was taken on the worst frame of the outro. `BLACK OUTRO`
+is a linear ramp that was at full black for exactly one frame — the cut, where
+it pops itself off the stack, runs the engine's own `finish` and pushes itself
+back — so that was the only frame anything looking for a covered one could
+find. The outro now holds at the cut for the ten frames the engine's own return
+holds, and the save has to see the veil hold before it spends a frame under it.
+
+### No more white bar above a wide arena
+
+A battle asks the renderer for a white surround, which is right when the field
+is white paper and wrong when it is a picture: the surround stops disappearing
+and becomes a bright frame around the art — and a wide battle is 304x144, so
+the bars above and below it are the biggest thing on the screen. The backdrop's
+own edge is now stretched into them, so the picture runs off the screen instead
+of stopping at a rectangle. `EDGE TO EDGE` turns it off.
 
 ### `UI THEME`: `LIGHT`, `DARK`, `COLORFUL*`
 

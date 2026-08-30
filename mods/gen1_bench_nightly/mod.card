@@ -1,0 +1,42 @@
+-- Sharing metadata read by tooling and the mod manager's detail pane; never
+-- by the loader's merge.
+return {
+  summary = "NIGHTLY ONLY. A BENCH row on the START menu that drives the "
+    .. "things this channel is changing -- the UI theme, the player's "
+    .. "colour, the display mode, the battle layout and the backdrops -- "
+    .. "and starts a battle on demand so none of it has to be hunted for.",
+  author = "wild1walker",
+  contact = "https://github.com/wild1walker/Gen1NightlyMods",
+  tags = { "nightly", "tool", "testing", "bench", "debug" },
+  differences = {
+    added = {
+      "a BENCH row on the START menu, second to last so it does not push "
+        .. "EXIT down, opening one screen with every setting this channel "
+        .. "is changing on it",
+      "a battle on demand: pick an opponent and a level and press A, which "
+        .. "is how a backdrop, a fade or an outro gets looked at without "
+        .. "first finding grass",
+      "the autosave's own request, and a reading of whether it has landed. "
+        .. "There is deliberately no write-it-now: a save takes the same "
+        .. "windows a save always takes, which is the thing being tested",
+    },
+    changed = {
+      "nothing. Every row goes through what another mod publishes, and a "
+        .. "row whose mod is not installed reports a dash and does nothing",
+    },
+    known = {
+      "this mod ships on no release, by construction: it is not a feature "
+        .. "inside a bundle and not a flag to remember, it is a mod the "
+        .. "stable cart does not pin. Gutting it is not pinning it",
+      "the bench cannot see the insides of anything. It reaches the other "
+        .. "mods only through their exports, which is the price of not "
+        .. "breaking them every time they are edited -- and this channel "
+        .. "edits them constantly",
+    },
+  },
+  credits = {
+    { who = "Gen1Recomp", for_ = "the mod API, the OptionRows chrome this "
+      .. "screen is drawn in, and the START menu hook it hangs off" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}

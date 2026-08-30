@@ -1,0 +1,44 @@
+{
+  "id": "gen1_wild_qol_nightly",
+  "name": "Gen1WildQOL Nightly",
+  "version": "0.2.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "QOL",
+  "game_version": ">=0.1.37 <2.0.0",
+  "priority": 100,
+  "dependencies": [],
+  "optional_dependencies": [
+    "gen1_wild_ui_nightly",
+    "gen1_wild_ui",
+    "CRYSTAL_251",
+    "DRAMATIC_SHAPE",
+    "unique_menu_icons"
+  ],
+  "conflicts": [
+    "gen1_wild_qol",
+    "gen1_sprint",
+    "gen1autosave",
+    "gen1_auto_continue",
+    "gen1_sound_qol",
+    "Gen1Follower",
+    "gen151",
+    "exp_share",
+    "quality_of_life",
+    "recomp-autosave",
+    "Gen1MenuManager",
+    "gen1_mod_menu",
+    "Gen1Remember"
+  ],
+  "incompatible": [],
+  "games": [
+    "gen1"
+  ],
+  "experimental": false,
+  "permissions": [
+    "engine_internals"
+  ],
+  "github": "wild1walker/Gen1NightlyMods",
+  "description": "NIGHTLY. The quality-of-life half of the Gen1Wild suite in one mod: sprinting, autosave, auto continue, sound, followers, all 151, EXP share, the move reminder, menu layout and the mod manager. Every feature switches on and off by itself."
+}

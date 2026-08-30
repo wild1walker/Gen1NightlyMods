@@ -1173,6 +1173,40 @@ return function(mod)
   end)
   end
 
+  -- ------- what the bench drives
+  --
+  -- PLAYER is the one row in this mod worth turning repeatedly -- it is live
+  -- now, and "live" is a claim somebody has to be able to check -- so the
+  -- three things a bench needs to turn it are published rather than left to
+  -- be reached for.  Reading and writing the row itself, not the upvalue:
+  -- `setSuit` goes through mod.options:set so the mod manager, the save and
+  -- this mod all see the same value, and then does the same work the
+  -- options_changed listener does rather than duplicating it.
+  --
+  -- Nothing here is required for the mod to work.  A build with no bench
+  -- installed simply has three exports nobody asks for.
+  mod.exports.suits = function()
+    local out = {}
+    for _, name in ipairs({ "green", "red", "orange", "blue", "purple",
+                            "yellow", "pink", "black", "white", "grey" }) do
+      out[#out + 1] = name
+    end
+    return out
+  end
+
+  mod.exports.suit = function() return suit end
+
+  mod.exports.setSuit = function(name)
+    if type(name) ~= "string" then return false end
+    if name ~= "red" and not SUITS[name] then return false end
+    if mod.options and type(mod.options.set) == "function" then
+      pcall(function() mod.options:set("player", name) end)
+    end
+    wear(name)
+    relive("the bench")
+    return true
+  end
+
   -- One line a player can quote back when a picture stays red.  The recipe
   -- only recolours what the cache actually carries, and which pictures those
   -- are is the difference between "this mod is broken" and "your import
