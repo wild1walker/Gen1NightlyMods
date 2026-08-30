@@ -727,11 +727,29 @@ function Theme.new(context)
   -- is the other half of that, and the two are kept in step by a flag the
   -- painter sets on the state for exactly the frame it painted.
   --
-  -- The bands are left as they are, which is the whole point: the logo, the
-  -- ribbon and the mon keep colours 0, 1 and 2.  Only colour 3 is pinned --
-  -- that is what a black page reads as, and pinning it means the ground is
-  -- black whatever palette the cart ships rather than "whatever this band's
-  -- darkest colour happened to be".
+  -- The ART colours are left as they are, which is the whole point: the
+  -- logo's yellow, its grey drop shadow and the ribbon's green are colours 1
+  -- and 2 and are not touched.  BOTH ENDS OF THE RAMP are pinned to black:
+  --
+  --   colour 3, because that is what the painted page reads as, and pinning
+  --   it means the ground is black whatever palette the cart ships rather
+  --   than "whatever this band's darkest colour happened to be";
+  --
+  --   colour 0, because the page is not the only white on this screen.  The
+  --   logo and the version ribbon are drawn from images that carry their own
+  --   OPAQUE WHITE FIELD -- `love.graphics.draw(self.logo, 16, 8)` paints
+  --   that field over whatever the page was -- so 0.29.0 painted the page
+  --   black and got two white rectangles, one around POKeMON and one around
+  --   WILD GREEN VERSION, exactly the size of the art.  Every shade-0 pixel
+  --   on this screen is paper: the page under the art, and the art's own
+  --   paper.  Pinning colour 0 makes both of them black and leaves the
+  --   letters alone.
+  --
+  -- The paint in matte.lua is still needed and is not made redundant by
+  -- this: a true-colour rectangle re-blits RAW and never reaches the shader
+  -- at all, so what is under the mon and the player figure has to actually
+  -- BE black pixels.  The palette handles the shaded paper; the paint
+  -- handles the raw.
   --
   -- Then one strip on top: the copyright row, reversed, because its ink is
   -- black and its page is the white matte.lua left for it.
@@ -756,7 +774,7 @@ function Theme.new(context)
     local out = restyled(zones, function(_, zone)
       local colors = zone.colors
       if type(colors) ~= "table" then return colors end
-      return { colors[1], colors[2], colors[3], BLACK }
+      return { BLACK, colors[2], colors[3], BLACK }
     end)
     out[#out + 1] = { colors = REVERSED_GREYS,
                       x = 0, y = COPYRIGHT_ROW * 8, w = 160, h = 8 }

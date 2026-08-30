@@ -193,11 +193,20 @@ do
 
   eq(#out, 4, "the three bands, and one strip for the copyright row")
   ok(out ~= zones, "and a new list -- the state's own is never written into")
-  eq(out[1].colors[1][1], 255, "the logo keeps its paper")
-  eq(out[1].colors[2][2], 200, "...and its own colour 1")
-  eq(out[3].colors[2][1], 255, "so does the mon")
-  eq(out[1].colors[4][1], 0, "colour 3 is pinned black: that is the ground")
-  eq(out[3].colors[4][1], 0, "...on every band, whatever the cart shipped")
+  eq(out[1].colors[2][2], 200, "the logo keeps colour 1 -- its yellow")
+  eq(out[1].colors[3][1], 200, "...and colour 2, its drop shadow")
+  eq(out[3].colors[2][1], 255, "and the mon keeps its own two as well")
+
+  -- Both ends of the ramp, not just the ink end.  Colour 3 is what the
+  -- painted page reads as; colour 0 is the OTHER white on this screen -- the
+  -- logo and the ribbon are images with an opaque white field of their own,
+  -- and 0.29.0 painted the page black and left two white rectangles exactly
+  -- the size of that art.
+  eq(out[1].colors[1][1], 0, "colour 0 is pinned black: the art's own paper")
+  eq(out[1].colors[4][1], 0, "and colour 3: the page under it")
+  eq(out[2].colors[1][1], 0, "the ribbon's white field goes too")
+  eq(out[3].colors[1][1], 0, "...on every band, whatever the cart shipped")
+  eq(out[3].colors[4][1], 0, "...both ends of it")
 
   eq(out[4].y, 136, "the strip is the copyright row")
   eq(out[4].h, 8, "...and only that row")

@@ -7,6 +7,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.29.1] - 2026-08-30
+
+_No changes in this release; the channel ships one version across every
+mod, so this is here to match it._
+
 ## [0.29.0] - 2026-08-30
 
 _No changes in this release; the channel ships one version across every

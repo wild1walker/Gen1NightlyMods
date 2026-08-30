@@ -6,6 +6,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.29.1] - 2026-08-30
+
+### Fixed
+
+- **The logo and the version ribbon had white boxes behind them.** 0.29.0
+  painted the title screen's page black and pinned colour 3 — what a black
+  page reads as — while leaving colour 0 alone, on the reasoning that the
+  page was the only white on the screen. It is not. The logo and the ribbon
+  are drawn from images that carry their own **opaque white field**, painted
+  over the page by the draw itself, so the screen came up with two white
+  rectangles on it: one around POKeMON and one around WILD GREEN VERSION,
+  each exactly the size of its art.
+
+  Both ends of the ramp are pinned now. Every shade-0 pixel on this screen is
+  paper — the page under the art and the art's own paper — so colour 0 goes
+  black with colour 3, and the letters, which are colours 1 and 2, are
+  untouched: the logo keeps its yellow and its grey drop shadow, the ribbon
+  keeps its green.
+
+  The paint is still doing its job and is not made redundant by this. A
+  true-colour rectangle re-blits raw and never reaches the shader, so what
+  sits under the mon and the player figure has to actually BE black pixels.
+  The palette handles the shaded paper; the paint handles the raw.
+
 ## [0.29.0] - 2026-08-30
 
 ### Added
