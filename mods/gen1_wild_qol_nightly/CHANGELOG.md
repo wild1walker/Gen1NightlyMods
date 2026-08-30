@@ -7,6 +7,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.18.0] - 2026-08-30
+
+### Changed
+
+- **A rematch costs half of what it pays.** The engine's win branch adds
+  `baseMoney × level` inside the battle, and the rematch now asks for half of
+  that before it starts — so a win nets you the other half and a loss costs
+  you the stake. A repeatable battle that paid full price would be a money
+  printer; one that paid nothing would be a trip for exp alone. Half is the
+  fight being worth making and worth losing.
+
+  The price is quoted before you are charged, in the words the game already
+  uses for a price: the prompt is two pages now, `Want to battle again?` and
+  then the mart's own `That will be ¥1200. OK?`, with the `YES`/`NO` after it.
+  Short of the money, you get the mart's `You don't have enough money.` and
+  nothing is taken.
+
+  It is read off the battle that is about to be fought rather than off the
+  trainer's data table, and that is deliberate: `baseMoney × level` uses the
+  level of the **last** mon in the party as the battle actually built it, so
+  anything that rewrites a trainer's party on the way in — a difficulty mod
+  through `trainer.party`, this suite's own or somebody else's — moves the
+  prize and the price together with nothing here having to know it happened.
+  The cost is that the battle is built to be asked and thrown away on a `NO`;
+  the only trace that leaves is the first mon marked `SEEN`, which it was when
+  you beat them.
+
+  **`REMATCH PRIZE` off takes both halves out**: nothing is staked, the prompt
+  is asked with no price on it, and the prize the engine paid is put back
+  afterwards. Off is a rematch with no money in it at all, in either
+  direction.
+
+  `tests/rematch_test.lua` is 47 assertions now: the stake on entry, the net
+  on a win, the stake lost on a blackout, one yen short and exactly enough,
+  and that a `NO` pushes no battle and is charged nothing.
+
 ## [0.17.0] - 2026-08-30
 
 ### Added

@@ -59,9 +59,18 @@ package.loaded["src.render.TextBox"] = {
   end,
 }
 
+-- The prize, and so the price, is baseMoney times the level of the LAST mon
+-- in the party as the battle actually built it -- so the fake battle carries
+-- both, the way a real one does.
+local BASE_MONEY, LAST_LEVEL = 40, 24        -- prize 960, price 480
+
 package.loaded["src.battle.BattleState"] = {
   newTrainer = function(game, class, party)
-    local battle = { game = game, oppClass = class, partyIndex = party }
+    local battle = {
+      game = game, oppClass = class, partyIndex = party,
+      trainer = { baseMoney = BASE_MONEY },
+      enemyParty = { { level = 9 }, { level = LAST_LEVEL } },
+    }
     battles[#battles + 1] = battle
     return battle
   end,
@@ -77,7 +86,7 @@ local function newWorld(options)
   local pressed = {}
 
   local game = {
-    save = { money = 3000 },
+    save = { money = options.money or 3000 },
     stack = { pushed = {}, push = function(self, state)
       self.pushed[#self.pushed + 1] = state
     end },
@@ -118,7 +127,8 @@ end
 
 local function install(stored)
   boxes, battles = {}, {}
-  local world = newWorld(stored and stored.world or nil)
+  local world = newWorld(stored and (stored.world or { money = stored.money })
+                         or nil)
   local values = (stored and stored.options) or {}
   local wrapped
 
@@ -162,7 +172,9 @@ do
   -- A closed the box, so the press this frame is not B
   boxes[1].onDone()
   eq(#boxes, 2, "the prompt follows")
-  eq(boxes[2].text, "Want to battle\nagain?", "asking the obvious question")
+  eq(boxes[2].text,
+     "Want to battle\nagain?\fThat will be\n\194\165480. OK?",
+     "asking the question, then quoting half the prize")
   ok(type(boxes[2].opts.choice) == "function", "as a YES / NO")
   ok(w.npc.frozen, "still held while the question is up")
 
@@ -210,8 +222,61 @@ do
   w.talk()
   boxes[1].onDone()
   boxes[2].opts.choice(false)
-  eq(#battles, 0, "no battle")
+  -- The battle was BUILT to quote the price and then dropped: what matters is
+  -- that it never reached the stack and nothing was charged for it.
+  ok(w.ow.pushed == nil, "no battle is pushed")
+  eq(w.game.save.money, 3000, "and nothing is charged")
   ok(not w.npc.frozen, "the trainer is let go")
+end
+
+-- --------------------------------------------------------------- the price
+
+do
+  io.write("a rematch costs half of what it pays\n")
+  local w = install()
+  w.talk()
+  boxes[1].onDone()
+  boxes[2].opts.choice(true)
+  -- baseMoney 40 * the LAST mon's level 24 = a 960 prize, so 480 to enter
+  eq(w.game.save.money, 2520, "the stake is taken when the battle starts")
+
+  -- the engine's own win branch pays the whole prize inside the battle
+  w.game.save.money = w.game.save.money + 960
+  battles[1].onFinish("win")
+  eq(w.game.save.money, 3480, "and a win nets you the other half")
+end
+
+do
+  io.write("a loss costs you the stake\n")
+  local w = install()
+  w.talk()
+  boxes[1].onDone()
+  boxes[2].opts.choice(true)
+  battles[1].onFinish("lose")
+  eq(w.game.save.money, 2520, "which is what makes the fight worth losing")
+  eq(w.ow.finished, "lose", "and the overworld still hears about it")
+end
+
+do
+  io.write("what you cannot afford you are not sold\n")
+  local w = install({ money = 479 })
+  w.talk()
+  boxes[1].onDone()
+  eq(#boxes, 2, "a box, but not the question")
+  eq(boxes[2].text, "You don't have\nenough money.",
+     "the mart's own line, for the same reason")
+  ok(boxes[2].opts == nil, "no YES / NO on it")
+
+  boxes[2].onDone()
+  ok(w.ow.pushed == nil, "nothing is fought")
+  eq(w.game.save.money, 479, "and nothing is taken")
+  ok(not w.npc.frozen, "the trainer is let go")
+
+  -- exactly enough is enough
+  local exact = install({ money = 480 })
+  exact.talk()
+  boxes[1].onDone()
+  ok(boxes[2].opts and boxes[2].opts.choice, "480 buys a 480 rematch")
 end
 
 -- -------------------------------------------------- who is handed back
@@ -239,19 +304,17 @@ end
 do
   io.write("REMATCH PRIZE decides whether the win pays\n")
 
-  local paid = install({ options = { prize = true } })
-  paid.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
-  paid.game.save.money = paid.game.save.money + 480   -- the battle's own prize
-  battles[1].onFinish("win")
-  eq(paid.game.save.money, 3480, "on, the prize is left where the battle put it")
-
   local free = install({ options = { prize = false } })
-  free.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
-  free.game.save.money = free.game.save.money + 480
+  free.talk(); boxes[1].onDone()
+  eq(boxes[2].text, "Want to battle\nagain?",
+     "off, the question is asked with no price on it")
+  boxes[2].opts.choice(true)
+  eq(free.game.save.money, 3000, "so nothing is staked")
+  free.game.save.money = free.game.save.money + 960   -- the engine pays anyway
   battles[1].onFinish("win")
-  eq(free.game.save.money, 3000, "off, the money is put back afterwards")
+  eq(free.game.save.money, 3000, "and the prize is put back afterwards")
 
-  -- Only a win pays, so only a win is refunded -- and a loss has already
+  -- Only a win pays, so only a win is refunded -- a blackout has already
   -- taken its own money on the way out of the battle, which is not ours.
   local lost = install({ options = { prize = false } })
   lost.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)

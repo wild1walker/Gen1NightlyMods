@@ -38,22 +38,45 @@
 -- whose levels move is a different feature, and it would want to say so on
 -- screen before the battle starts.
 --
--- Prize money is paid, because the engine pays it: the win branch adds
--- `baseMoney * level` inside the battle (src/battle/BattleState.lua:4721-4722)
--- and there is no hook between there and the save.  REMATCH PRIZE off does
--- not suppress it, it puts the money back afterwards -- see startBattle.
+-- ------- what it costs
+--
+-- Half of what they pay, up front.  The engine's win branch adds
+-- `baseMoney * level` (src/battle/BattleState.lua:4721-4722) and the rematch
+-- asks for half of that before the battle starts, so a win nets you the other
+-- half and a loss costs you the stake.  A repeatable battle that paid full
+-- price would be a money printer; one that paid nothing would be a trip for
+-- exp alone.  Half is the fight being worth making and worth losing.
+--
+-- The price is read off the battle that is about to be fought rather than off
+-- the trainer's data table, and that is deliberate: `baseMoney * level` uses
+-- the level of the LAST mon in the party as the battle actually built it, so
+-- anything that rewrites a trainer's party on the way in -- a difficulty mod
+-- through `trainer.party`, this suite's own or somebody else's -- moves the
+-- prize and the price together, with nothing here having to know it happened.
+-- The cost is that the battle is built to be asked and thrown away if you say
+-- no; the only trace that leaves is the first mon marked SEEN, which it was
+-- when you beat them.
+--
+-- REMATCH PRIZE off takes both halves out: nothing is charged, and the prize
+-- the engine paid is put back afterwards.  Off is a rematch with no money in
+-- it at all, in either direction.
 
 return function(mod)
 
-  local PROMPT = "Want to battle\nagain?"
+  -- Two pages, closing on the mart's own line (src/ui/ShopMenu.lua:90), so
+  -- the price is stated in the words this game already uses for a price and
+  -- nobody is charged for something they were not shown.  The YES/NO comes up
+  -- by itself once the last page has typed out.
+  local ASK = "Want to battle\nagain?"
+  local PRICED = ASK .. "\fThat will be\n\194\165%d. OK?"
+  local BROKE = "You don't have\nenough money."
 
   mod.options:define({
     { key = "enabled", type = "toggle", label = "TRAINER REMATCH",
       default = true },
-    -- A rematch is repeatable, so paying for it is a faucet.  On, because a
-    -- rematch that pays nothing is a trip for exp alone and every game that
-    -- has rematches pays for them; off for anyone who would rather the
-    -- economy stayed the one the cart shipped with.
+    -- The money in a rematch, both ways: the half you stake and the whole
+    -- the engine pays you back for winning.  Off is a rematch that is worth
+    -- exp and nothing else, and costs the same.
     { key = "prize", type = "toggle", label = "REMATCH PRIZE", default = true,
       visible_if = { key = "enabled", equals = true } },
   })
@@ -107,28 +130,50 @@ return function(mod)
   -- A rematch restored through it would hand out the badge a second time.
   -- With no origin the checkpoint simply does not restore this battle, which
   -- is the failure worth having.
-  local function startBattle(ow, npc, release)
+  local function build(npc)
     local game = mod.world and mod.world.game
     local def = npc.def
     local made, BattleState = pcall(require, "src.battle.BattleState")
-    if not made or type(BattleState) ~= "table" then return release() end
-
+    if not made or type(BattleState) ~= "table" then return nil end
     local built, battle = pcall(BattleState.newTrainer, game, def.trainerClass,
                                 def.trainerParty)
     if not built or type(battle) ~= "table" then
       mod.log:warn("rematch could not be started: %s", tostring(battle))
-      return release()
+      return nil
     end
+    return battle
+  end
 
-    -- Not a suppression, a refund: the prize is added inside the battle's own
-    -- win branch, downstream of anything a mod can reach.  So the money is
-    -- read before and put back after -- which also takes back a PAY DAY used
-    -- in the rematch, and that is the honest reading of the row rather than a
+  -- Half of what this battle is about to pay, which is `baseMoney` times the
+  -- level of the LAST mon in the party -- the one whose fainting runs the win
+  -- branch, so the one the engine multiplies by.  Read off the built battle
+  -- so a party rewritten on the way in moves the price with the prize.
+  local function priceOf(battle)
+    if not on("prize") then return 0 end
+    local party = battle.enemyParty
+    local last = type(party) == "table" and party[#party] or nil
+    local base = type(battle.trainer) == "table" and battle.trainer.baseMoney
+    if type(base) ~= "number" or type(last) ~= "table"
+        or type(last.level) ~= "number" then
+      return 0
+    end
+    return math.floor(base * last.level / 2)
+  end
+
+  local function startBattle(ow, battle, price, release)
+    local game = mod.world and mod.world.game
+    local save = game and game.save
+
+    -- Read before anything is charged, so REMATCH PRIZE off is neutral in
+    -- both directions.  Putting the money back also takes back a PAY DAY used
+    -- in the rematch, which is the honest reading of the row rather than a
     -- hole in it: this fight pays nothing.
-    local purse = (not on("prize")) and game and game.save and game.save.money or nil
+    local purse = (not on("prize")) and save and save.money or nil
+
+    if price > 0 and save then save.money = save.money - price end
 
     battle.onFinish = function(result)
-      if result == "win" and purse and game.save then game.save.money = purse end
+      if result == "win" and purse and save then save.money = purse end
       ow:afterBattle(result, battle)
       release()
     end
@@ -139,10 +184,26 @@ return function(mod)
     local game = mod.world and mod.world.game
     local ok, TextBox = pcall(require, "src.render.TextBox")
     if not ok or type(TextBox) ~= "table" then return release() end
-    game.stack:push(TextBox.new(game, say(PROMPT), nil, {
+
+    -- Built here rather than after the YES, because the price cannot be
+    -- quoted until the party is known and nobody should be charged for a
+    -- number they were not shown.  A NO throws it away; see the note at the
+    -- top about what that costs.
+    local battle = build(npc)
+    if not battle then return release() end
+
+    local price = priceOf(battle)
+    local purse = (game.save and game.save.money) or 0
+    if price > purse then
+      return game.stack:push(TextBox.new(game, say(BROKE), release))
+    end
+
+    -- A free rematch is not quoted a price of nothing.
+    local ask = price > 0 and say(PRICED):format(price) or say(ASK)
+    game.stack:push(TextBox.new(game, ask, nil, {
       choice = function(yes)
         if not yes then return release() end
-        startBattle(ow, npc, release)
+        startBattle(ow, battle, price, release)
       end,
     }))
   end
