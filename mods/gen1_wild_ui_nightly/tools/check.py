@@ -406,6 +406,16 @@ def paired_bundle_id():
     return found.group(1) if found else None
 
 
+def own_bundle_id():
+    """The bundle id features.lua declares for THIS repo, or None."""
+    try:
+        text = (ROOT / "features.lua").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    found = re.search(r'id\s*=\s*"([^"]+)"', text)
+    return found.group(1) if found else None
+
+
 def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
     """A feature carried by both bundles has to be declared the same in both.
 
@@ -421,6 +431,8 @@ def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
         if not quiet:
             print("  shared:     none declared")
         return
+
+    known_ids = {name for name in (own_bundle_id(), paired_bundle_id()) if name}
 
     claimed_by: dict[str, str] = {}
     for fid, feature in sorted(shared.items()):
@@ -446,6 +458,21 @@ def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
                     "each shared feature needs its own claim key or one of "
                     "them will never install")
             claimed_by[claim] = label
+
+        # `owner` is the fallback used when NO engine module can hold the
+        # claim table: the two bundles cannot talk, so one of them is named
+        # statically as the one that installs the feature anyway.  It has to
+        # be a bundle id one of the pair actually answers to -- a name neither
+        # carries makes BOTH stand down, and the feature goes missing on
+        # exactly the builds that had no way to notice.  This fork renamed
+        # both bundles and left this field pointing at the upstream id.
+        owner = declaration.get("owner")
+        if owner and known_ids and owner not in known_ids:
+            problems.error(
+                f"{label}: shared.owner is {owner!r}, which is neither this "
+                f"bundle nor its partner ({', '.join(sorted(known_ids))}) -- "
+                "on a build where no module can hold the claim table both "
+                "bundles stand down and the feature is not installed at all")
 
     # The paired bundle, if it is checked out beside this one.
     #

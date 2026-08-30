@@ -285,7 +285,15 @@ return {
       shared = {
         claim = "gen1wild_menu_manager",
         storage = "gen1_wild_shared",
-        owner = "gen1_wild_ui",
+        -- The fork renamed the bundles; this names one of them, so it is
+        -- renamed too.  Same class of stale id as the paired_bundle this
+        -- fork carried for eleven releases, and the same consequence in
+        -- miniature: the fallback only runs when no engine module can hold
+        -- the claim table, and with a name neither nightly bundle answers to
+        -- BOTH stand down and the feature goes missing rather than being
+        -- installed twice.  tools/check.py fails on a name no bundle here
+        -- carries.
+        owner = "gen1_wild_ui_nightly",
       },
     },
 
@@ -307,7 +315,15 @@ return {
       shared = {
         claim = "gen1wild_mod_menu",
         storage = "gen1_wild_shared",
-        owner = "gen1_wild_ui",
+        -- The fork renamed the bundles; this names one of them, so it is
+        -- renamed too.  Same class of stale id as the paired_bundle this
+        -- fork carried for eleven releases, and the same consequence in
+        -- miniature: the fallback only runs when no engine module can hold
+        -- the claim table, and with a name neither nightly bundle answers to
+        -- BOTH stand down and the feature goes missing rather than being
+        -- installed twice.  tools/check.py fails on a name no bundle here
+        -- carries.
+        owner = "gen1_wild_ui_nightly",
       },
     },
   },

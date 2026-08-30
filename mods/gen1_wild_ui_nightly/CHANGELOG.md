@@ -6,6 +6,43 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.15.0] - 2026-08-30
+
+### Fixed
+
+- **The editor's `SELECT MENU` page is only there when there is a SELECT
+  menu.** `MENU LAYOUT` arranges three menus, and the third one is not this
+  suite's: `EASY HM USE` builds the overworld `SELECT` popup and hands its rows
+  round through a registry the manager joins. On a build without that feature
+  there is no such menu — not an empty one, an absent one — and the page was in
+  the cycle anyway.
+
+  What that looked like from the player's chair is the whole bug. `LEFT` off
+  the `PC` page landed on a page reading `NOTHING TO ARRANGE` and
+  `PRESS SELECT FIRST`; pressing `SELECT` there did nothing, because an empty
+  page answers only the keys that leave it; and pressing `SELECT` in the
+  overworld did nothing either, because the mod that puts a menu there was not
+  installed. Two dead keys and a page that can never be filled reads as the
+  menu manager being broken, and was reported as exactly that.
+
+  The page is out of the cycle until the registry is actually joined, and a
+  request to open the editor on it lands on `START MENU` instead. Join the
+  registry and nothing changes: the page is there, with the catalog's rows on
+  it before that menu has ever been opened. `tests/selectpage_test.lua` holds
+  all three cases — no registry, a registry with a catalog, and an older one
+  without.
+
+- **`shared.owner` named a bundle this channel does not have.** The fork
+  renamed both halves and left this field pointing at the stable `gen1_wild_ui`
+  — the same stale id as the `paired_bundle` 0.13.0 fixed, one field over.
+
+  It is the fallback used when no engine module can hold the claim table: the
+  two bundles cannot talk, so one of them is named statically as the one that
+  installs a shared feature anyway. With a name neither half answers to, BOTH
+  stand down and `MENU LAYOUT` and `MOD MANAGER` go missing entirely — on
+  exactly the builds that had no way to notice. `tools/check.py` now fails on
+  an owner neither bundle carries.
+
 ## [0.14.0] - 2026-08-30
 
 ### Changed

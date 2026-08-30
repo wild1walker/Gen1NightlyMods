@@ -7,6 +7,28 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.15.0] - 2026-08-30
+
+### Fixed
+
+- **The editor's `SELECT MENU` page is only there when there is a SELECT
+  menu.** `MENU LAYOUT` is carried by both halves of the suite and installed by
+  whichever loads first, so this is the same fix as Gen1WildUI Nightly's: a
+  page that arranges a menu the build does not have is out of the editor's
+  cycle, rather than sitting in it saying `NOTHING TO ARRANGE` and
+  `PRESS SELECT FIRST` while `SELECT` does nothing.
+
+  This bundle is the one that publishes that menu — `EASY HM USE` builds the
+  overworld `SELECT` popup — so with both halves installed the page is there as
+  before, catalog and all.
+
+- **`shared.owner` named a bundle this channel does not have.** The fork
+  renamed both halves and left this field pointing at the stable
+  `gen1_wild_ui`. It is the fallback used when no engine module can hold the
+  claim table, and with a name neither half answers to BOTH bundles stand down
+  and `MENU LAYOUT` and `MOD MANAGER` go missing entirely. `tools/check.py` now
+  fails on an owner neither bundle carries.
+
 ## [0.14.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive
