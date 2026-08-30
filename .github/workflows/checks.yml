@@ -1,0 +1,72 @@
+name: Checks
+
+# What can be proved without the engine, which for a channel of forked mods is
+# most of what goes wrong: the version is one version, the cart pins what a
+# build of mods/ produces, the label is what the tool draws, and every mod's
+# own checks and tests still pass.
+#
+# The engine is not here, so nothing about what a feature DOES is tested.  Each
+# mod's tests stand the seams up themselves and are run below.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      # Every mod's own tests are LuaJIT scripts, and its check.py compiles
+      # each of its Lua files as a first pass.
+      - name: Install LuaJIT
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit
+
+      - name: The channel agrees with itself
+        run: python3 tools/check.py
+
+      - name: Every mod's tests
+        run: |
+          set -euo pipefail
+          failed=0
+          for mod in mods/*/; do
+            [ -d "$mod/tests" ] || continue
+            for test in "$mod"tests/*_test.lua; do
+              [ -f "$test" ] || continue
+              echo "::group::${test}"
+              ( cd "$mod" && luajit "tests/$(basename "$test")" ) || failed=1
+              echo "::endgroup::"
+            done
+          done
+          exit "$failed"
+
+      - name: Fetch cartkit
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cartkit.py" \
+            "https://raw.githubusercontent.com/bryanthaboi/gen1recomp/dev/tools/cartkit.py"
+          python3 "$RUNNER_TEMP/cartkit.py" selftest --quiet
+
+      # Schema only.  `--online` would ask GitHub to resolve pins that point at
+      # this repository's own next release, which does not exist until the
+      # release job publishes it -- and the two pins it would check are
+      # computed from the archives that job uploads, which is a stronger
+      # guarantee than fetching them back would be.
+      - name: The cart is a valid cart
+        run: python3 "$RUNNER_TEMP/cartkit.py" validate .
