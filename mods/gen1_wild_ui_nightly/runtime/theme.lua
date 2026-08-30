@@ -167,29 +167,32 @@ Theme.PAGES = {
   "src.mods.ManagerState",
 }
 
--- ------- a page only while something is standing on it
+-- ------- a page whose art is worth keeping
 --
--- The title screen is a picture for most of its life and a page for the rest
--- of it, and the difference is whether the menu is open.
+-- The title screen is a page and a picture at the same time, which is why it
+-- is neither in PAGES nor left out of everything.
 --
--- `TitleState:draw` opens with a white fill of the whole screen and then
--- `if self.menuOpen then return end` (TitleState.lua:711-715) -- MainMenu's
--- own ClearScreen, which wipes the logo, the mon and the sprites before the
--- CONTINUE / NEW GAME border goes down.  So from the moment that menu opens
--- there is no art on that screen at all: it is blank paper with two boxes on
--- it, and it is the first thing a dark-mode boot puts in front of you.
+-- Reversed like an ordinary page it would come out wrong twice over: the
+-- POKeMON logo's colours would swap around into something nobody chose, and
+-- the version ribbon -- WILD GREEN VERSION, lettered in the character's own
+-- outfit colour over four releases of getting that number right -- would come
+-- out in whatever the reversal made of it.  Left alone it is a white screen
+-- in a dark game, and the first thing a dark boot puts in front of you.
 --
--- Treated as a picture it came out as the boxes reversed and the paper around
--- them left white -- a black CONTINUE box in the top left, a black
--- PLAYER / BADGES / POKeDEX / TIME box under it, and white in the corners
--- neither of them reaches.
+-- So a page named here has its GROUND moved out from under it instead of
+-- being inverted.  Paper goes to the dark page's black, ink takes the paper's
+-- old white, and the two midtones -- which is where every coloured thing on
+-- this screen lives -- are not touched at all.  The logo keeps its colours on
+-- black, the ribbon keeps its green, and GAME FREAK inc. along the bottom,
+-- which the engine draws in shade 3 (TitleState.lua:823), flips to white
+-- instead of going black on black.
 --
--- So the rule is the stack rather than the class: a frame owner named here is
--- a page WHEN SOMETHING IS STACKED ON IT, and a picture when it is alone.
--- Nothing is pushed over the title but that menu, and the menu is exactly
--- when the art is gone, so the two questions have the same answer and this
--- one can be asked without the engine's own `menuOpen` being reachable.
-Theme.COVERED_PAGES = {
+-- The same rule covers the CONTINUE menu the title opens into: those boxes
+-- are DMG greys, so grounding them is paper black and ink white, which is
+-- what a menu wants.  `TitleState:draw` fills the screen white and returns
+-- the moment that menu is up (TitleState.lua:711-715), so there is no art
+-- left to preserve by then and nothing to tell the two cases apart with.
+Theme.GROUND_PAGES = {
   "src.ui.TitleState",
 }
 
@@ -208,7 +211,7 @@ local function resolve(paths)
 end
 
 local function pageClasses() return resolve(Theme.PAGES) end
-local function coveredClasses() return resolve(Theme.COVERED_PAGES) end
+local function groundClasses() return resolve(Theme.GROUND_PAGES) end
 
 -- ------- the transforms
 
@@ -415,7 +418,7 @@ function Theme.new(context)
   local self = {}
 
   local classes                         -- built on the first frame
-  local covered
+  local grounds
   local reversals = setmetatable({}, { __mode = "k" })
 
   function self.read()
@@ -489,12 +492,10 @@ function Theme.new(context)
         classes = classes or pageClasses()
         if classes[getmetatable(state)] then return state, i end
         if state.sgbPalettes then
-          -- A picture with something standing on it is a page after all; see
-          -- Theme.COVERED_PAGES.  Alone, it is the picture it looks like.
-          covered = covered or coveredClasses()
-          if i < #states and covered[getmetatable(state)] then
-            return state, i
-          end
+          -- A page whose art is kept; see Theme.GROUND_PAGES.  Reported as a
+          -- page, and `grounds` is what tells apply which transform it wants.
+          grounds = grounds or groundClasses()
+          if grounds[getmetatable(state)] then return state, i end
           -- owns the frame and is not a page: the frame is not ours, but
           -- anything stacked ON it still might be, so say where it sits
           return nil, i
@@ -699,6 +700,28 @@ function Theme.new(context)
     return DARK_PAGE
   end
 
+  -- Paper and ink swap; the midtones stay exactly where they are.
+  --
+  -- Which is the whole difference between this and `reverse`: a reversal moves
+  -- all four shades, and shades 1 and 2 are where a coloured screen keeps its
+  -- colour.  Moving only the ends darkens the ground and keeps whatever was
+  -- drawn on it.
+  --
+  -- The new paper is the dark page's black rather than the palette's own ink,
+  -- so a grounded screen is the same black as the menus that open over it.
+  local function grounded(colors)
+    return { DARK_PAGE[1], colors[2], colors[3], colors[1] }
+  end
+
+  local function ground(zones)
+    return restyled(zones, function(_, zone)
+      -- art, not a palette: a marked rectangle is re-blitted raw and is not
+      -- ours to move.  runtime/matte.lua is what puts a ground under those.
+      if type(zone.colors) ~= "table" then return zone.colors end
+      return grounded(zone.colors)
+    end)
+  end
+
   local function dark(zones, pageAt)
     return restyled(zones, function(index, zone)
       -- `colors == false` is the true-colour opt-out and is a rectangle, not
@@ -727,7 +750,11 @@ function Theme.new(context)
 
     local state, ownerAt = pageState(game)
     local out
-    if state then
+    if state and grounds and grounds[getmetatable(state)] then
+      -- its own bands, grounded: see Theme.GROUND_PAGES.  Not through
+      -- pageZones, because that would replace a list this one is keeping.
+      out = ground(zones)
+    elseif state then
       out = dark(pageZones(zones, state), 1)
     elseif basePage(zones) then
       -- no page state, but the list itself says it is a page

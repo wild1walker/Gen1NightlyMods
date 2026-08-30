@@ -1,6 +1,6 @@
 {
   "channel": "nightly",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "forks": {
     "gen1_wild_ui_nightly": {
       "upstream": "wild1walker/Gen1WildUI",

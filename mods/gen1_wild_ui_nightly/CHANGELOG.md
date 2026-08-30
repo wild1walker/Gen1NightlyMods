@@ -6,6 +6,62 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.24.0] - 2026-08-30
+
+### Added
+
+- **The title screen has a dark mode, and keeps its colours.**
+
+  Reversed like an ordinary page it would come out wrong twice over: the
+  `POKéMON` logo's colours would swap into something nobody chose, and the
+  version ribbon — `Wild Green Version`, lettered in the character's own outfit
+  colour over four releases of getting that number right — would come out in
+  whatever the reversal made of it. Left alone it is a white screen in a dark
+  game, and the first thing a dark boot puts in front of you.
+
+  So a page in the new `Theme.GROUND_PAGES` has its **ground moved out from
+  under it** instead of being inverted. Paper goes to the same black the menus
+  use, ink takes the paper's old white, and **the two midtones are not touched
+  at all** — which is where every coloured thing on that screen lives. The logo
+  keeps its colours on black, the ribbon keeps its green, and `GAME FREAK inc.`
+  along the bottom, which the engine draws in shade 3, flips to white instead
+  of going black on black.
+
+  The same rule covers the `CONTINUE` menu the title opens into, so
+  `Theme.COVERED_PAGES` — which existed for that one case since 0.20.0 — is
+  gone and its member moved here. Those boxes are DMG greys, and grounding
+  greys is paper black and ink white, which is what a menu wants.
+
+### Fixed
+
+- **No white boxes around the mon or the character.** Both are true-colour
+  rectangles, and a marked rect is re-blitted **raw** — so on a dark title they
+  would be the same white boxes 0.22.0 fixed on the bag's icons, for the same
+  reason.
+
+  `runtime/matte.lua` exists for exactly this on screens the suite does not
+  own, but its two-pass wrapper cannot reach this one: `TitleState:draw` opens
+  with a white fill of the **whole** screen, so a matte painted between the
+  passes is wiped by the second pass's own fill before any art lands on it.
+
+  The paint has to happen *inside* that draw — after the fill, before the
+  sprite — and there is exactly one seam in there. `currentSprite` is called
+  from the middle of `draw`, on the line before the mon is drawn, and that is
+  where both rectangles are grounded now. Both rects are the engine's own
+  arithmetic quoted rather than guessed: the mon at
+  `40 + (56 - w) / 2 + monOffset` by `136 - h`, the figure at the flat `82, 80`
+  the engine draws and marks it at.
+
+  **One case this does not reach, named rather than hidden:** `draw` skips
+  `currentSprite` entirely while `scrollPhase` is `"ball"`, so for the few
+  frames of that phase the figure and the ball keep their white. The seam is
+  not there to be used in that phase.
+
+  `tests/matte_test.lua` is 42 assertions (both rects, `monOffset` sliding the
+  mon's, a sprite the engine will not mark, the menu frame, and `LIGHT` paying
+  nothing); `tests/titlepage_test.lua` is 27, holding the midtones surviving
+  and a `colors = false` rectangle being handed back untouched.
+
 ## [0.23.0] - 2026-08-30
 
 ### Fixed
