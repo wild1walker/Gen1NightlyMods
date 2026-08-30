@@ -1118,7 +1118,7 @@ local function themeOver(mod)
 end
 
 do
-  io.write("the theme only answers for black-and-white pages\n")
+  io.write("the theme only answers for pages\n")
   local mod = fakeMod()
   local theme = themeOver(mod)
 
@@ -1131,10 +1131,13 @@ do
   theme.write("dark")
   eq(theme.read(), "dark", "and the row remembers")
 
+  -- With no stack to walk, the list itself is all there is to go on, and
+  -- neither of these is a page: one is a map's terrain palette and the other
+  -- is the title screen's lettered bands.
   local world = overworldZones()
   theme.apply({}, world)
   eq(hex(world[1].colors[1]), "ffefff",
-    "the overworld's terrain palette is not a black-and-white page")
+    "the overworld's terrain palette is not a page")
 
   local title = titleZones()
   theme.apply({}, title)
@@ -1187,6 +1190,136 @@ do
   local again = theme.apply({}, kept)
   eq(hex(again[1].colors[1]), "000000",
     "so the same list themed twice is dark both times, not dark then light")
+end
+
+-- ------- the game's own screens
+--
+-- This is the regression the first version of UI THEME needed and did not
+-- have.  The gate used to ask whether the zone list opened on whole-screen
+-- DMG greys, on the theory that a black-and-white page asks for the identity
+-- palette.  No screen in the engine does: OptionsMenu, ListMenu, ManagerState,
+-- NamingScreen and TrainerCard all ask for MEWMON, the Pokedex asks for
+-- BROWNMON, the party menu for GREENBAR.  So DARK declined every screen in
+-- the game and the OPTION row moved a setting that changed nothing.
+--
+-- The stubs below are the shapes those screens really have: a class, an
+-- instance of it on the stack, and a named palette that is not grey.
+local function engineClass(path)
+  local class = {}
+  class.__index = class
+  package.loaded[path] = nil
+  package.preload[path] = function() return class end
+  return class
+end
+
+-- PAL_MEWMON as the SGB pack carries it: off-white paper, the screen's hue in
+-- the middle, near-black ink.  Every background palette in the pack is built
+-- this way, which is what makes reversing one a dark page.
+local function mewmonZones()
+  return { { colors = { { 255, 239, 255 }, { 255, 132, 132 },
+                        { 132, 0, 0 }, { 0, 0, 0 } },
+             x = 0, y = 0, w = 160, h = 144 } }
+end
+
+do
+  io.write("the game's own screens are pages, though none of them asks for grey\n")
+  local OptionsMenu = engineClass("src.ui.OptionsMenu")
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  local options = setmetatable({ sgbPalettes = true }, OptionsMenu)
+  local game = { stack = { states = { options } } }
+
+  local out = theme.apply(game, mewmonZones())
+  eq(hex(out[1].colors[1]), "000000",
+    "the OPTION screen's paper goes black -- the bug the user reported was "
+    .. "this line coming back ffefff")
+  eq(hex(out[1].colors[4]), "ffefff", "and its ink goes to the paper it had")
+  eq(hex(out[1].colors[2]), "840000",
+    "with the screen's own hue kept in the shades between, which is what "
+    .. "reversing a palette buys over painting a black rectangle")
+
+  -- and the frame it was handed is still the frame it was handed
+  local handed = mewmonZones()
+  theme.apply(game, handed)
+  eq(hex(handed[1].colors[1]), "ffefff", "the state's own list is untouched")
+end
+
+do
+  io.write("a page that declares no palettes gets one made for it\n")
+  -- The bag, the shops, Bill's box and the PC are not states: each builds a
+  -- ListMenu and pushes THAT, and ListMenu does declare a palette.  But a
+  -- screen that declares none inherits whatever is underneath -- and it is
+  -- opaque, so those zones are colouring a map nobody can see.  Transforming
+  -- them would invert the world; the page is made instead.
+  local ListMenu = engineClass("src.ui.ListMenu")
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  local world = { sgbPalettes = true }
+  local list = setmetatable({}, ListMenu)
+  local game = { stack = { states = { world, list } } }
+
+  local out = theme.apply(game, overworldZones())
+  eq(#out, 1, "the map's zone list does not come through")
+  eq(out[1].w, 160, "a whole-screen page is made instead")
+  eq(out[1].h, 144, "...the size of the screen")
+  eq(hex(out[1].colors[1]), "000000", "black paper")
+  eq(hex(out[1].colors[4]), "ffffff", "white ink")
+end
+
+do
+  io.write("the walk stops at whatever owns the frame\n")
+  local ListMenu = engineClass("src.ui.ListMenu")
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  -- a text box over the map owns no palettes, so the map still owns the
+  -- frame -- and the map is not a page
+  local world = { sgbPalettes = true }
+  local textbox = {}
+  local zones = overworldZones()
+  eq(theme.apply({ stack = { states = { world, textbox } } }, zones), zones,
+    "an overlay with nothing to say does not make the overworld a page")
+  eq(hex(zones[1].colors[1]), "ffefff", "...and nothing was written into it")
+
+  -- the same overlay over a page leaves the page themed, which is what keeps
+  -- a confirm box from flashing the OPTION screen back to white
+  local list = setmetatable({ sgbPalettes = true }, ListMenu)
+  local out = theme.apply({ stack = { states = { list, textbox } } },
+                          mewmonZones())
+  eq(hex(out[1].colors[1]), "000000",
+    "but an overlay over a page is stepped over")
+
+  -- a page under something that owns the frame ITSELF is not on screen
+  local battle = { sgbPalettes = true }
+  local under = overworldZones()
+  eq(theme.apply({ stack = { states = { list, battle } } }, under), under,
+    "and a page buried under a screen that owns the frame is not the frame")
+end
+
+do
+  io.write("DARK proves the page is dark before it uses it\n")
+  -- Reversing works because every SGB background palette darkest-ends in
+  -- near-black.  A page that does not -- the suite's own screens open on the
+  -- player's outfit ramp -- reverses into a washed pastel, which is a second
+  -- light mode rather than a dark one.  So the reversal has to measure dark
+  -- or the page falls back to plain black-on-white.
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  local pastel = { { 0xea, 0xf6, 0xea }, { 0xa8, 0xd0, 0xa8 },
+                   { 0x6a, 0x9a, 0x6a }, { 0x8a, 0xb0, 0x8a } }
+  local screen = { gen1wildTheme = "settings", sgbPalettes = true }
+  local out = theme.apply({ stack = { states = { screen } } },
+    { { colors = pastel, x = 0, y = 0, w = 160, h = 144 } })
+  eq(hex(out[1].colors[1]), "000000",
+    "a page whose darkest colour is not dark falls back to black paper")
+  eq(hex(out[1].colors[4]), "ffffff", "and white ink")
 end
 
 do

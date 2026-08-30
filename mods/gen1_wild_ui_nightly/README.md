@@ -31,11 +31,29 @@ pass. So a theme swaps the four colours a zone carries and nothing else —
 palette. Nothing is redrawn, no screen is edited, and no feature knows themes
 exist.
 
-Which frames it answers for is decided by what the frame already asks for
-rather than by what state is on top: *a zone list that opens with one
-whole-screen zone of the four DMG greys is a black-and-white UI page*. The
-overworld's terrain palettes, a battle's named palettes and the title screen's
-three lettered bands are none of them that, so none of the three is touched.
+Which frames it answers for is decided by **whose the frame is**: the topmost
+state on the stack that either says what it is (`state.gen1wildTheme`, which
+this suite's own screens set) or is one of the engine UI classes named in
+`Theme.PAGES` is the page. A state that owns the frame's palettes and is
+neither — the overworld, a battle, the title screen — ends the search, so none
+of those is ever touched; an overlay that owns no palettes, like a text box or
+a fade, is stepped over, so a confirm box on top of a menu leaves the menu
+themed.
+
+That covers the OPTION screen, the mod manager, the Pokédex and its entries,
+the party menu, the summary, the naming screen, the town map, the trainer card
+and diploma, the Hall of Fame PC, and every list the engine builds through
+`ListMenu` — which is the bag, the shops, Bill's box and the PC. Screens that
+are pictures rather than pages (the intro, Oak's speech, the credits, the
+slots, the trade animation, the title screen) are deliberately left out, and so
+is the COLORS picker, which has to show colours as they are.
+
+One honest limit: this works by changing the colours a zone carries, so it
+works in the display modes that use them — `SGB`, `SGB INV`, `ADVANCED`,
+`OG RED`. The flat modes (`OG`, `OG INV`, `CLASSIC`, and a custom ramp) are the
+player asking for one palette over the whole game, and `PaletteFX` replaces
+every zone's colours to give it to them. A theme cannot outrank that and does
+not try — `OG INV` already is a dark mode for the whole screen.
 
 `COLORFUL` wears an asterisk because it is not finished: the pages are tinted
 by what the screen is and the suite's own cards are coloured by what they open,

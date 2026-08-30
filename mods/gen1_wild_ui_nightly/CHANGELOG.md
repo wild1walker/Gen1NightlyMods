@@ -6,6 +6,74 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.3.0] - 2026-08-30
+
+### Fixed
+
+- **`UI THEME` did nothing.** The row cycled, the setting stored and reloaded,
+  the OPTION screen said `DARK` — and the screen behind it stayed white. It
+  was not a near miss: `DARK` was declining every screen in the game.
+
+  The gate was the bug. This file decided which frames were the UI's by
+  looking at what the frame asked for rather than at what was on the screen —
+  *a zone list that opens on one whole-screen zone of the four DMG greys is a
+  black-and-white page* — on the theory that a page drawn in the game's own
+  four shades asks for the identity palette. It does not. Every UI screen in
+  the engine asks for a **named** palette and lets the SGB pass colour it,
+  which is what the pass is for:
+
+  | screen | asks for |
+  |---|---|
+  | `OptionsMenu`, `ListMenu`, `ManagerState`, `NamingScreen`, `TrainerCard`, `Diploma` | `MEWMON` |
+  | `PokedexMenu`, `DexEntryMenu` | `BROWNMON` |
+  | `PartyMenu` | `GREENBAR`, then a zone per party row |
+  | `TownMap` | `TOWNMAP` |
+
+  Not one of those is the four greys, so the test never passed and the theme
+  never fired. The rule that read as a definition was a guess about the
+  engine, and it was wrong.
+
+  A page is now recognised by **whose the frame is**: the topmost state that
+  either says what it is (`state.gen1wildTheme`) or is one of the engine UI
+  classes in `Theme.PAGES`. A state that owns the frame's palettes and is
+  neither — the overworld, a battle, the title screen — ends the search, so
+  those are still never touched. An overlay that owns no palettes is stepped
+  over, so a confirm box on top of a menu leaves the menu themed. The old
+  zone-shape rule is kept as a third way in, for a mod's screen that really
+  does open on whole-screen greys.
+
+  Two consequences worth naming:
+
+  - A page whose state declares no palettes at all inherits whatever is
+    underneath it, and is opaque — so those zones are colouring a map nobody
+    can see. Transforming them would invert the world. A whole-screen page is
+    **made** for such a screen instead.
+
+  - `DARK` reverses the page's own palette rather than painting a black
+    rectangle, so the Pokédex stays faintly red and the party menu faintly
+    green under it. That only works because every SGB background palette in
+    the pack ends dark; a page whose reversal would not actually be dark
+    (this suite's own screens open on the player's outfit ramp) falls back to
+    plain black paper. Measured, not listed, so a palette added later is
+    judged on what it is.
+
+  What `DARK` now reaches: the OPTION screen, the mod manager, the Pokédex and
+  its entries, the party menu, the summary, the naming screen, the town map,
+  the trainer card and diploma, the Hall of Fame PC, and every list the engine
+  builds through `ListMenu` — the bag, the shops, Bill's box and the PC.
+
+  One limit, stated rather than worked around: a theme changes the colours a
+  zone carries, so it works in the display modes that use them (`SGB`,
+  `SGB INV`, `ADVANCED`, `OG RED`). The flat modes — `OG`, `OG INV`,
+  `CLASSIC`, a custom ramp — are the player asking for one palette over the
+  whole game and `PaletteFX.effectiveColors` replaces every zone to give it to
+  them. `OG INV` already is a dark mode for the whole screen.
+
+  `tests/runtime_test.lua` gained the coverage this needed and did not have:
+  the OPTION screen themed through a real class match, a page synthesised for
+  a screen that declares nothing, the walk stopping at the overworld and
+  stepping over an overlay, and the darkness proof.
+
 ## [0.2.0] - 2026-08-30
 
 ### Fixed

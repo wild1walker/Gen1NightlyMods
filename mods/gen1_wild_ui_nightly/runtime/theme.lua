@@ -2,10 +2,10 @@
 --
 -- ------- what a theme is allowed to touch
 --
--- Every full-screen page this suite draws is black and white, and it is black
--- and white for a reason: the art is the game's own four DMG shades, the
--- boxes are the game's own border glyphs, and the colour arrives afterwards,
--- from the SGB pass.  A state exposes `sgbPalettes()` returning a list of
+-- Every full-screen page in this game is drawn in black and white, this
+-- suite's own pages included, and it is black and white for a reason: the art
+-- is the game's own four DMG shades, the boxes are the game's own border
+-- glyphs, and the colour arrives afterwards, from the SGB pass.  A state exposes `sgbPalettes()` returning a list of
 -- rectangles with a four-colour palette each; `Renderer:endFrame` blits the
 -- finished 160x144 frame once per rectangle through a shader that maps the
 -- four shades onto that palette.
@@ -20,25 +20,67 @@
 -- ------- which frames are "ours"
 --
 -- The hook sees every frame, including the overworld and every battle, and
--- must answer for the UI only.  It decides by looking at what the frame is
--- already asking for rather than by asking what state is on top:
+-- must answer for the UI only.
 --
---     a frame whose zone list begins with ONE WHOLE-SCREEN ZONE OF THE FOUR
---     DMG GREYS is a black-and-white UI page.
+-- The first version of this file decided by looking at the zone list alone: a
+-- frame that opened on ONE WHOLE-SCREEN ZONE OF THE FOUR DMG GREYS was a
+-- black-and-white page and everything else was left alone.  That rule was
+-- wrong, and wrong in the way that costs the most -- it never fired.  The
+-- engine's UI screens do not ask for the greys; they ask for a NAMED palette
+-- and let the SGB pass colour them, which is the whole point of the pass:
 --
--- That is not a heuristic, it is the definition.  `{ P.whole(P.GRAYS) }` is
--- what a full-screen menu in this engine returns and what every screen in
--- this suite returns -- it is the identity through the shade shader, which is
--- how a page keeps white paper and black ink while the display mode colours
--- everything else.  The overworld returns per-map terrain palettes, a battle
--- returns named battle palettes, and the title screen returns its three
--- lettered bands; none of the three is whole-screen greys, so none of the
--- three is touched.  A page that is not black and white is not ours to swap.
+--     OptionsMenu / ListMenu / ManagerState / NamingScreen / TrainerCard
+--         PaletteFX.wholeNamed(game.data, "MEWMON")
+--     PokedexMenu / DexEntryMenu     ... "BROWNMON"
+--     PartyMenu                      ... "GREENBAR", then a zone per party row
+--     TownMap                        ... "TOWNMAP"
 --
--- It also means the rule needs no engine internals, no list of screen names
--- to keep current, and no marking of instances: a screen this suite has not
--- been taught about yet is themed on the day it is added, and a mod's screen
--- that draws in colour is left alone on the day it arrives.
+-- None of those is the four greys, so UI THEME declined every screen in the
+-- game and DARK did nothing at all.  Every SGB background palette in the pack
+-- is built the same way, though -- an off-white paper at colour 0 and a near
+-- black at colour 3, with the screen's own hue in the two between -- so the
+-- page is not identified by its colours.  It is identified by WHOSE it is:
+--
+--     the topmost state on the stack that either says what it is
+--     (`state.gen1wildTheme`) or is one of the engine UI classes named in
+--     `Theme.PAGES` is the page, and the frame is that page's.
+--
+-- The walk stops early on purpose.  A state that OWNS the frame's zones and
+-- is neither of those two things -- the overworld, a battle, the title screen
+-- -- ends the search: whatever is under it is not what is on the screen, so
+-- the frame is not ours.  An overlay that owns no zones (a text box, a fade)
+-- is stepped over, which is what keeps a confirm box on top of the OPTION
+-- screen from un-theming it.
+--
+-- An allowlist rather than a denylist, and of classes rather than names: the
+-- suite's replacements keep the engine's own instance and swap only its draw
+-- methods, so `getmetatable(state)` is still the engine's class and the match
+-- is exact.  A screen this file has not been taught about is left looking
+-- exactly as it looks today, which is the failure everyone can live with.
+--
+-- The old zone-shape rule is kept as a THIRD way in, for a screen from some
+-- other mod that really does open on whole-screen greys.  It costs one
+-- comparison and it means a mod's page can be themed without this file
+-- learning its name.
+--
+-- ------- what a page is, once it is ours
+--
+-- Normally the page IS the frame's first zone: the state we found is the one
+-- Game asked for palettes, and it returned a whole-screen zone.  When it did
+-- not -- a screen that returns nil under some condition, or one that declares
+-- no palettes at all and inherits whatever is beneath it -- the theme
+-- SYNTHESISES a whole-screen page of the DMG greys instead of transforming a
+-- list that belongs to a screen nobody can see.  Every class in `Theme.PAGES`
+-- is opaque, so there is nothing behind it to preserve.
+--
+-- ------- one honest limit
+--
+-- This works by changing the colours a zone carries, so it works in the
+-- display modes that USE them: SGB, SGB INV, ADVANCED, OG RED.  The flat
+-- modes -- OG, OG INV, CLASSIC, and a custom ramp -- are the player asking
+-- for one palette over the whole game, and `PaletteFX.effectiveColors`
+-- replaces every zone's colours to give it to them.  A theme cannot outrank
+-- that and should not try: OG INV already IS dark mode for the whole screen.
 --
 -- ------- the three
 --
@@ -50,7 +92,8 @@
 --             is the whole of "our UI is black and white, swap the two",
 --             and is exactly what the engine's own SGB INV display mode does
 --             to the whole game.  Doing it per zone is what keeps it to the
---             menus.
+--             menus.  A page whose reversal would not actually be dark falls
+--             back to plain black paper; see darkPage.
 --   COLORFUL  work in progress.  The page takes a tint chosen by WHAT THE
 --             SCREEN IS -- the Pokedex reads red, the box blue, the party
 --             green -- and a screen that says what its rows are gets a
@@ -142,40 +185,45 @@ Theme.TINTS = {
                 { 0x28, 0x62, 0x5e }, { 0x02, 0x08, 0x08 } },
 }
 
--- ------- which tint a screen gets
+-- ------- the pages, and what colour each one is
 --
--- Two ways in, and a screen only needs one of them.
+-- Two ways a screen is recognised, and it only needs one.
 --
 -- A screen this suite REGISTERED says so itself: `state.gen1wildTheme` is a
 -- tint name, set on the instance when it is built.  That covers the suite's
--- own menu screens, and it costs a feature nothing to adopt.
+-- own menu screens and the test bench, and it costs a feature nothing.
 --
--- A screen the suite REPLACED is identified by its class instead.  The
--- replacements in this bundle keep the engine's own instance and swap only
--- its draw methods (Gen1Party and Gen1BillsBox both say so in as many words),
--- so `getmetatable(state)` is still the engine's class and comparing against
--- it is exact -- no name matching, no guessing from a title string.  A module
--- that is not present resolves to nothing and simply has no entry.
-local BY_CLASS = {
+-- Everything else is recognised by its class.  The list below is of STATE
+-- classes -- things that go on `game.stack.states` -- which is why the bag,
+-- the shop, Bill's PC and the prize counter are not in it by name: none of
+-- them is a state.  `src/ui/BagMenu.lua` and its neighbours are modules that
+-- build a `src.ui.ListMenu` and push THAT, so the one ListMenu entry themes
+-- all four.  (The cost is that COLORFUL cannot tell a bag from a shop yet and
+-- gives all of them the default paper.  That is the WIP half of that row.)
+--
+-- Left out deliberately: the screens that are pictures rather than pages --
+-- the intro, Oak's speech, the Hall of Fame, the credits, the slots, the
+-- trade animation, Pikachu's beach, the title screen -- and PaletteScreen,
+-- which is the colour picker itself and has to show colours as they are.
+Theme.PAGES = {
   { "src.ui.PokedexMenu", "dex" },
   { "src.ui.DexEntryMenu", "dex" },
-  { "src.ui.BoxMenu", "box" },
-  { "src.ui.PlayerPC", "box" },
-  { "src.ui.LeaguePC", "box" },
+  -- the bag, the shops, the box, the PC and the prize counter all push one
+  { "src.ui.ListMenu", "page" },
   { "src.ui.PartyMenu", "party" },
-  { "src.ui.BagMenu", "bag" },
-  { "src.ui.ShopMenu", "shop" },
-  { "src.ui.PrizeCounter", "shop" },
+  { "src.ui.SummaryMenu", "summary" },
   { "src.ui.TrainerCard", "card" },
   { "src.ui.Diploma", "card" },
-  { "src.ui.SummaryMenu", "summary" },
+  { "src.ui.TownMap", "world" },
+  { "src.ui.NamingScreen", "page" },
+  { "src.ui.LeaguePC", "box" },
   { "src.ui.OptionsMenu", "settings" },
   { "src.mods.ManagerState", "settings" },
 }
 
 local function classTints()
   local out = {}
-  for _, entry in ipairs(BY_CLASS) do
+  for _, entry in ipairs(Theme.PAGES) do
     local ok, class = pcall(require, entry[1])
     if ok and type(class) == "table" then out[class] = entry[2] end
   end
@@ -202,30 +250,31 @@ local function isGreys(colors)
   return true
 end
 
--- Where in the list the page is -- always 1, or nil when the list is not a
--- page at all.  An index rather than the zone itself, because the transforms
--- copy the list rather than write into it and have to find the page again in
--- the copy.
---
--- It has to be the FIRST zone: the list is drawn in order and the base is what
--- everything after it sits on, so a whole-screen zone further down is a panel
--- covering a page rather than the page itself.
---
--- `owned` relaxes the palette test, and only that.  A screen that has said
--- `gen1wildTheme` is one of ours by name and is themed whatever base it drew
--- itself on -- the suite's own settings screens open on the MEWMON palette,
--- which is a deliberate choice and not black and white.  Everything else has
--- to BE black and white to be swapped, which is the rule at the top of this
--- file and the reason the overworld and the battles come through untouched.
-local function basePage(zones, owned)
+-- A zone that covers the screen.  The engine's UI states all open on one,
+-- and it is the paper everything after it sits on -- which is why it has to
+-- be the FIRST zone: a whole-screen zone further down the list is a panel
+-- laid over a page rather than the page itself.
+local function isWhole(zone)
+  return type(zone) == "table" and zone.x == 0 and zone.y == 0
+    and zone.w == 160 and zone.h == 144
+end
+
+-- The third way in, kept from this file's first version: a list that opens on
+-- whole-screen greys is a black-and-white page whoever built it.  Nothing in
+-- the engine returns that shape, but a mod's screen might, and recognising it
+-- costs one comparison.  Returns the page's index (always 1) or nil.
+local function basePage(zones)
+  if type(zones) ~= "table" then return nil end
   local first = zones[1]
-  if type(first) ~= "table" then return nil end
-  if first.x ~= 0 or first.y ~= 0 or first.w ~= 160 or first.h ~= 144 then
-    return nil
-  end
-  if type(first.colors) ~= "table" then return nil end
-  if not owned and not isGreys(first.colors) then return nil end
+  if not isWhole(first) then return nil end
+  if not isGreys(first.colors) then return nil end
   return 1
+end
+
+-- Rec. 709, the same weighting tests/runtime_test.lua measures the tints
+-- against.  Used for one question only: is this actually dark?
+local function luma(c)
+  return 0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3]
 end
 
 function Theme.new(context)
@@ -295,19 +344,54 @@ function Theme.new(context)
     })
   end
 
-  -- Which state owns the frame's zones: the topmost one that has a palette to
-  -- offer, which is the same rule src/core/Game.lua uses to pick the list in
-  -- the first place.  Only consulted by COLORFUL, and only to choose a tint --
-  -- DARK never asks, which is why DARK works on a screen nothing here has
-  -- heard of.
-  local function zoneOwner(game)
+  -- ------- finding the page
+  --
+  -- Top of the stack downwards.  The first state that says what it is, or is
+  -- a class in Theme.PAGES, is the page: returned with its tint name and
+  -- whether it is one of ours.  The first state that owns the frame's zones
+  -- and is NEITHER ends the walk with nothing -- that is the overworld, a
+  -- battle, the title screen, and the frame is not a page.  A state that owns
+  -- no zones and is not a page (a text box, a fade, the start menu) is
+  -- stepped over, so a confirm box on top of the OPTION screen leaves the
+  -- OPTION screen themed.
+  --
+  -- `sgbPalettes` is the same test src/core/Game.lua uses to pick the zone
+  -- list in the first place, so "owns the zones" here means exactly what it
+  -- means there.
+  local function pageState(game)
     local states = game and game.stack and game.stack.states
     if type(states) ~= "table" then return nil end
     for i = #states, 1, -1 do
       local state = states[i]
-      if type(state) == "table" and state.sgbPalettes then return state end
+      if type(state) == "table" then
+        local named = state.gen1wildTheme
+        if type(named) == "string" and Theme.TINTS[named] then
+          return state, named, true
+        end
+        tintOf = tintOf or classTints()
+        local byClass = tintOf[getmetatable(state)]
+        if byClass then return state, byClass, false end
+        if state.sgbPalettes then return nil end
+      end
     end
     return nil
+  end
+
+  -- The list to theme, for a page we have found.
+  --
+  -- Usually the one we were handed: nothing above this state owns zones (the
+  -- walk would have stopped), so if it has palettes of its own these are
+  -- them.  When it has none -- a screen that returns nil under some
+  -- condition, or one that declares no palettes and inherits from whatever is
+  -- beneath it -- a page is made instead.  Every class in Theme.PAGES is
+  -- opaque, so the list that came up from below is colouring a screen nobody
+  -- can see and is the wrong thing to transform.
+  local function pageZones(zones, state)
+    if state.sgbPalettes and type(zones) == "table"
+        and isWhole(zones[1]) and type(zones[1].colors) == "table" then
+      return zones
+    end
+    return { { colors = GREYS, x = 0, y = 0, w = 160, h = 144 } }
   end
 
   local function tintFor(state)
@@ -371,18 +455,35 @@ function Theme.new(context)
     return out
   end
 
-  local function dark(zones, pageAt, owned)
+  -- The page's own reversal, when that really is dark, and plain black-on-
+  -- white when it is not.
+  --
+  -- Every SGB background palette in the pack is an off-white paper at colour
+  -- 0 and a near-black at colour 3, with the screen's hue in the two between,
+  -- so reversing one gives exactly what DARK is for: black paper, white ink,
+  -- and the Pokedex still faintly red where the Pokedex was red.  Reversing
+  -- is the right answer often enough to be the rule.
+  --
+  -- It is not always the right answer.  A page whose darkest colour is not
+  -- dark -- the suite's own settings screens open on the player's outfit ramp
+  -- -- reverses into a washed pastel, which is a different light mode rather
+  -- than a dark one.  So the reversal has to PROVE it is dark (paper below
+  -- luma 96, ink above 160) or the page falls back to the plain black one.
+  -- Measured rather than listed, so a palette added later is judged on what
+  -- it is instead of on whether somebody remembered to name it here.
+  local function darkPage(colors)
+    local flipped = reverse(colors)
+    if luma(flipped[1]) <= 96 and luma(flipped[4]) >= 160 then return flipped end
+    return DARK_PAGE
+  end
+
+  local function dark(zones, pageAt)
     return restyled(zones, function(index, zone)
       -- `colors == false` is the true-colour opt-out and is a rectangle, not
       -- a palette: an animated mon sprite, an item icon.  It is art, and art
       -- is not inverted.
       if type(zone.colors) ~= "table" then return zone.colors end
-      -- A page that opened on a colour rather than on the greys gets the plain
-      -- black one instead of that colour reversed.  DARK is "black and white,
-      -- swapped", and the reverse of the suite's own purple base is a washed
-      -- lilac page rather than a dark one -- the right answer for the panels
-      -- inside it and the wrong one for the paper under them.
-      if owned and index == pageAt then return DARK_PAGE end
+      if index == pageAt then return darkPage(zone.colors) end
       return reverse(zone.colors)
     end)
   end
@@ -400,8 +501,8 @@ function Theme.new(context)
   -- already mean something -- a party icon is the species' own colour, an HP
   -- bar is green because it is nearly full -- and a theme that repainted
   -- those would be taking information away to add decoration.
-  local function colorful(zones, pageAt, state)
-    local tint = tintFor(state)
+  local function colorful(zones, pageAt, state, tintName)
+    local tint = (tintName and Theme.TINTS[tintName]) or tintFor(state)
     local out = restyled(zones, function(index, zone)
       if index == pageAt then return tint end
       return zone.colors
@@ -419,18 +520,27 @@ function Theme.new(context)
 
   -- The hook itself.  `next` first, so a mod downstream that builds zones of
   -- its own has already built them and is themed with everything else.
+  --
+  -- Three outcomes, and two of them return the caller's own list by
+  -- reference: LIGHT, and a frame that is not a page.  That matters more than
+  -- it looks -- this runs on every frame of the overworld and every frame of
+  -- every battle, and on those frames it must cost a table lookup and a walk
+  -- down a stack that is usually two states deep.
   function self.apply(game, zones)
-    if type(zones) ~= "table" or not zones[1] then return zones end
     local theme = self.read()
     if theme == "light" then return zones end
-    local state = zoneOwner(game)
-    local owned = type(state) == "table"
-      and type(state.gen1wildTheme) == "string"
-      and Theme.TINTS[state.gen1wildTheme] ~= nil
-    local pageAt = basePage(zones, owned)
-    if not pageAt then return zones end
-    if theme == "dark" then return dark(zones, pageAt, owned) end
-    if theme == "colorful" then return colorful(zones, pageAt, state) end
+
+    local state, tintName = pageState(game)
+    if state then
+      zones = pageZones(zones, state)
+    else
+      -- no page state: the frame is only ours if the list itself says so
+      if not basePage(zones) then return zones end
+      tintName = "page"
+    end
+
+    if theme == "dark" then return dark(zones, 1) end
+    if theme == "colorful" then return colorful(zones, 1, state, tintName) end
     return zones
   end
 
@@ -464,7 +574,9 @@ end
 
 -- For the tests, which have no engine to require classes out of.
 Theme.isGreys = isGreys
+Theme.isWhole = isWhole
 Theme.basePage = basePage
+Theme.luma = luma
 Theme.reversed = reversed
 
 return Theme
