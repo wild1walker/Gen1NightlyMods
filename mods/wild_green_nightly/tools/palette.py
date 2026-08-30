@@ -20,10 +20,10 @@ palette pass would have made of it.
 
 ## The title ramp
 
-`LOGO1` is the SGB palette the title's version-ribbon band wears, and it is
-independent of the character -- the ribbon is lettering on white, not a
-sprite.  Both its greens are dark enough to read as green ink on paper at
-8px; the first cut used the character's light green and washed out.
+`LOGO1` is the SGB palette the title's version-ribbon band wears.  The band
+is lettering on white rather than a sprite, so it does not take the character
+ramp -- but it is lettered in the character's own outfit colour, with a dark
+version of that colour for the one-pixel shadow under it.  See TITLE_SUITS.
 """
 
 # The character, lightest first -- the order ctx.recolor reads.
@@ -138,10 +138,23 @@ def suit_pic_ramp(name):
     """The portrait four for a suit, lightest first."""
     return [PAPER, SUITS[name][1], SUITS[name][0], INK]
 
-# The title ribbon band (LOGO1).  Ink is the lettering; MID is its shadow.
-TITLE_MID = (0x2e, 0x8b, 0x3a)
-TITLE_INK = (0x14, 0x57, 0x1f)
-TITLE_RAMP = [PAPER, TITLE_MID, TITLE_INK, INK]
+# The title ribbon band (LOGO1), lightest first like every ramp here.
+#
+# TITLE_LETTER is the word; TITLE_SHADOW is the one pixel down and right of
+# it.  The letter is OUTFIT itself -- the character's own green, so the words
+# on the title screen are the colour of the character standing under them --
+# and the shadow is that green at a fixed dark lightness, which is what gives
+# an 8px letter its edge against white paper.
+#
+# Through 0.3.0 these were the other way round: the letter was the dark green
+# and the shadow the lighter one, on the theory that a letter drawn in the
+# outfit's own value washes out at 8px.  It does on its own; it does not with
+# a dark shadow under it, and the version line came out visibly darker than
+# the character it names.  TITLE_SHADOW is the number TITLE_INK was, so the
+# cartridge shell below has not moved.
+TITLE_LETTER = OUTFIT
+TITLE_SHADOW = (0x14, 0x57, 0x1f)
+TITLE_RAMP = [PAPER, TITLE_LETTER, TITLE_SHADOW, INK]
 
 # ------- the ribbon in the other eight suits
 #
@@ -152,38 +165,45 @@ TITLE_RAMP = [PAPER, TITLE_MID, TITLE_INK, INK]
 # is that the title did not take.  So the band follows PLAYER now, and the
 # words are what stay green -- they say GREEN whatever colour the ink is.
 #
-# Two colours per suit, and they are not the suit's own three.  The band is
-# LETTERING ON WHITE: at 8px a letter drawn in the outfit's own value washes
-# out, which is what 1.0.0 shipped and why green's pair was hand-sampled
-# darker than green's outfit in the first place.  So each suit's pair is its
-# outfit taken to a fixed LIGHTNESS rather than mixed toward a fixed colour:
+# Two colours per suit, as (letter, shadow), and the letter is the suit's own
+# outfit.  That is the whole rule and it is deliberately the simplest one
+# available: a player who has put the character in purple should read a purple
+# version line, in the same purple, not in a purple chosen for it.
 #
-#     TITLE_INK = the outfit at 0.26 relative luminance, never brightened
-#     TITLE_MID = the outfit at 0.45 relative luminance
+#     letter = the outfit itself, never paler than GREEN's own outfit
+#     shadow = the outfit at 0.26 relative luminance, or at half its own
+#              when the outfit is already darker than that (BLACK, and only
+#              BLACK -- a shadow the same colour as the letter is no shadow)
 #
-# Ink is the letter, mid is the one-pixel shadow under it (tools/ribbon.py
-# draws the shadow in shade 1 and the letter in shade 2).  Fixing the
-# luminance rather than the mix is what makes YELLOW and WHITE readable --
-# mixing a pale outfit toward black by a fixed fraction leaves a letter too
-# light to read, and mixing a dark one leaves the shadow invisible under it.
-# BLACK is the one suit whose outfit is already darker than the ink target,
-# so its ink is the outfit itself and only the shadow is lifted.
+# The cap is what keeps a pale suit legible, and it binds on exactly two of
+# the nine: YELLOW (0.57 relative luminance) and WHITE (0.65) come down to
+# GREEN's 0.38, which is the palest a letter on this band gets.  Green is the
+# floor rather than a number picked for the purpose because green IS the
+# reference here -- the cart's own colour, the one the words say, and the one
+# the character wears on the screen these letters share.  The other seven
+# outfits are already at or below it and are used exactly as they are.
 #
-# GREEN's two are the hand-sampled pair above and are NOT derived: they are
-# the cart's identity, `SHELL` is `TITLE_INK`, and the cartridge must come out
-# the same number it always has.  The other eight are derived once by the rule
-# and written out as literals, the same way SUITS is -- tools/check.py compares
-# them against main.lua's copy.
+# A letter at 0.38 against white paper is about 2.4:1, which on its own is
+# thin for 8px type.  It is not on its own: the shadow under it is 8.7:1, and
+# an edge that dark is what the eye reads the stroke by.  That is also the
+# vanilla ribbon's construction -- two tones, not one.
+#
+# The shadows are unchanged from 0.3.0, where they were the LETTERS.  Green's
+# is the hand-sampled `TITLE_SHADOW`, `SHELL` is still that number, and the
+# cartridge comes out the colour it always has.
+#
+# Derived once by the rule and written out as literals, the same way SUITS is
+# -- tools/check.py compares them against main.lua's copy.
 TITLE_SUITS = {
-    "green":  (TITLE_MID, TITLE_INK),
-    "orange": ((0xd0, 0x60, 0x1a), (0x78, 0x37, 0x0f)),
-    "blue":   ((0x3e, 0x79, 0xd4), (0x24, 0x46, 0x7a)),
-    "purple": ((0x91, 0x5f, 0xda), (0x54, 0x37, 0x7e)),
-    "yellow": ((0x89, 0x74, 0x22), (0x4f, 0x43, 0x14)),
-    "pink":   ((0xb4, 0x5d, 0x8b), (0x68, 0x36, 0x50)),
-    "black":  ((0x72, 0x72, 0x81), (0x3d, 0x3d, 0x45)),
-    "white":  ((0x70, 0x73, 0x77), (0x41, 0x43, 0x45)),
-    "grey":   ((0x6f, 0x73, 0x7a), (0x40, 0x43, 0x46)),
+    "green":  (TITLE_LETTER, TITLE_SHADOW),
+    "orange": ((0xe2, 0x68, 0x1c), (0x78, 0x37, 0x0f)),
+    "blue":   ((0x3f, 0x7b, 0xd8), (0x24, 0x46, 0x7a)),
+    "purple": ((0x8a, 0x5b, 0xd0), (0x54, 0x37, 0x7e)),
+    "yellow": ((0xc2, 0xa4, 0x2f), (0x4f, 0x43, 0x14)),
+    "pink":   ((0xee, 0x7b, 0xb8), (0x68, 0x36, 0x50)),
+    "black":  ((0x3d, 0x3d, 0x45), (0x2a, 0x2a, 0x30)),
+    "white":  ((0xa2, 0xa7, 0xac), (0x41, 0x43, 0x45)),
+    "grey":   ((0x8b, 0x91, 0x99), (0x40, 0x43, 0x46)),
 }
 
 assert sorted(TITLE_SUITS) == sorted(SUITS)
@@ -191,11 +211,11 @@ assert sorted(TITLE_SUITS) == sorted(SUITS)
 
 def title_ramp(name):
     """The ribbon band's four for a suit, lightest first."""
-    mid, ink = TITLE_SUITS[name]
-    return [PAPER, mid, ink, INK]
+    letter, shadow = TITLE_SUITS[name]
+    return [PAPER, letter, shadow, INK]
 
-# The cartridge shell, and the VERSION lettering it matches.
-SHELL = "#%02x%02x%02x" % TITLE_INK
+# The cartridge shell, and the shadow under the VERSION lettering it matches.
+SHELL = "#%02x%02x%02x" % TITLE_SHADOW
 
 # The wordmark's own two colours, lifted from docs/banner.png in Gen1Wild so
 # the label and the index banner stay the same object.

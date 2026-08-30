@@ -580,13 +580,23 @@ work are untouched either way — this link only ever answers for the player.
 [crystal]: https://github.com/distilledorion-sketch/crystal_animated_sprites_with_shiny_visuals
 
 **The title band** is lettering on white, not a sprite, so it gets its own —
-and both greens are dark enough to read as ink at 8px, which the character's
-light green was not:
+but it is lettered in the character's own green, because the words sit
+directly above the character wearing it:
 
 | | | |
 |---|---|---|
-| mid | `#2e8b3a` | the lettering's shadow |
-| ink | `#14571f` | the `VERSION` lettering, **and the cartridge shell** |
+| letter | `#65ba3f` | the `VERSION` lettering — the outfit itself |
+| shadow | `#14571f` | one pixel down and right, **and the cartridge shell** |
+
+Two tones rather than one, the way the vanilla ribbon is built. The letter on
+its own is about 2.4:1 against white paper, which is thin for 8px type; the
+shadow under it is 8.7:1, and that edge is what the eye reads the stroke by.
+Through 0.3.0 the two were the other way round — the word in `#14571f` and a
+lighter green above it — and the version line came out visibly darker than the
+character standing beneath it.
+
+In the other eight suits the letter is that suit's outfit, capped so it is
+never paler than green's; the cap binds on `YELLOW` and `WHITE` only.
 
 They are written out three times — once in Python, twice in Lua — because
 none of the three can import from the others: the transform runs in a sandbox

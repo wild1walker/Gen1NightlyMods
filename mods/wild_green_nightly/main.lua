@@ -68,13 +68,19 @@ return function(mod)
     { 0x00, 0x00, 0x00 },
   }
 
-  -- The ribbon band is lettering on white, not a sprite, so it does not use
-  -- the character ramp.  It gets its own four, and both greens are dark
-  -- enough to read as ink at 8px: 1.0.0 lent it the character's light green
-  -- and it washed out on the title screen.
+  -- The ribbon band is lettering on white and not a sprite, so it does not
+  -- use the character ramp -- but it is lettered in the character's OWN
+  -- green.  Shade 2 is the word and shade 3 the one pixel of shadow under
+  -- it, which is what gives an 8px letter its edge on white paper.
+  --
+  -- Through 0.3.0 those two were the other way round -- the word in the dark
+  -- green, its shadow in the lighter one -- and the version line came out
+  -- visibly darker than the character standing beneath it.  It is the same
+  -- two colours; the word takes the outfit now and the dark green went to
+  -- the shadow.  tools/ribbon.py draws the art to match.
   local WILD_GREEN_TITLE = {
     { 0xff, 0xff, 0xff },
-    { 0x2e, 0x8b, 0x3a },
+    { 0x65, 0xba, 0x3f },
     { 0x14, 0x57, 0x1f },
     { 0x00, 0x00, 0x00 },
   }
@@ -102,26 +108,28 @@ return function(mod)
     grey   = { { 0x8b, 0x91, 0x99 }, { 0xbf, 0xc2, 0xc7 }, { 0xeb, 0xec, 0xee } },
   }
 
-  -- The ribbon band in each suit, as (shadow, letter).  A copy of the table
+  -- The ribbon band in each suit, as (letter, shadow).  A copy of the table
   -- in tools/palette.py, which cannot be imported from -- tools/check.py
   -- fails the build if the two drift apart.
   --
-  -- The band is lettering on white and not a sprite, so it does not take the
-  -- suit's own three: a letter drawn in the outfit's own value washes out at
-  -- 8px, which is what 1.0.0 shipped.  Each pair is the outfit taken to a
-  -- fixed lightness instead -- the letter at 0.26 relative luminance and its
-  -- one-pixel shadow at 0.45 -- and green's is the hand-sampled pair the cart
-  -- shell is named after, unchanged.  palette.py carries the derivation.
+  -- The letter IS the suit's outfit: a player who has put the character in
+  -- purple should read a purple version line, in the same purple, and not in
+  -- a purple chosen for it.  The only limit is that no letter is paler than
+  -- GREEN's own outfit, which binds on exactly two of the nine -- YELLOW and
+  -- WHITE come down to it, the other seven are used as they are.  The shadow
+  -- is that outfit at a fixed dark lightness and is unchanged from 0.3.0,
+  -- where it was the letter; green's is the pair the cart shell is named
+  -- after and has not moved.  palette.py carries the derivation.
   local TITLE_SUITS = {
-    green  = { { 0x2e, 0x8b, 0x3a }, { 0x14, 0x57, 0x1f } },
-    orange = { { 0xd0, 0x60, 0x1a }, { 0x78, 0x37, 0x0f } },
-    blue   = { { 0x3e, 0x79, 0xd4 }, { 0x24, 0x46, 0x7a } },
-    purple = { { 0x91, 0x5f, 0xda }, { 0x54, 0x37, 0x7e } },
-    yellow = { { 0x89, 0x74, 0x22 }, { 0x4f, 0x43, 0x14 } },
-    pink   = { { 0xb4, 0x5d, 0x8b }, { 0x68, 0x36, 0x50 } },
-    black  = { { 0x72, 0x72, 0x81 }, { 0x3d, 0x3d, 0x45 } },
-    white  = { { 0x70, 0x73, 0x77 }, { 0x41, 0x43, 0x45 } },
-    grey   = { { 0x6f, 0x73, 0x7a }, { 0x40, 0x43, 0x46 } },
+    green  = { { 0x65, 0xba, 0x3f }, { 0x14, 0x57, 0x1f } },
+    orange = { { 0xe2, 0x68, 0x1c }, { 0x78, 0x37, 0x0f } },
+    blue   = { { 0x3f, 0x7b, 0xd8 }, { 0x24, 0x46, 0x7a } },
+    purple = { { 0x8a, 0x5b, 0xd0 }, { 0x54, 0x37, 0x7e } },
+    yellow = { { 0xc2, 0xa4, 0x2f }, { 0x4f, 0x43, 0x14 } },
+    pink   = { { 0xee, 0x7b, 0xb8 }, { 0x68, 0x36, 0x50 } },
+    black  = { { 0x3d, 0x3d, 0x45 }, { 0x2a, 0x2a, 0x30 } },
+    white  = { { 0xa2, 0xa7, 0xac }, { 0x41, 0x43, 0x45 } },
+    grey   = { { 0x8b, 0x91, 0x99 }, { 0x40, 0x43, 0x46 } },
   }
 
   mod.options:define({

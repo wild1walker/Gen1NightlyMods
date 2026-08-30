@@ -1764,10 +1764,15 @@ do
   local zones = zonesThrough(mod, advancedTitleZones())
   ok(zones ~= nil, "render.zones is wrapped")
 
+  -- Shade 2 is the word and shade 3 the shadow under it, which is the way
+  -- round it has been since 0.4.0 -- the word takes the character's own
+  -- green and the dark green went to the shadow.  Both are the band's
+  -- numbers rather than ADVANCED's pack, which is what this case is for.
+  eq(zones and hex(zones[2].colors[2]), "65ba3f",
+    "the ribbon's letter is the character's own green, not the pack's "
+    .. "#f7f78c")
   eq(zones and hex(zones[2].colors[3]), "14571f",
-    "the ribbon's letter is the title ink, not the pack's #8cbd52 yellow")
-  eq(zones and hex(zones[2].colors[2]), "2e8b3a",
-    "and its shadow is the title mid, not the pack's #f7f78c")
+    "and its shadow is the dark green, not the pack's #8cbd52 yellow")
 
   eq(zones and hex(zones[3].colors[2]), "a8dd8a",
     "the ball and the copyright line take the portrait's light shade, not "
@@ -1796,9 +1801,9 @@ io.write("main.lua -- the ribbon follows PLAYER\n")
 do
   local mod = run({ player = "purple", ribbon = true })
   local logo = mod.content.palettes.overrides.LOGO1
-  eq(logo and hex(logo[3]), "54377e",
-    "LOGO1 is purple's band ink, not green's")
-  eq(logo and hex(logo[2]), "915fda", "...and purple's band shadow")
+  eq(logo and hex(logo[2]), "8a5bd0",
+    "LOGO1 letters the band in purple's own outfit, not green's")
+  eq(logo and hex(logo[3]), "54377e", "...over purple's band shadow")
 
   local zones = zonesThrough(mod, advancedTitleZones())
   eq(zones and hex(zones[2].colors[3]), "54377e",

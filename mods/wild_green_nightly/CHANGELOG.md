@@ -6,6 +6,38 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.4.0] - 2026-08-30
+
+### Changed
+
+- **`WILD GREEN VERSION` is the character's green now.** The words under the
+  logo were `#14571f`, a dark forest green, while the character standing
+  directly beneath them wears `#65ba3f`. Two greens, one screen, one of them
+  the cart's name — it read as the title not having taken.
+
+  The band has always been two tones, and it still is; what changed is which
+  tone is the word. The letter is `#65ba3f` — the outfit itself, the same
+  number the jacket is drawn in — and `#14571f` moved to the one-pixel shadow
+  under it. `tools/ribbon.py` draws the art to match, swapping which shade
+  carries the glyph and which the shadow so the ramp stays lightest-first.
+
+  This was a real trade and it is worth naming: a letter at `#65ba3f` is about
+  2.4:1 against white paper, which on its own is thin for 8px type, and that
+  is exactly why 1.0.0's light-green ribbon washed out and got darkened in the
+  first place. It is not on its own now. The shadow beneath it is 8.7:1, and
+  an edge that dark is what the eye reads a small stroke by — which is how the
+  vanilla ribbon is built too.
+
+  All nine suits follow the same rule: **the letter is that suit's outfit**, so
+  `PLAYER = PURPLE` letters the band in purple's own purple rather than in a
+  purple derived for it. The one limit is that no letter is paler than green's
+  own outfit, which binds on `YELLOW` and `WHITE` and on nothing else.
+
+  The shadows are unchanged from 0.3.0, where they were the letters. That is
+  deliberate: `SHELL` reads green's shadow and the nightly channel reads
+  purple's, so **no cartridge changed colour** — the stable cart is still
+  `#14571f` and Wild Green Nightly is still `#54377e`.
+
 ## [0.3.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

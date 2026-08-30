@@ -90,10 +90,19 @@ def draw(text=TEXT):
             grid[y][x] = shade
 
     # The shadow goes down first so the letter sits on top of it rather than
-    # having to be drawn around it.  One pixel down and right, in the light
-    # green: the vanilla ribbon's word is two-tone too, and a black shadow
-    # under a dark letter at this size just thickens the stroke.
-    for offset, shade in ((1, LIGHT), (0, DARK)):
+    # having to be drawn around it.  One pixel down and right.
+    #
+    # The letter is the LIGHTER of the two ink shades and the shadow the
+    # darker, which is the way round a shadow has to be and was not always.
+    # Through 0.3.0 the letter was drawn in DARK and its shadow in LIGHT --
+    # a highlight, not a shadow -- because the band's palette put its bright
+    # colour in shade 2 and its dark one in shade 3.  That is what made the
+    # words on the title screen darker than the character they are named
+    # after.  The palette now letters the band in the character's own outfit
+    # and keeps a dark version of it for the shadow, so the shades swap here
+    # to match: shade 2 is the letter, shade 3 is the shadow, and both stay in
+    # the importer's lightest-first order.
+    for offset, shade in ((1, DARK), (0, LIGHT)):
         for x0, glyph in placed:
             for row, bits in enumerate(glyph):
                 for col, bit in enumerate(bits):

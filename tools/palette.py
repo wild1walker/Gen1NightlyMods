@@ -44,8 +44,8 @@ RAMP = mod_palette.RAMP
 SKIN = mod_palette.SKIN
 SUITS = mod_palette.SUITS
 SUIT_ORDER = mod_palette.SUIT_ORDER
-TITLE_INK = mod_palette.TITLE_INK
-TITLE_MID = mod_palette.TITLE_MID
+TITLE_LETTER = mod_palette.TITLE_LETTER
+TITLE_SHADOW = mod_palette.TITLE_SHADOW
 TITLE_RAMP = mod_palette.TITLE_RAMP
 TITLE_SUITS = mod_palette.TITLE_SUITS
 WORDMARK_BLUE = mod_palette.WORDMARK_BLUE
@@ -62,12 +62,17 @@ title_ramp = mod_palette.title_ramp
 # on it -- so the shell is the whole of that signal and it should not be a
 # shade of the same green.
 #
-# It is not picked by eye either.  `TITLE_SUITS["purple"]`'s ink is already in
-# the palette: it is the colour PLAYER = PURPLE letters the version ribbon in,
-# derived by the same rule every other suit's is, and its relative luminance
-# is 0.260 against the green shell's 0.269.  So the nightly cartridge is
-# exactly as dark as the stable one, in the palette's own purple, and neither
-# number was chosen for this.
+# It is not picked by eye either.  `TITLE_SUITS["purple"]`'s shadow is already
+# in the palette: it is the colour that sits under PLAYER = PURPLE's version
+# ribbon, derived by the same rule every other suit's is, and its relative
+# luminance is 0.260 against the green shell's 0.269.  So the nightly
+# cartridge is exactly as dark as the stable one, in the palette's own purple,
+# and neither number was chosen for this.
+#
+# The pair is (letter, shadow) and the shadow is the second of the two, which
+# is where the stable shell reads its own number from as well.  0.4.0 changed
+# what the FIRST of the two is -- the letter became the character's own outfit
+# -- and deliberately left the second alone, so no cartridge changed colour.
 NIGHTLY_INK = TITLE_SUITS["purple"][1]
 NIGHTLY_MID = TITLE_SUITS["purple"][0]
 
@@ -93,7 +98,9 @@ NIGHTLY_HUE = _hue(NIGHTLY_INK)
 
 if __name__ == "__main__":
     print("%-12s %s" % ("OUTFIT", hexof(OUTFIT)))
-    print("%-12s %s   (the stable cart's shell)" % ("TITLE_INK", hexof(TITLE_INK)))
+    print("%-12s %s" % ("TITLE_LETTER", hexof(TITLE_LETTER)))
+    print("%-12s %s   (the stable cart's shell)"
+          % ("TITLE_SHADOW", hexof(TITLE_SHADOW)))
     print("%-12s %s" % ("NIGHTLY_MID", hexof(NIGHTLY_MID)))
     print("%-12s %s" % ("NIGHTLY_INK", hexof(NIGHTLY_INK)))
     print("%-12s %s" % ("SHELL", SHELL))
