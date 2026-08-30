@@ -542,6 +542,36 @@ def check_options_screen(problems: Problems, quiet: bool) -> None:
               "manager and MODS route intact")
 
 
+def check_cull_rule(problems: Problems, quiet: bool) -> None:
+    """The off-canvas cull, in the mod and in the test that covers it.
+
+    tests/followercull_test.lua lifts the rule rather than loading
+    modules/Gen1Follower/main.lua, which is 1700 lines that want a whole
+    engine to load against.  Lifting it is only honest while the two spellings
+    agree, so this compares the one line that IS the rule.
+    """
+    rule = "return x + 16 <= 0 or y + 16 <= 0 or x >= w or y >= h"
+    where = {
+        "modules/Gen1Follower/main.lua": 0,
+        "tests/followercull_test.lua": 0,
+    }
+    for name in where:
+        path = ROOT / name
+        if not path.is_file():
+            problems.errors.append(f"{name}: missing; the cull rule cannot be checked")
+            return
+        where[name] = path.read_text(encoding="utf-8").count(rule)
+
+    for name, count in where.items():
+        if count != 1:
+            problems.errors.append(
+                f"{name}: the off-canvas cull rule appears {count} time(s); "
+                f"it must appear exactly once and read exactly\n    {rule}"
+            )
+    if not quiet and all(count == 1 for count in where.values()):
+        print("  cull rule:  the follower's off-canvas bound matches its test")
+
+
 def check_manifest(problems: Problems, quiet: bool) -> None:
     if not MANIFEST.exists():
         problems.error("manifest.json is missing")
@@ -590,6 +620,7 @@ def main() -> int:
     check_module_reads(problems, args.quiet)
     check_shared(problems, features, args.quiet)
     check_options_screen(problems, args.quiet)
+    check_cull_rule(problems, args.quiet)
     check_manifest(problems, args.quiet)
 
     for warning in problems.warnings:

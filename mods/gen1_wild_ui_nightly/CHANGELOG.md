@@ -6,6 +6,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.10.0] - 2026-08-30
+
+Nothing changed in this mod. It carries the channel's version so every archive
+on the `v0.10.0` release is one version, which is how the cart's pins resolve.
+
 ## [0.9.0] - 2026-08-30
 
 ### Fixed

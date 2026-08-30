@@ -7,6 +7,47 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.10.0] - 2026-08-30
+
+### Fixed
+
+- **Map Pokémon rendered outside the game screen** — floating in the black
+  margin above it, on a phone in portrait.
+
+  Measured off a capture, the two strays sat at world-canvas y **-16** and
+  **-31** — two and four tiles above the top of a 144-tall canvas — at exactly
+  `worldOrigin + y * scale`. That transform belongs to one path and one only:
+  the **post-zone redraw**.
+
+  For an unscaled follower this mod does not draw into the world canvas at
+  all. It queues the sprite with `PaletteFX.markSpriteRedraw`, and the
+  renderer replays it in **screen space** after the world blit. That is what
+  puts an OG RED sprite's object colours back on top of the zone pass, and it
+  is the one draw in the game that skips the canvas — so it is the one that
+  does not get the canvas's clipping for free either.
+
+  The renderer *does* scissor that replay, but to the **UI's** rect rather
+  than the **world's**, and on a portrait phone the UI rect is the taller of
+  the two. Anything drawn in the gap between them comes through. That part is
+  the engine's to fix; this is ours: **a sprite whose cell lies entirely off
+  the world canvas is not queued at all.**
+
+  Safe because it cannot remove anything anyone could see. The bound is the
+  canvas's own size rather than a hardcoded 160x144, so a zoomed-out view
+  whose canvas reaches further right and down still draws what it reveals —
+  and canvas space starts at 0 whatever the canvas is, so a cell at y -16 is
+  above every canvas there is. With no renderer to ask, nothing is culled and
+  the draw behaves exactly as it did before.
+
+  Not a nightly regression: `modules/Gen1Follower` has never been edited on
+  this channel, so this is a stable bug too.
+
+`tests/followercull_test.lua` is new — 20 assertions on the bound, including
+the two strays from the capture and the one-pixel-on-screen edges a sloppier
+bound would cut. It lifts the rule rather than loading 1700 lines that want a
+whole engine, and `tools/check.py` now compares the two spellings so they
+cannot drift.
+
 ## [0.9.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

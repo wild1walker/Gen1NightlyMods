@@ -1026,6 +1026,51 @@ return function(mod)
     return species, false
   end
 
+  -- ------- a sprite that is not on the screen
+  --
+  -- The mark-only branch below does not draw into the world canvas at all: it
+  -- queues a POST-ZONE REDRAW, which the renderer replays in SCREEN space
+  -- after the world blit (PaletteFX.markSpriteRedraw, and Renderer's
+  -- spriteRedraws loop).  That is what puts an OG RED sprite's object colours
+  -- back on top of the zone pass -- and it is the one draw path in the game
+  -- that does not go through the canvas, so it is the one that does not get
+  -- the canvas's clipping for free either.
+  --
+  -- A map POKeMON two tiles above the top of the screen is drawn at a
+  -- negative y.  Into the canvas that is nothing at all.  Through the replay
+  -- it was a POKeMON floating in the black margin ABOVE the game, which is
+  -- what players were seeing: measured off a capture, the two strays sat at
+  -- world y -16 and -31, at exactly `worldOrigin + y * scale`.
+  --
+  -- The renderer does scissor that replay, but to the UI's rect rather than
+  -- to the world's, and on a portrait phone the UI rect is the taller of the
+  -- two.  Anything drawn in the gap between them comes through.  That is the
+  -- engine's to fix; this is ours: a sprite whose cell lies entirely off the
+  -- world canvas is not queued at all.
+  --
+  -- Safe because it cannot remove anything anyone could see -- off the canvas
+  -- is off the canvas -- and the bound is the CANVAS's own size rather than a
+  -- hardcoded 160x144, so a zoomed-out view whose canvas reaches further
+  -- right and further down still draws what it reveals.  With no renderer to
+  -- ask, nothing is culled and this behaves exactly as it did before.
+  local rendererModule
+  local function offCanvas(x, y)
+    if rendererModule == nil then
+      local ok, found = pcall(require, "src.render.Renderer")
+      rendererModule = (ok and type(found) == "table") and found or false
+    end
+    if not rendererModule then return false end
+    local canvas = rendererModule.worldCanvas
+    if not (canvas and canvas.getDimensions) then return false end
+    local ok, w, h = pcall(canvas.getDimensions, canvas)
+    if not (ok and type(w) == "number" and type(h) == "number") then
+      return false
+    end
+    -- the sprite's own cell, whichever way it is mirrored: a flip draws the
+    -- same sixteen pixels from the other side of them
+    return x + 16 <= 0 or y + 16 <= 0 or x >= w or y >= h
+  end
+
   local origSpriteDraw = SpriteRenderer.draw
   local wrappedSpriteDraw
   wrappedSpriteDraw = function(self, px, py, camX, camY, facing, walkPhase,
@@ -1071,7 +1116,11 @@ return function(mod)
       local dark = canDraw and darkFrame()
 
       if not dark and (unscaled or not canDraw) then
-        PaletteFX.markSpriteRedraw(followerImg, quad, drawX, y, flipSx, nil, false)
+        -- `x`, not `drawX`: a mirrored sprite covers the same sixteen pixels
+        -- from the other side of them, and the cull is about the cell.
+        if not offCanvas(x, y) then
+          PaletteFX.markSpriteRedraw(followerImg, quad, drawX, y, flipSx, nil, false)
+        end
         return
       end
 
