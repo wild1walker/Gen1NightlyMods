@@ -396,6 +396,16 @@ def check_module_reads(problems: Problems, quiet: bool) -> None:
         print(f"  reads:      {checked} named files, {missing} missing")
 
 
+def paired_bundle_id():
+    """The bundle id features.lua says this one is paired with, or None."""
+    try:
+        text = (ROOT / "features.lua").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    found = re.search(r'paired_bundle\s*=\s*"([^"]+)"', text)
+    return found.group(1) if found else None
+
+
 def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
     """A feature carried by both bundles has to be declared the same in both.
 
@@ -438,9 +448,48 @@ def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
             claimed_by[claim] = label
 
     # The paired bundle, if it is checked out beside this one.
-    paired_name = "Gen1WildUI" if ROOT.name == "Gen1WildQOL" else "Gen1WildQOL"
-    paired = ROOT.parent / paired_name / "features.lua"
-    if not paired.exists():
+    #
+    # By the id features.lua DECLARES first, and only then by the two repo
+    # names -- because the declared id is the one the runtime actually uses,
+    # and a channel that renames both bundles renames that with them.  The
+    # nightly fork did, this check kept looking for `Gen1WildQOL`, and it
+    # printed "not on disk; cross-check skipped" on every run while the UI
+    # bundle pointed at a mod the cart does not install.  Reading the id back
+    # is what turns that line from an excuse into a finding.
+    paired_id = paired_bundle_id()
+    candidates = []
+    if paired_id:
+        candidates.append(paired_id)
+    candidates.append("Gen1WildUI" if ROOT.name in ("Gen1WildQOL",
+                                                    "gen1_wild_qol_nightly")
+                      else "Gen1WildQOL")
+    paired, paired_name = None, candidates[0]
+    for name in candidates:
+        here = ROOT.parent / name / "features.lua"
+        if here.exists():
+            paired, paired_name = here, name
+            break
+    if paired is None:
+        # Before shrugging: does a sibling name US as its partner while we
+        # name someone who is not here?  That is not a single-bundle checkout,
+        # it is a mismatch, and it is the one this check missed for a whole
+        # channel.
+        own = re.search(r'id\s*=\s*"([^"]+)"', (ROOT / "features.lua")
+                        .read_text(encoding="utf-8"))
+        own = own.group(1) if own else None
+        for folder in sorted(p for p in ROOT.parent.iterdir() if p.is_dir()):
+            other_features = folder / "features.lua"
+            if folder == ROOT or not other_features.is_file():
+                continue
+            theirs = re.search(r'paired_bundle\s*=\s*"([^"]+)"',
+                               other_features.read_text(encoding="utf-8"))
+            if own and theirs and theirs.group(1) == own:
+                problems.error(
+                    f"paired_bundle is {paired_id!r}, which is not beside this "
+                    f"bundle -- but {folder.name} names {own!r} as ITS partner. "
+                    "One of the two ids is stale, and every lookup across the "
+                    "pair fails silently until it is fixed")
+                return
         if not quiet:
             print(f"  shared:     {len(shared)} declared "
                   f"({paired_name} not on disk; cross-check skipped)")

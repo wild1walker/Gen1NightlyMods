@@ -5,6 +5,11 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.13.0] - 2026-08-30
+
+Nothing changed in this mod. It carries the channel's version so every archive
+on the `v0.13.0` release is one version, which is how the cart's pins resolve.
+
 ## [0.12.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

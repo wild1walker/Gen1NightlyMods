@@ -6,6 +6,65 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.13.0] - 2026-08-30
+
+### Fixed
+
+- **The two bundles could not see each other.** `features.lua` still named
+  `gen1_wild_qol` as this bundle's partner — the **stable** id, which the
+  nightly cart does not install. Every lookup from this side across to that
+  one failed, and a registry lookup that cannot find its mod does what it is
+  supposed to do: nothing, quietly.
+
+  What that broke, visibly: **`MENU LAYOUT` could not arrange the SELECT
+  menu.** The row registry for that menu is published over in the QOL bundle
+  by `EASY HM USE`, under the alias `FieldMenu`, and the manager joins it by
+  asking the paired bundle for it. It never found it, so the editor had no
+  catalog — which is why it said `NOTHING TO ARRANGE / PRESS SELECT FIRST`,
+  and why pressing SELECT could not help: that hint asks you to make the menu
+  show its rows so the editor can learn them, and the catalog exists precisely
+  so you do not have to.
+
+  The other half was already right — the QOL bundle names
+  `gen1_wild_ui_nightly` — so this was one line, wrong since the fork.
+
+- **`tools/check.py` had been reporting this on every run and I misread it.**
+  "Gen1WildQOL not on disk; cross-check skipped" reads like a single-bundle
+  checkout. It was the check looking for the partner by the **stable repo
+  folder name**, which a renamed channel does not have, so the cross-check has
+  never run here.
+
+  It now resolves the partner by the id `features.lua` **declares**, falling
+  back to the old names — so the skip message names the id you actually wrote,
+  and the cross-check runs on this channel for the first time. And a sibling
+  that names *this* bundle as its partner while this one names somebody who is
+  not there is now an **error**, not a shrug: that is a mismatch, not a
+  checkout.
+
+- **Screens this suite registers are themed.** `SELECT MENU`, the layout
+  editor and every other screen the bundle adds stayed white in a dark game.
+  The theme knows a page two ways — a marker on the instance, or one of the
+  engine's own UI classes — and a mod-registered screen is neither: a plain
+  table with no class to match. The facade now marks them as they are
+  registered, so the list cannot rot.
+
+  Only an **opaque** screen is marked, and that limit is the safety of it: the
+  marker tells the theme "this state is the page", and a page that declares no
+  palettes has a whole-screen one synthesised for it — right for a screen that
+  covers the display, wrong for a box over the map, where it would take the
+  map with it.
+
+- **Item icons keep their paper.** They are pictures drawn *on* paper: all 106
+  draw their line work in pure black on transparency and carry no white at
+  all, so the page is a POKé BALL's lower half and the gap inside a BICYCLE's
+  frame. An icon now sits on a white cell whatever the theme is.
+
+  0.9.0 drew the line work white on a dark cell instead, on the theory that
+  black on transparency is an *outline* and an outline inverts. For a ball it
+  does. For a BICYCLE it does not — **69% of that icon's opaque pixels are
+  pure black, because the black is the bicycle** — and flipping it turns the
+  subject into white scribble. A dozen of the 106 are more than half black.
+
 ## [0.12.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

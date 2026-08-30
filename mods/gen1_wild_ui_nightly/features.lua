@@ -45,8 +45,23 @@ return {
     menu_label = "GEN1WILD UI",
     screen_id = "Gen1WildUI",
     -- Gen151 lives in the QOL bundle and wants Gen1Dex, which lives here.
-    -- This is the hop that keeps that working.
-    paired_bundle = "gen1_wild_qol",
+    -- This is the hop that keeps that working -- and MENU LAYOUT's hop to the
+    -- SELECT menu's row registry, which is published by EASY HM USE over
+    -- there under the alias FieldMenu.
+    --
+    -- THE NIGHTLY ID, not the stable one.  Forking the two bundles renamed
+    -- them both, and this line kept pointing at `gen1_wild_qol` -- a mod the
+    -- nightly cart does not install.  Every lookup from this side across to
+    -- that one failed silently, which is exactly what a registry lookup does
+    -- when it cannot find the mod: nothing, quietly.  The SELECT menu was not
+    -- arrangeable because the manager never found the registry to join.
+    --
+    -- tools/check.py said so on every run -- "Gen1WildQOL not on disk;
+    -- cross-check skipped" -- and that line was read as the cross-check being
+    -- unavailable in a single-bundle checkout rather than as this being
+    -- wrong.  The other half had already been updated: the QOL bundle names
+    -- `gen1_wild_ui_nightly`.
+    paired_bundle = "gen1_wild_qol_nightly",
 
     -- Mods the cart pins that get a door of their own at the top of the
     -- menu, rather than sitting under OTHER MODS with the mods a player

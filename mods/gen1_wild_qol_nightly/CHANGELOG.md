@@ -7,6 +7,22 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.13.0] - 2026-08-30
+
+### Fixed
+
+- **`tools/check.py` finds the paired bundle by the id `features.lua`
+  declares**, falling back to the old repo names. The nightly fork renamed
+  both bundles and the check kept looking for `Gen1WildUI` on disk, so its
+  cross-check has never run on this channel — and it printed "not on disk;
+  cross-check skipped" on every run while the other half pointed at a mod the
+  cart does not install.
+
+  A sibling that names *this* bundle as its partner while this one names
+  somebody who is not there is now an error rather than a skip.
+
+  This bundle's own `paired_bundle` was already correct; the fix is the check.
+
 ## [0.12.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

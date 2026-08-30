@@ -1118,6 +1118,58 @@ local function themeOver(mod)
 end
 
 do
+  io.write("a screen the suite registers is one of ours\n")
+  -- The bug: SELECT MENU, the layout editor and everything else this bundle
+  -- registers stayed white in a dark game.  The theme knows a page two ways --
+  -- a marker on the instance, or one of the engine's own UI classes -- and a
+  -- screen a mod registers is neither: a plain table with no class to match.
+  -- So the registry marks them, once, instead of a list here that rots.
+  local Facade = load_("runtime/facade.lua")
+
+  local registered = {}
+  local screens = {
+    register = function(self, id, factory) registered[id] = factory end,
+  }
+  local mod = fakeMod()
+  mod.content = { screens = screens }
+
+  local facade = Facade.new({ id = "only", dir = "Only" },
+                            { mod = mod, shared = {} })
+
+  facade.content.screens:register("Opaque", {
+    new = function() return { isOpaque = true, what = "a page" } end,
+  })
+  facade.content.screens:register("Overlay", {
+    new = function() return { what = "a box over the map" } end,
+  })
+
+  local page = registered["Opaque"].new()
+  ok(page.gen1wildTheme ~= nil,
+    "an opaque screen is marked, so the theme takes it as the page")
+  eq(page.what, "a page", "and the instance is otherwise the feature's own")
+
+  -- The limit is the whole safety of this: the marker makes the theme
+  -- synthesise a whole-screen page when the state declares no palettes, which
+  -- over a map would darken the map with the box.
+  local overlay = registered["Overlay"].new()
+  eq(overlay.gen1wildTheme, nil,
+    "a screen that is not opaque is left alone -- it reaches the theme as a "
+    .. "panel or not at all")
+
+  -- and a screen that already says what it is keeps its own answer
+  facade.content.screens:register("Named", {
+    new = function() return { isOpaque = true, gen1wildTheme = "settings" } end,
+  })
+  eq(registered["Named"].new().gen1wildTheme, "settings",
+    "a screen that names itself is not overwritten")
+
+  -- the registry is otherwise untouched
+  facade.content.screens:register("Plain", "not a factory")
+  eq(registered["Plain"], "not a factory",
+    "and anything that is not a factory goes through as it came")
+end
+
+do
   io.write("the theme only answers for pages\n")
   local mod = fakeMod()
   local theme = themeOver(mod)

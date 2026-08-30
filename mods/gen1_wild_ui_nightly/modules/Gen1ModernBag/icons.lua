@@ -50,28 +50,6 @@
 
 return function(mod)
 
-  -- ------- the matte behind true-colour art
-  --
-  -- `PaletteFX.markTrueColor` blits a rectangle RAW so a coloured icon keeps
-  -- its own colours instead of being read as four shades.  Raw means raw: the
-  -- white page under it stays white when everything around it goes black,
-  -- which is the white box behind every icon on a dark screen.
-  --
-  -- So the rectangle is painted with what the theme will make of it BEFORE
-  -- the art goes in.  Only ever inside a rectangle about to be marked -- a
-  -- dark rectangle anywhere else is shade-3 pixels, which the theme maps to
-  -- the page's ink and puts a hole in the page.
-  --
-  -- Under LIGHT the colour is white, which is what this drew before the theme
-  -- existed, so a build with no theme in it is unchanged.
-  local function matte(x, y, w, h)
-    local theme = type(mod.theme) == "function" and mod.theme() or nil
-    local colour = theme and type(theme.matte) == "function"
-      and theme.matte() or nil
-    if type(colour) ~= "table" then return end
-    love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
-    love.graphics.rectangle("fill", x, y, w, h)
-  end
   local W, H = 16, 16
   local DIR = "assets/items/"
 
@@ -85,75 +63,42 @@ return function(mod)
 
   local C = { W = W, H = H }
 
+  -- ------- the card an icon sits on
+  --
+  -- These icons are pictures drawn ON PAPER.  All 106 draw their line work in
+  -- pure black on transparency and carry no white at all -- the page is a
+  -- POKe BALL's lower half, the white of a TOWN MAP, the gap inside a
+  -- BICYCLE's frame -- so the paper is part of the picture and not a
+  -- background it happens to be sitting on.
+  --
+  -- So an icon keeps its paper whatever the page does.  A white cell behind
+  -- it, always, and the art drawn into that.
+  --
+  -- Two things were tried first and are recorded here because both look like
+  -- the obvious answer and neither is:
+  --
+  --   0.6.0 painted the cell the colour the page was about to be.  On a dark
+  --   page that takes the paper away, and a POKe BALL comes out a red blob.
+  --
+  --   0.9.0 kept the dark cell and drew the line work white instead, on the
+  --   theory that black on transparency is an OUTLINE and an outline inverts.
+  --   For a ball it does.  For a BICYCLE it does not: 69% of that icon's
+  --   opaque pixels are pure black, because the black IS the bicycle, and
+  --   flipping it turns the subject into white scribble.  Measured across all
+  --   106, a dozen are more than half black.
+  --
+  -- The cell is the same size as the icon and is marked true-colour with it,
+  -- so it is one rectangle either way and costs nothing extra.
+  local function matte(x, y, w, h)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+  end
+
   -- Every path asked for, hit or miss.  `false` is a file that is not there,
   -- and it is cached as hard as an image is: a pocket of fifty items with no
   -- icon would otherwise ask the filesystem for fifty missing files on every
   -- frame it is open.
   local images = {}
-
-
-  -- ------- an icon on dark paper
-  --
-  -- These icons carry no white at all.  Every one of the 106 draws its line
-  -- work in pure black on transparency, because the art was made to sit on
-  -- the white page: the page is the POKe BALL's lower half, and the black
-  -- outline around it is what makes the shape.
-  --
-  -- 0.6.0 painted the cell the colour the page was about to be, so on a dark
-  -- page the ball lost its paper AND kept a black outline nobody could see
-  -- against black.  A POKe BALL came out a red blob.
-  --
-  -- The first attempt at this was a flood fill -- find the transparent pixels
-  -- the outline encloses and make them white.  It does not work, and the
-  -- reason is worth writing down: the outlines are NOT CLOSED.  They never had
-  -- to be, because inside and outside were both the same white page, so the
-  -- ball's lower edge is a few disconnected strokes and a fill leaks straight
-  -- through them.
-  --
-  -- What is true of every one of these files is the line work.  So on dark
-  -- paper the ink is swapped, the way the theme swaps it everywhere else: a
-  -- pure-black opaque pixel is drawn white and every other pixel is left
-  -- exactly as it is.  A POKe BALL keeps its red dome and reads as a white
-  -- outline over the dark page, which is what a line drawing inverts to and
-  -- is what the rest of the screen has already done.
-  --
-  -- Built once per file, beside the original, and only when the pixels are
-  -- reachable.  A build where they are not draws the plain image, which is
-  -- what it drew before this existed.
-  local function inkSwapped(data)
-    local w, h = data:getDimensions()
-    local swapped = false
-    for y = 0, h - 1 do
-      for x = 0, w - 1 do
-        local r, g, b, a = data:getPixel(x, y)
-        if a > 0 and r == 0 and g == 0 and b == 0 then
-          data:setPixel(x, y, 1, 1, 1, a)
-          swapped = true
-        end
-      end
-    end
-    return swapped
-  end
-
-  -- The pixels of a file, or nil.  Two ways in because a mod reaches
-  -- love.image directly on one build and through the engine's own resolver on
-  -- another; either answers, and neither answering is not fatal.
-  local function pixelsOf(path)
-    if love and love.image and love.image.newImageData then
-      local ok, data = pcall(love.image.newImageData, path)
-      if ok and data then return data end
-    end
-    local okAssets, Assets = pcall(require, "src.render.Assets")
-    if okAssets and type(Assets) == "table" and Assets.imageData then
-      local ok, data = pcall(Assets.imageData, path)
-      if ok and data then return data end
-    end
-    return nil
-  end
-
-  -- light image -> its ink-swapped twin.  Weak keys, so a twin goes when the
-  -- image it belongs to does.
-  local darkTwin = setmetatable({}, { __mode = "k" })
 
   local function load(path)
     local cached = images[path]
@@ -163,33 +108,11 @@ return function(mod)
       -- Pixel art inside a 160x144 frame that is integer-scaled afterwards;
       -- anything but nearest turns a 16-pixel icon to soup.
       pcall(image.setFilter, image, "nearest", "nearest")
-      local data = pixelsOf(path)
-      local okSwap, swapped = false, false
-      if data then okSwap, swapped = pcall(inkSwapped, data) end
-      if okSwap and swapped then
-        local madeOk, twin = pcall(love.graphics.newImage, data)
-        if madeOk and twin then
-          pcall(twin.setFilter, twin, "nearest", "nearest")
-          darkTwin[image] = twin
-        end
-      end
       images[path] = image
     else
       images[path] = false
     end
     return images[path] or nil
-  end
-
-  -- Is the paper this icon is about to sit on dark?  Asked of the theme's own
-  -- matte rather than of its name, so the question is the one that matters --
-  -- what colour is behind this -- and a theme that grows a third answer needs
-  -- no change here.
-  local function onDarkPaper()
-    local theme = type(mod.theme) == "function" and mod.theme() or nil
-    if not (theme and type(theme.matte) == "function") then return false end
-    local colour = theme.matte()
-    if type(colour) ~= "table" or #colour < 3 then return false end
-    return (0.2126 * colour[1] + 0.7152 * colour[2] + 0.0722 * colour[3]) < 128
   end
 
   local function shipped(stem)
@@ -211,12 +134,12 @@ return function(mod)
     return shipped(kind)
   end
 
+  -- for tests/itemicons_test.lua
+  C.matte = matte
+
   -- The icon for an item, or nil.  Nil is an ordinary answer -- a badge has
   -- no icon, and neither does an item a mod added -- and the row is drawn
   -- without one.
-  -- for tests/itemicons_test.lua, which has no love to load a file with
-  C.inkSwapped = inkSwapped
-
   function C.of(game, id)
     if type(id) ~= "string" or id == "" then return nil end
     local items = game and game.data and game.data.items
@@ -240,13 +163,12 @@ return function(mod)
   -- caller can keep drawing text without knowing this happened.
   function C.draw(image, x, y)
     if not image then return end
-    -- the page under the icon, before the icon: a marked rectangle is blitted
-    -- raw, so the white it was cleared to survives a dark page unless this
-    -- paints over it first
+    -- the icon's own paper first, then the icon on it -- see matte.  Only
+    -- when the rectangle is about to be marked, because that is the only case
+    -- where the page under it is not already whatever the screen cleared to.
     if PaletteFX and PaletteFX.markTrueColor then
       matte(x, y, W, H)
     end
-    if onDarkPaper() then image = darkTwin[image] or image end
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(image, x, y)
     if PaletteFX and PaletteFX.markTrueColor then

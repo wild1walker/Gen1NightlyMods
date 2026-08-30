@@ -1,19 +1,23 @@
--- Headless coverage of what an item icon does on dark paper.
+-- Headless coverage of what an item icon sits on.
 --
--- The bug this is for: every one of the 106 shipped icons draws its line work
--- in PURE BLACK on transparency, and carries no white at all.  The art was
--- made to sit on the white page -- the page IS a POKe BALL's lower half, and
--- the black outline around it is what makes the shape.  0.6.0 painted the
--- cell the colour the page was about to be, so on a dark page the ball lost
--- its paper and kept an outline nobody could see against black.  It came out
--- a red blob.
+-- These icons are pictures drawn ON PAPER.  All 106 shipped ones draw their
+-- line work in pure black on transparency and carry no white at all -- the
+-- page is a POKe BALL's lower half, the white of a TOWN MAP, the gap inside a
+-- BICYCLE's frame -- so the paper is part of the picture rather than a
+-- background it happens to be sitting on.  An icon therefore keeps its paper
+-- whatever the page does: a white cell behind it, always.
 --
--- The first attempt was a flood fill: find the transparent pixels the outline
--- encloses, make them white.  It does not work, and this is where that is
--- recorded so nobody tries it again -- the outlines are NOT CLOSED.  They
--- never had to be, because inside and outside were the same white page.  A
--- fill leaks straight through the gaps, which is why the shape below is the
--- real POKe BALL's lower edge rather than a tidy invented one.
+-- Two other answers were shipped first, and both are recorded here because
+-- each looks like the obvious one:
+--
+--   0.6.0 painted the cell the colour the page was about to be.  On a dark
+--   page that takes the paper away and a POKe BALL comes out a red blob.
+--
+--   0.9.0 kept the dark cell and drew the line work white instead, on the
+--   theory that black on transparency is an OUTLINE and an outline inverts.
+--   For a ball it does.  For a BICYCLE it does not -- 69% of that icon's
+--   opaque pixels are pure black, because the black IS the bicycle -- and
+--   flipping it turns the subject into white scribble.
 --
 -- Run:  luajit tests/itemicons_test.lua
 
@@ -44,133 +48,82 @@ local function chunkOf(path)
   return assert(load(source, "@" .. path))()
 end
 
--- ------- a stand-in for love's ImageData
---
--- Rows of characters, so the fixture below reads as the picture it is:
---   .  transparent      #  pure black (the line work)      r  a colour
-local function imageData(rows)
-  local h = #rows
-  local w = #rows[1]
-  local grid = {}
-  for y = 1, h do
-    grid[y] = {}
-    for x = 1, w do
-      local ch = rows[y]:sub(x, x)
-      if ch == "." then grid[y][x] = { 0, 0, 0, 0 }
-      elseif ch == "#" then grid[y][x] = { 0, 0, 0, 1 }
-      else grid[y][x] = { 0.97, 0.32, 0.19, 1 } end
-    end
-  end
-  local data = { grid = grid }
-  function data:getDimensions() return w, h end
-  function data:getPixel(x, y)
-    local p = self.grid[y + 1][x + 1]
-    return p[1], p[2], p[3], p[4]
-  end
-  function data:setPixel(x, y, r, g, b, a)
-    self.grid[y + 1][x + 1] = { r, g, b, a }
-  end
-  function data:render()
-    local out = {}
-    for y = 1, h do
-      local line = ""
-      for x = 1, w do
-        local p = self.grid[y][x]
-        if p[4] == 0 then line = line .. "."
-        elseif p[1] == 0 and p[2] == 0 and p[3] == 0 then line = line .. "#"
-        elseif p[1] == 1 and p[2] == 1 and p[3] == 1 then line = line .. "W"
-        else line = line .. "r" end
-      end
-      out[y] = line
-    end
-    return out
-  end
-  return data
-end
+-- ------- the engine, as much of it as this touches
 
--- ------- the kit
---
--- Only `inkSwapped` is under test, so the module is stood up with the
--- smallest `mod` and `love` it will load against.
-love = { graphics = { newImage = function() return nil end,
-                      setColor = function() end,
-                      rectangle = function() end,
-                      draw = function() end } }
+local calls = {}
+love = {
+  graphics = {
+    setColor = function(r, g, b, a)
+      calls[#calls + 1] = { what = "colour", r = r, g = g, b = b, a = a }
+    end,
+    rectangle = function(_, x, y, w, h)
+      calls[#calls + 1] = { what = "rect", x = x, y = y, w = w, h = h }
+    end,
+    draw = function() calls[#calls + 1] = { what = "image" } end,
+    newImage = function() return { setFilter = function() end } end,
+  },
+}
+local marks = {}
 package.preload["src.render.PaletteFX"] = function()
-  return { markTrueColor = function() end }
+  return {
+    markTrueColor = function(x, y, w, h)
+      marks[#marks + 1] = { x = x, y = y, w = w, h = h }
+    end,
+  }
 end
-package.preload["src.render.Assets"] = function() return {} end
 
+-- The theme is present and set to DARK, which is the case that used to change
+-- what an icon sat on.  It must not any more.
 local mod = {
   path = ".",
   options = { get = function() return nil end },
   log = { warn = function() end, info = function() end },
-  theme = function() return nil end,
+  theme = function()
+    return { read = function() return "dark" end,
+             matte = function() return { 0, 0, 0 } end }
+  end,
 }
 local C = chunkOf("modules/Gen1ModernBag/icons.lua")(mod)
-ok(type(C) == "table" and type(C.inkSwapped) == "function",
-   "the icon kit loads and exposes the swap")
+ok(type(C) == "table" and type(C.matte) == "function",
+   "the icon kit loads and exposes the cell it paints")
 
--- ------- the real POKe BALL's lower half, traced off the shipped file
---
--- Note rows 12 and 13: the outline steps from (4,12) to (6,13) with nothing
--- between them.  That gap is why a flood fill leaks, and it is the reason
--- this test exists as a picture rather than as a number.
-local BALL = {
-  "................",
-  "................",
-  "......####......",
-  "....########....",
-  "...##########...",
-  "...##.#######...",
-  "..############..",
-  "..############..",
-  "..############..",
-  "..###..#######..",
-  "...##..######...",
-  "...#.##.....#...",
-  "....#......#....",
-  "......####......",
-  "................",
-  "................",
-}
-
-io.write("black line work is drawn white on dark paper\n")
+io.write("an icon sits on white paper, whatever the page is\n")
 do
-  local data = imageData(BALL)
-  eq(C.inkSwapped(data), true, "the swap reports that it changed something")
-  local out = data:render()
-  eq(out[3], "......WWWW......", "the top of the ball is white line work now")
-  eq(out[13], "....W......W....", "and so is the bottom")
-  eq(out[1], "................",
-     "the margin around the item is untouched, so the icon still sits on "
-     .. "whatever the screen puts behind it")
-  eq(out[12], "...W.WW.....W...",
-     "including the gaps a flood fill would have leaked through -- they are "
-     .. "the page, and the page is the screen's business")
+  calls = {}
+  C.matte(24, 40, 16, 16)
+  local colour, rect
+  for _, c in ipairs(calls) do
+    if c.what == "colour" then colour = c end
+    if c.what == "rect" then rect = c end
+  end
+  ok(colour ~= nil and rect ~= nil, "it sets a colour and fills a rectangle")
+  eq(colour and colour.r, 1, "white")
+  eq(colour and colour.g, 1, "...on every channel")
+  eq(colour and colour.b, 1, "...including blue")
+  eq(rect and rect.x, 24, "over the cell it was given")
+  eq(rect and rect.w, 16, "...at the cell's size")
+
+  -- The theme above says DARK.  0.6.0 would have painted black here, which is
+  -- the bug this file exists for.
+  ok(not (colour and colour.r == 0),
+    "and DARK does not change it, because the paper is part of the picture")
 end
 
-io.write("and every other pixel is left exactly as it was\n")
+io.write("the paper goes down before the art, inside the marked rectangle\n")
 do
-  local coloured = {
-    "....",
-    ".rr.",
-    ".r#.",
-    "....",
-  }
-  local data = imageData(coloured)
-  C.inkSwapped(data)
-  local out = data:render()
-  eq(out[2], ".rr.", "a colour is a colour")
-  eq(out[3], ".rW.", "and only the black becomes white")
-end
-
-io.write("art with no black in it is left alone entirely\n")
-do
-  local data = imageData({ "..", ".r" })
-  eq(C.inkSwapped(data), false,
-     "nothing swapped means no twin is built and the plain image is drawn")
-  eq(data:render()[2], ".r", "...and the pixels are untouched")
+  calls, marks = {}, {}
+  C.draw({}, 8, 16)
+  local order = {}
+  for _, c in ipairs(calls) do
+    if c.what == "rect" then order[#order + 1] = "paper" end
+    if c.what == "image" then order[#order + 1] = "art" end
+  end
+  eq(order[1], "paper", "the cell is filled first")
+  eq(order[2], "art", "and the icon drawn onto it")
+  eq(#marks, 1, "the rectangle is marked true-colour exactly once")
+  eq(marks[1] and marks[1].x, 8, "at the icon's own position")
+  eq(marks[1] and marks[1].w, 16, "and the icon's own size, which the "
+    .. "paper shares -- one rectangle, not two")
 end
 
 io.write(("\nitem icons: %d passed, %d failed\n"):format(passed, failed))
