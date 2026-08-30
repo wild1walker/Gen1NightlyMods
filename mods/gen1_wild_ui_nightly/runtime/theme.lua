@@ -167,32 +167,32 @@ Theme.PAGES = {
   "src.mods.ManagerState",
 }
 
--- ------- a page whose art is worth keeping
+-- ------- a page only while something is standing on it
 --
--- The title screen is a page and a picture at the same time, which is why it
--- is neither in PAGES nor left out of everything.
+-- The title screen is a picture for most of its life and a page for the rest
+-- of it, and the difference is whether the menu is open.
 --
--- Reversed like an ordinary page it would come out wrong twice over: the
--- POKeMON logo's colours would swap around into something nobody chose, and
--- the version ribbon -- WILD GREEN VERSION, lettered in the character's own
--- outfit colour over four releases of getting that number right -- would come
--- out in whatever the reversal made of it.  Left alone it is a white screen
--- in a dark game, and the first thing a dark boot puts in front of you.
+-- `TitleState:draw` opens with a white fill of the whole screen and then
+-- `if self.menuOpen then return end` (TitleState.lua:711-715) -- MainMenu's
+-- own ClearScreen, which wipes the logo, the mon and the sprites before the
+-- CONTINUE / NEW GAME border goes down.  So from the moment that menu opens
+-- there is no art on that screen at all: it is blank paper with two boxes on
+-- it, and it is the first thing a dark-mode boot puts in front of you.
 --
--- So a page named here has its GROUND moved out from under it instead of
--- being inverted.  Paper goes to the dark page's black, ink takes the paper's
--- old white, and the two midtones -- which is where every coloured thing on
--- this screen lives -- are not touched at all.  The logo keeps its colours on
--- black, the ribbon keeps its green, and GAME FREAK inc. along the bottom,
--- which the engine draws in shade 3 (TitleState.lua:823), flips to white
--- instead of going black on black.
+-- So the rule is the stack rather than the class: a frame owner named here is
+-- a page WHEN SOMETHING IS STACKED ON IT, and a picture when it is alone.
 --
--- The same rule covers the CONTINUE menu the title opens into: those boxes
--- are DMG greys, so grounding them is paper black and ink white, which is
--- what a menu wants.  `TitleState:draw` fills the screen white and returns
--- the moment that menu is up (TitleState.lua:711-715), so there is no art
--- left to preserve by then and nothing to tell the two cases apart with.
-Theme.GROUND_PAGES = {
+-- 0.24.0 made it a page in both states, with a transform that moved its
+-- GROUND out from under it and left the midtones alone, so the logo would
+-- keep its colours and the ribbon its green.  Three things went wrong on
+-- screen and are why that is not here any more: the logo's dark outline is
+-- shade 3 and came back white; the mon and the figure flashed white frames,
+-- because they are true-colour rectangles marked from two code paths and only
+-- one of them can paint under a rectangle; and slivers of those rectangles
+-- were left unpainted as lines beside both sprites.  The art on that screen is
+-- reachable by a palette and by two different marks on different frames, and
+-- darkening it needs those under one roof rather than a transform.
+Theme.COVERED_PAGES = {
   "src.ui.TitleState",
 }
 
@@ -211,7 +211,7 @@ local function resolve(paths)
 end
 
 local function pageClasses() return resolve(Theme.PAGES) end
-local function groundClasses() return resolve(Theme.GROUND_PAGES) end
+local function coveredClasses() return resolve(Theme.COVERED_PAGES) end
 
 -- ------- the transforms
 
@@ -418,7 +418,7 @@ function Theme.new(context)
   local self = {}
 
   local classes                         -- built on the first frame
-  local grounds
+  local covered
   local reversals = setmetatable({}, { __mode = "k" })
 
   function self.read()
@@ -492,10 +492,12 @@ function Theme.new(context)
         classes = classes or pageClasses()
         if classes[getmetatable(state)] then return state, i end
         if state.sgbPalettes then
-          -- A page whose art is kept; see Theme.GROUND_PAGES.  Reported as a
-          -- page, and `grounds` is what tells apply which transform it wants.
-          grounds = grounds or groundClasses()
-          if grounds[getmetatable(state)] then return state, i end
+          -- A picture with something standing on it is a page after all; see
+          -- Theme.COVERED_PAGES.  Alone, it is the picture it looks like.
+          covered = covered or coveredClasses()
+          if i < #states and covered[getmetatable(state)] then
+            return state, i
+          end
           -- owns the frame and is not a page: the frame is not ours, but
           -- anything stacked ON it still might be, so say where it sits
           return nil, i
@@ -513,12 +515,29 @@ function Theme.new(context)
   -- colour at best and a box over its own content at worst.  What is left
   -- above the owner is exactly the overlays -- the START menu on the map, the
   -- bag's windows, a field-move list, a battle's command box.
-  -- `bare` is a frame that arrived with no zone list at all -- see the note in
-  -- apply.  Nothing on such a frame is themed by anything, so there is no
-  -- half-and-half to protect against and no owner's palette to preserve:
-  -- every box drawn on it is ours to take, and the closure's seed is the
-  -- whole recorded list rather than the rects a state described.
-  local function panelZones(game, ownerAt, drawn, bare)
+  -- `everyBox` is a frame whose owner is NOT a page -- the map, a battle, the
+  -- title, any of the pictures.  Nothing on such a frame is themed by the page
+  -- path, so there is no half-and-half to protect against and no owner's
+  -- palette to double-coat: every box drawn on it is ours to take, and the
+  -- closure's seed is the whole recorded list rather than the rects a state
+  -- described.
+  --
+  -- Which is also the only way to reach a box nothing owns.  The location
+  -- banner is a `Font.drawBox` from an overlay hook with no state behind it,
+  -- so there is no rectangle for a state to describe and nothing earlier in
+  -- the frame for the closure to hang it on -- it stayed white over a dark map
+  -- for as long as panels came only from the stack.
+  --
+  -- Safe because the owners this covers draw no boxes of their own that are
+  -- not UI.  The map is tiles; a battle's boxes ARE its command grid, its
+  -- dialogue and its HP frames, which is what 0.27.0 already takes on the
+  -- classic layout -- so the wide layout, which has a zone list and therefore
+  -- never reached that path, now agrees with it.
+  --
+  -- A page is the other case and keeps the closure: its own boxes are already
+  -- inside the page's own colours, and taking them again would be a second
+  -- coat over its content.
+  local function panelZones(game, ownerAt, drawn, everyBox)
     local states = game and game.stack and game.stack.states
     if type(states) ~= "table" then return nil end
     local rects
@@ -538,7 +557,7 @@ function Theme.new(context)
         end
       end
     end
-    if bare and drawn then
+    if everyBox and drawn then
       rects = rects or {}
       for _, box in ipairs(drawn) do
         -- A box a state already described is the same rectangle twice; the
@@ -722,28 +741,6 @@ function Theme.new(context)
     return DARK_PAGE
   end
 
-  -- Paper and ink swap; the midtones stay exactly where they are.
-  --
-  -- Which is the whole difference between this and `reverse`: a reversal moves
-  -- all four shades, and shades 1 and 2 are where a coloured screen keeps its
-  -- colour.  Moving only the ends darkens the ground and keeps whatever was
-  -- drawn on it.
-  --
-  -- The new paper is the dark page's black rather than the palette's own ink,
-  -- so a grounded screen is the same black as the menus that open over it.
-  local function grounded(colors)
-    return { DARK_PAGE[1], colors[2], colors[3], colors[1] }
-  end
-
-  local function ground(zones)
-    return restyled(zones, function(_, zone)
-      -- art, not a palette: a marked rectangle is re-blitted raw and is not
-      -- ours to move.  runtime/matte.lua is what puts a ground under those.
-      if type(zone.colors) ~= "table" then return zone.colors end
-      return grounded(zone.colors)
-    end)
-  end
-
   local function dark(zones, pageAt)
     return restyled(zones, function(index, zone)
       -- `colors == false` is the true-colour opt-out and is a rectangle, not
@@ -771,19 +768,18 @@ function Theme.new(context)
     if self.read() ~= "dark" then return zones end
 
     local state, ownerAt = pageState(game)
-    local out
-    if state and grounds and grounds[getmetatable(state)] then
-      -- its own bands, grounded: see Theme.GROUND_PAGES.  Not through
-      -- pageZones, because that would replace a list this one is keeping.
-      out = ground(zones)
-    elseif state then
+    local out, page
+    if state then
       out = dark(pageZones(zones, state), 1)
+      page = true
     elseif basePage(zones) then
       -- no page state, but the list itself says it is a page
       out = dark(zones, 1)
       ownerAt = ownerAt or 0
+      page = true
     else
       out = zones
+      page = false
     end
 
     -- Panels last, because they are drawn last: a menu box over a map is on
@@ -792,7 +788,7 @@ function Theme.new(context)
     -- frame that is not a page at all -- which is the whole point, because
     -- the START menu has never been one.
     local bare = type(out) ~= "table" or not out[1]
-    local panels = panelZones(game, ownerAt, drawn, bare)
+    local panels = panelZones(game, ownerAt, drawn, not page)
     if not panels then return out end
 
     -- ------- a frame that arrived with no zones of its own

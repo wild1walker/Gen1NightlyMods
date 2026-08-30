@@ -6,6 +6,52 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.28.0] - 2026-08-30
+
+### Fixed
+
+- **The location banner is themed.** It is a `Font.drawBox` from an overlay
+  hook with no state behind it, so there was no rectangle for a state to
+  describe and nothing earlier in the frame for the drawn-box closure to hang
+  it on. It stayed white over a dark map for as long as panels came only from
+  the stack.
+
+  The rule is simpler now, and one rule instead of three: **when the frame's
+  owner is not a page, every box drawn on it is a panel.** The map is tiles and
+  draws no boxes of its own, so every box on an overworld frame is UI. A page
+  is the other case and keeps the closure — its own boxes are already inside
+  its own colours and taking them again would be a second coat over its
+  content.
+
+  That also settles the wide battle, which I flagged as untested at 0.27.0.
+  It is the one battle layout with a zone list, so it never reached the bare
+  frame path and came out with a dark command menu over a light dialogue box.
+  Both layouts agree now.
+
+### Reverted
+
+- **The dark title screen is out** (added 0.24.0). Three things went wrong on
+  screen and they are not one fix:
+
+  - the `POKéMON` logo's outline is shade 3, and the ground transform swaps
+    paper and ink, so a dark outline came back white;
+  - the mon and the character flashed white frames — they are true-colour
+    rectangles marked from **two** code paths on different frames, and only one
+    of those (`currentSprite`, called from inside the draw) can paint under a
+    rectangle. On the frames the other one marks, nothing mattes it;
+  - slivers of those rectangles were left unpainted as lines beside both
+    sprites.
+
+  The `CONTINUE` menu is dark exactly as it was from 0.20.0: the title is a
+  picture when it is alone and a page when that menu is standing on it. I put
+  the risk about the logo in the 0.24.0 notes and shipped anyway; the sprite
+  frames I did not foresee, and three visible defects on the first screen of
+  the game is not something to iterate on in front of you.
+
+  Doing it properly means getting both of those marks under one roof before
+  touching the palette at all, which is its own piece of work rather than a
+  transform.
+
 ## [0.27.0] - 2026-08-30
 
 ### Fixed

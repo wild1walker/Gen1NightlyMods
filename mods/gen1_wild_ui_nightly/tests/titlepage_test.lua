@@ -1,21 +1,21 @@
--- Which frames are pages, and the one whose art survives being one.
+-- Which frames are pages, and the one that is a page only sometimes.
 --
 -- The bug, from a phone screenshot of the CONTINUE menu in DARK: a black
 -- CONTINUE / NEW GAME box in the top left, a black PLAYER / BADGES / POKeDEX /
 -- TIME box under it, and white paper in the corners neither of them reaches.
 -- The boxes were themed and the page they sit on was not.
 --
--- The title screen owns its frame and is not in Theme.PAGES, and reversing it
--- like an ordinary page would be vandalism twice over: the POKeMON logo's
--- colours would swap into something nobody chose, and the version ribbon --
--- lettered in the character's own outfit colour over four releases of getting
--- that number right -- would come out in whatever the reversal made of it.
+-- The title screen owns its frame and is not in Theme.PAGES, quite rightly:
+-- for most of its life it is the logo, the mon and the version ribbon, and
+-- reversing that would be vandalism.  But `TitleState:draw` opens with a white
+-- fill of the whole screen and then `if self.menuOpen then return end`
+-- (TitleState.lua:711-715) -- MainMenu's own ClearScreen, which wipes the
+-- logo, the mon and the sprites before the border goes down.  From the moment
+-- that menu opens there is no art on that screen at all.
 --
--- So its GROUND is moved out from under it instead.  Paper goes black, ink
--- takes the paper's old white, and the two midtones -- which is where every
--- coloured thing on that screen lives -- are not touched at all.  This file
--- holds that, the CONTINUE menu the same rule covers, and the pictures that
--- stay pictures, which is every other frame owner the theme declines.
+-- So it is a page WHEN SOMETHING IS STACKED ON IT and a picture when it is
+-- alone.  0.24.0 made it a page in both states and three things went wrong on
+-- screen; see Theme.COVERED_PAGES for what and why it is not that any more.
 --
 -- Run:  luajit tests/titlepage_test.lua
 
@@ -144,58 +144,31 @@ do
   local dark, where = everyTileDark(out)
   ok(dark, "no white is left anywhere on the screen" .. (where and (" -- " .. where) or ""))
 
-  -- Every zone the title declared is kept and grounded -- the three bands and
-  -- the two DMG-greys boxes -- and then a panel for each box on top.  The
-  -- boxes are greys, so grounding them is paper black and ink white, which is
-  -- what a menu wants.
-  eq(#out, 7, "the five the title declared, plus a panel for each box")
-  eq(out[4].colors[1][1], 0, "the menu's box is black paper")
-  eq(out[4].colors[4][1], 255, "...with white ink")
-  eq(out[6].x, 0, "the CONTINUE menu's panel")
-  eq(out[6].w, 104, "...at its own width")
-  eq(out[7].x, 32, "and ContinueInfo's, which no state describes")
-  eq(out[7].w, 128, "...at the width it drew it")
+  -- The title's three colour bands are replaced by one black page rather
+  -- than reversed, because its list does not open on a whole-screen zone
+  -- (pageZones).  Nothing is lost by that here: with the menu open there is
+  -- no art on the screen for those bands to be colouring.
+  eq(#out, 3, "one page, and a panel for each of the two boxes")
+  eq(out[1].w, 160, "the page covers the screen")
+  eq(out[1].h, 144, "...all of it")
+  eq(out[2].x, 0, "the CONTINUE menu's box")
+  eq(out[2].w, 104, "...at its own width")
+  eq(out[3].x, 32, "and ContinueInfo's, which no state describes")
+  eq(out[3].w, 128, "...at the width it drew it")
 end
 
 -- --------------------------------------------------- the title is alone
 
 do
-  io.write("the title on its own keeps its art and loses its ground\n")
+  io.write("the title screen on its own is left as the picture it is\n")
   local theme = themeOver()
   local title = setmetatable({ sgbPalettes = true }, TitleState)
   local zones = titleZones()
   local out = theme.apply({ stack = { states = { title } } }, zones)
 
-  local dark, where = everyTileDark(out)
-  ok(dark, "the whole screen is dark" .. (where and (" -- " .. where) or ""))
-
-  -- The midtones are the point.  Shades 1 and 2 are where the logo's colours
-  -- and the ribbon's outfit green live, and neither moves.
-  eq(out[1].colors[2][2], 200, "the logo band's shade 1 is where it was")
-  eq(out[1].colors[3][1], 200, "...and its shade 2")
-  eq(out[3].colors[2][2], 180, "the mon band's too")
-
-  -- and the ends swap: black paper, and the ink takes the old white, which is
-  -- what keeps GAME FREAK inc. legible instead of black on black
-  eq(out[3].colors[1][1], 0, "the mon band's paper goes black")
-  eq(out[3].colors[4][1], 255, "and its ink takes the paper's old white")
-
-  ok(out ~= zones, "the list is a new one; the caller's is not written on")
-  eq(zones[1].colors[1][1], 255, "...which still has its own paper")
-end
-
-do
-  io.write("a rectangle of art is not grounded\n")
-  -- colors == false is the true-colour opt-out and is a rect, not a palette.
-  -- runtime/matte.lua is what puts a ground under those.
-  local theme = themeOver()
-  local title = setmetatable({ sgbPalettes = true }, TitleState)
-  local zones = titleZones()
-  zones[#zones + 1] = { colors = false, x = 40, y = 80, w = 56, h = 56 }
-
-  local out = theme.apply({ stack = { states = { title } } }, zones)
-  eq(out[#out].colors, false, "the mon's rectangle is handed back as it came")
-  eq(out[#out].w, 56, "...at its own size")
+  eq(out, zones, "the list comes back by reference, untouched")
+  eq(out[1].colors[1][1], 255, "the logo band keeps its paper")
+  eq(out[3].colors[1][1], 255, "and so does the mon band")
 end
 
 -- ---------------------------------------------- pictures stay pictures
@@ -239,15 +212,15 @@ end
 -- ------------------------------------------------------------ the list
 
 do
-  io.write("the grounded list names what it means to\n")
-  eq(#Theme.GROUND_PAGES, 1, "one class, and a reason written beside it")
-  eq(Theme.GROUND_PAGES[1], "src.ui.TitleState", "the title screen")
-  for _, path in ipairs(Theme.GROUND_PAGES) do
+  io.write("the covered list names what it means to\n")
+  eq(#Theme.COVERED_PAGES, 1, "one class, and a reason written beside it")
+  eq(Theme.COVERED_PAGES[1], "src.ui.TitleState", "the title screen")
+  for _, path in ipairs(Theme.COVERED_PAGES) do
     local named = false
     for _, page in ipairs(Theme.PAGES) do
       if page == path then named = true end
     end
-    ok(not named, path .. " is grounded OR reversed, never both")
+    ok(not named, path .. " is covered OR a page, never both")
   end
 end
 

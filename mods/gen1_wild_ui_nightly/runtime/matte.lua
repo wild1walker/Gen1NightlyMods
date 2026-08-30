@@ -75,10 +75,6 @@ local Matte = {}
 -- `src.ui.DexEntryMenu` is here for the build where POKEDEX is switched off:
 -- with it on, Gen1Dex registers its own entry screen, that instance carries
 -- its own `draw`, and this wrapper is never reached for it.
--- The title screen is not in SCREENS: it needs a different seam entirely, for
--- the reason written above self.wrapTitleSprite.
-Matte.TITLE = "src.ui.TitleState"
-
 Matte.SCREENS = {
   "src.ui.TrainerCard",
   "src.ui.SummaryMenu",
@@ -153,75 +149,7 @@ function Matte.new(context)
     end
   end
 
-  -- ------- the title screen, which the two passes cannot reach
-  --
-  -- `TitleState:draw` opens with a white fill of the WHOLE screen
-  -- (TitleState.lua:712-713).  So the wrapper above does not work on it: a
-  -- matte painted between the two passes is wiped by the second pass's own
-  -- fill before any art lands on it.
-  --
-  -- The paint has to happen INSIDE that draw -- after the fill, before the
-  -- sprite -- and there is exactly one seam in there.  `currentSprite` is
-  -- called from the middle of draw, on the line before the mon is drawn
-  -- (TitleState.lua:766-771), which is also where the figure is settled.  So
-  -- the two rectangles this screen marks are painted from a wrap on that.
-  --
-  -- Both rects are the engine's own arithmetic, quoted rather than guessed:
-  -- the mon at `40 + (56 - w) / 2 + monOffset` by `136 - h`, and the player
-  -- at a flat 82, 80 -- the same numbers TitleState draws them at and marks
-  -- them by, and the same 82, 80 Wild Green marks its own green figure at.
-  --
-  -- One case this does not reach, and it is worth naming rather than hiding:
-  -- draw skips currentSprite entirely while `scrollPhase` is "ball", so for
-  -- the few frames of that phase the figure and the ball keep their white.
-  -- The seam is not there to be used in that phase, and a wrapper that pays
-  -- for the other 99% of the title's life is the trade taken.
-  local MON_SLOT, MON_BASE, MON_FLOOR = 56, 40, 136
-  local FIGURE_X, FIGURE_Y = 82, 80
-
-  local function dimensionsOf(image)
-    if type(image) ~= "table" and type(image) ~= "userdata" then return nil end
-    local ok, w, h = pcall(function() return image:getDimensions() end)
-    if not ok or type(w) ~= "number" or type(h) ~= "number" then return nil end
-    if w <= 0 or h <= 0 then return nil end
-    return w, h
-  end
-
-  function self.wrapTitleSprite(base)
-    return function(state, ...)
-      local image, trueColor = base(state, ...)
-      -- MainMenu's ClearScreen has already taken the art off the screen, so
-      -- there is nothing under a rectangle to ground
-      if state.menuOpen then return image, trueColor end
-      local colour = matteColour()
-      if not colour then return image, trueColor end
-
-      if trueColor then
-        local w, h = dimensionsOf(image)
-        if w then
-          paint(colour, { x = MON_BASE + math.floor((MON_SLOT - w) / 2)
-                              + (tonumber(state.monOffset) or 0),
-                          y = MON_FLOOR - h, w = w, h = h })
-        end
-      end
-
-      local pw, ph = dimensionsOf(state.player)
-      if pw then
-        paint(colour, { x = FIGURE_X, y = FIGURE_Y, w = pw, h = ph })
-      end
-      return image, trueColor
-    end
-  end
-
   function self.install()
-    local okTitle, TitleState = pcall(require, Matte.TITLE)
-    if okTitle and type(TitleState) == "table"
-        and type(TitleState.currentSprite) == "function"
-        and not patched[TitleState] then
-      patched[TitleState] = true
-      TitleState.currentSprite = self.wrapTitleSprite(TitleState.currentSprite)
-    end
-
     for _, path in ipairs(Matte.SCREENS) do
       local ok, class = pcall(require, path)
       if ok and type(class) == "table" and type(class.draw) == "function"

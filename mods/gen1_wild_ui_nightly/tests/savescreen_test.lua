@@ -190,6 +190,20 @@ end
 
 local function hex(c) return ("%02x%02x%02x"):format(c[1], c[2], c[3]) end
 
+-- One of the engine's own page classes, so pageState matches it by metatable
+-- the way it does on a real boot.
+local PageClass = {}
+PageClass.__index = PageClass
+package.loaded["src.ui.OptionsMenu"] = PageClass
+
+-- A page opens on one whole-screen zone; the theme reverses that into the
+-- page's own dark paper.
+local function menuZones()
+  return { { colors = { { 255, 255, 255 }, { 170, 170, 170 },
+                        { 85, 85, 85 }, { 0, 0, 0 } },
+             x = 0, y = 0, w = 160, h = 144 } }
+end
+
 -- Font.drawBox, as the engine calls it.  Every box in the game goes through
 -- it, so recording it is recording the screen.
 local function draw(tx, ty, tw, th) Theme.recordBox(tx, ty, tw, th) end
@@ -248,48 +262,56 @@ do
   end
 end
 
--- --------------------------------------------- a panel does not reach back
+-- ------------------------------------------ a battle's boxes are its UI
 
 do
-  io.write("a menu over a battle does not repaint the battle\n")
+  io.write("a battle's own boxes are themed with the menu over them\n")
+  -- The wide layout is the one battle that HAS a zone list
+  -- (BattleState:sgbPalettes returns WideBattle.zones() for it and nil for
+  -- every other), so it never reached the bare-frame path 0.27.0 added and
+  -- came out with a dark command menu over a light dialogue box.
+  --
+  -- The owner is not a page either way, so every box on the frame is taken
+  -- and the two layouts agree.  What is protected is the SCENE, and that is
+  -- protected by its own zones being left exactly as they came.
   local theme = themeOver()
-
-  -- BattleState draws its own boxes and then the command menu is stacked on
-  -- top.  The two overlap -- (0,8,11,5) is x 0-88 and the menu is x 72-160 --
-  -- so an overlap rule that did not care about order would take the battle's
-  -- dialogue box with it and leave the rest of the battle alone: the same
-  -- half-and-half this file exists to stop.
   local battle = { sgbPalettes = true }
   local command = { tx = 9, ty = 7, tw = 11, th = 5 }
 
-  draw(0, 8, 11, 5)      -- the battle's own, drawn first because it is under
+  draw(0, 8, 11, 5)      -- the battle's own dialogue
   draw(4, 12, 16, 6)     -- and its move list
   draw(9, 7, 11, 5)      -- then the menu on top
 
   local out = theme.apply({ stack = { states = { battle, command } } },
                           overworldZones())
 
-  eq(#out, 2, "the frame, and the menu's panel -- nothing of the battle's")
+  eq(#out, 4, "the frame's own zone, and a panel for each of the three boxes")
+  eq(hex(out[1].colors[1]), "ffefff", "the scene is not touched")
   ok(covers(out, 72, 56, 88, 40), "the command menu is themed")
-  ok(not covers(out, 0, 64, 88, 40), "the battle's box is left alone")
+  ok(covers(out, 0, 64, 88, 40), "and so is the battle's own dialogue")
+  ok(covers(out, 32, 96, 128, 48), "...and its move list")
 end
 
 -- ------------------------------------------------------------ transitive
 
 do
-  io.write("a box over a box over a panel comes along\n")
+  io.write("over a PAGE, a box over a box over a panel comes along\n")
+  -- The closure is what a page frame still needs: a page's own boxes are
+  -- already inside its own colours and must not be taken again, so only the
+  -- rects a state described seed it and only boxes drawn after one are added.
+  -- Over anything that is NOT a page every box is taken and the closure has
+  -- nothing left to decide -- which is why this asks a page.
   local theme = themeOver()
-  local world = { sgbPalettes = true }
-  local start = { tx = 9, ty = 0, tw = 11, th = 18 }
+  local page = setmetatable({}, PageClass)
+  local menu = { tx = 9, ty = 0, tw = 11, th = 18 }
 
-  draw(9, 0, 11, 18)     -- the panel
+  draw(9, 0, 11, 18)     -- the menu, which a state describes
   draw(4, 0, 16, 10)     -- touches it
   draw(0, 8, 5, 3)       -- touches only what touched it
   draw(0, 0, 2, 1)       -- touches neither
 
-  local out = theme.apply({ stack = { states = { world, start } } },
-                          overworldZones())
-  eq(#out, 4, "three boxes and the frame")
+  local out = theme.apply({ stack = { states = { page, menu } } }, menuZones())
+  eq(#out, 4, "the page, and three of the four boxes")
   ok(covers(out, 0, 64, 40, 24), "the second-hand overlap is a panel too")
   ok(not covers(out, 0, 0, 16, 8), "a box that overlaps nothing is not")
 end
@@ -469,6 +491,31 @@ do
                           overworldZones())
   eq(#out, 2, "the map's zone and the dialogue's panel")
   ok(covers(out, 0, 96, 160, 48), "which is the dialogue")
+end
+
+-- ------------------------------------------------- a box nothing owns
+
+do
+  io.write("the location banner is themed over a dark map\n")
+  -- LOCATION BANNERS draws `Font.drawBox(plaque.tx, plaque.ty, ...)` from an
+  -- overlay hook.  There is no state behind it, so no rectangle for a state to
+  -- describe and nothing earlier in the frame for the closure to hang it on --
+  -- it stayed white over a dark map for as long as panels came only from the
+  -- stack.
+  --
+  -- The map is not a page and draws no boxes of its own, so every box on that
+  -- frame is UI and every box on that frame is taken.
+  local theme = themeOver()
+  local world = { sgbPalettes = true }
+  draw(0, 14, 20, 4)     -- the plaque, and nothing else on screen
+
+  local out = theme.apply({ stack = { states = { world } } },
+                          overworldZones())
+  eq(#out, 2, "the map's zone, and the banner's panel")
+  eq(hex(out[1].colors[1]), "ffefff", "the map is not touched")
+  local plaque = covers(out, 0, 112, 160, 32)
+  ok(plaque, "the banner is a panel with no state behind it")
+  eq(hex(plaque.colors[1]), "000000", "...and it is dark")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
