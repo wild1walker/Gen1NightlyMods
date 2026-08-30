@@ -1,0 +1,80 @@
+-- Sharing metadata read by tooling and the mod manager's detail pane; never
+-- by the loader's merge.
+return {
+  summary = "The visual half of the Gen1Wild suite in one mod: battle "
+    .. "backdrops, the battle intro, the battle menus, the Pokedex, the box, "
+    .. "the party menu, the bag, menu layout and the mod manager. Every "
+    .. "feature switches on and off by itself.",
+  author = "wild1walker",
+  contact = "https://github.com/wild1walker/Gen1NightlyMods",
+  tags = { "ui", "bundle", "pokedex", "party", "bag", "storage", "battle",
+    "backdrops" },
+  differences = {
+    added = {
+      "a UI THEME row on the game's own OPTION screen: LIGHT, DARK or "
+        .. "COLORFUL. Every page this suite draws is black and white, and a "
+        .. "theme swaps the four colours the SGB pass gives a zone rather "
+        .. "than redrawing anything -- so DARK is the page reversed, paper "
+        .. "for ink, and COLORFUL tints each page by what the screen is. "
+        .. "COLORFUL is work in progress and says so in the row",
+      "a GEN1WILD UI row on the OPTION screen: one row per feature, "
+        .. "switched on or off there, with that feature's own settings one "
+        .. "press of A away",
+      "seven features drawn from seven mods, each of which remains its own "
+        .. "repository and is pinned here as a submodule",
+      "item icons: a picture of every item in the column left of its name, "
+        .. "in the bag, in the mart's two lists and the item PC's three.  A "
+        .. "machine is a disc in the colour of the type of the move it "
+        .. "teaches.  The art is Pokemon Polished Crystal's, not this "
+        .. "project's -- see modules/Gen1ItemInfo/CREDITS.md",
+      "ITEM INFO: a description for every item in the game, shown in the "
+        .. "mart's BUY and SELL lists where the clerk used to say \"Take "
+        .. "your time.\", in the item PC's WITHDRAW, DEPOSIT and TOSS "
+        .. "lists, and on an ABOUT row in the bag's item menu. Those four "
+        .. "lists are redrawn in the frame the rest of the suite uses; how "
+        .. "they work is untouched. Written here",
+      "ELEVATOR PANEL: the lift's WHICH FLOOR? full-screen list as a small "
+        .. "panel against the right edge with every floor on it at once, "
+        .. "and the car still drawn behind it. Written here",
+      "MENU LAYOUT and MOD MANAGER, which Gen1WildQOL also carries. They "
+        .. "are the furniture every other feature is reached through, so "
+        .. "neither half goes without them. With both bundles installed the "
+        .. "first to load sets one up and the other stands down, and their "
+        .. "settings are stored under a shared id so they do not move when "
+        .. "the winner does",
+    },
+    changed = {
+      "nothing about what any of these mods do. The bundle only decides "
+        .. "which of them load and where they are configured -- BATTLE "
+        .. "INTRO's two rows move onto the bundle's own screen from the "
+        .. "engine's OPTIONS screen, at their own defaults",
+    },
+    known = {
+      "a feature whose upstream mod has no off switch of its own -- every "
+        .. "one here except BACKDROPS -- is gated at load, so switching it "
+        .. "takes effect on the next launch. The menu marks those rows with "
+        .. "an asterisk and says so in the footer",
+      "installing this alongside any of the seven mods it is built from is "
+        .. "a conflict, and the manifest declares it: they would both "
+        .. "install the same hooks",
+      "settings are stored under this bundle's id, not the individual "
+        .. "mods', so moving from the standalone mods to the bundle starts "
+        .. "them at their defaults",
+      "PARTY MENU reads POKEDEX and POKEMON BOX when they are on, so "
+        .. "switching either off changes what it can show",
+    },
+  },
+  credits = {
+    { who = "FAFF0x", for_ = "Modern Bag, which Gen1ModernBag is a "
+      .. "derivative of, taken at upstream 1.6.0" },
+    { who = "LibertyTwins, princess-phoenix, carchagui, aveontrainer, "
+      .. "WesleyFG, kWharever, worldslayer608 and knizz", for_ = "the "
+      .. "Battle Backgrounds Patch FR art Gen1Arena draws" },
+    { who = "ShaneMcGovernIE", for_ = "Widescreen Battle Intro, essentially "
+      .. "whole -- the bundle's menu around it. Maintained here now, theirs "
+      .. "by origin" },
+    { who = "Gen1Recomp", for_ = "the mod API every one of these is built on" },
+    { who = "pret", for_ = "the disassemblies underneath all of it" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}

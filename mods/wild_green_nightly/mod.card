@@ -1,0 +1,82 @@
+-- Sharing metadata read by tooling and the mod manager's detail pane; never
+-- by the loader's merge.
+return {
+  summary = "The player wears green and is called GREEN, and the title "
+    .. "screen says WILD GREEN VERSION. The character art is recolored from "
+    .. "your own imported cache, never shipped, and PLAYER switches back to "
+    .. "RED whenever you want it.",
+  author = "wild1walker",
+  contact = "https://github.com/wild1walker/Gen1NightlyMods",
+  tags = { "art", "player", "sprites", "title", "green", "cart" },
+  differences = {
+    added = {
+      "PLAYER applied where you are standing: the walker, the bicycle sheet "
+        .. "and every picture change colour on the next frame instead of on "
+        .. "the next launch. The recipe already writes all nine suits at "
+        .. "install, so switching is a path change and not a rebuild",
+      "nine colours for the player, green by default: only the outfit "
+        .. "changes between them, and the skin, the lips and the outline "
+        .. "are the same in every one",
+      "the player in green: the overworld walker, the BICYCLE sheet where "
+        .. "the import wrote one, the battle back pic, the front pic Oak's "
+        .. "intro and the trainer card and the Hall of Fame share. Only the "
+        .. "outfit shade changes -- the face keeps a warm tan and the hair "
+        .. "stays black",
+      "GREEN as the default name, where the game offered RED",
+      "WILD GREEN VERSION on the title screen, as one continuous ribbon "
+        .. "where the vanilla art is two fragments the title code "
+        .. "repositions. The lettering is drawn here, on the importer's "
+        .. "four grey shades, and is not derived from anything",
+      "a PLAYER row -- GREEN, RED, ORANGE, BLUE, PURPLE, YELLOW, PINK, "
+        .. "BLACK, WHITE or GREY -- plus TITLE RIBBON and DEFAULT NAME "
+        .. "GREEN, all three in the mod manager",
+    },
+    changed = {
+      "LOGO1, the SGB palette the title's version-ribbon band wears, to the "
+        .. "band four of whichever colour PLAYER is set to. It used to be "
+        .. "green in every suit; a purple character under a green title "
+        .. "reads as a setting that did not take",
+      "MEWMON, the palette across tile rows 10-17, to the PORTRAIT four "
+        .. "rather than the overworld four. That band is the mon, the "
+        .. "figure, the POKE BALL and the copyright line, and shade 2 is a "
+        .. "light on all of them and a face on none -- painting it skin put "
+        .. "a skin-coloured half on the ball and lettered GAME FREAK's line "
+        .. "in skin",
+      "both of those bands are now coloured through the frame's ZONE list as "
+        .. "well as through the palette registry, so they reach OG RED and "
+        .. "ADVANCED. Under ADVANCED the pack's own LOGO1 lettered the "
+        .. "ribbon yellow-green on pale yellow and its MEWMON painted the "
+        .. "ball and the bottom line a skin tone; neither override was ever "
+        .. "consulted there",
+      "nothing about what the player does. This is art and a palette; no "
+        .. "map, script, encounter, item or battle is touched",
+    },
+    known = {
+      "the version ribbon's ARTWORK is boot data, read once when the title "
+        .. "screen is built, so a change to it waits for a relaunch. Its "
+        .. "COLOUR does not: that goes through the zone pass every frame",
+      "the name list is boot data too, and a save that already has a name "
+        .. "keeps it",
+      "the title screen's standing figure is NOT recoloured: TitleState "
+        .. "bakes the OBJ palette onto it and cuts its rectangle out of the "
+        .. "true-colour region so the cycling mon keeps its palette, so "
+        .. "there is no seam to hand it recoloured art through",
+      "the recolored art is true-colour, which the mono and inverted "
+        .. "display modes do not honour; there the player falls back to the "
+        .. "baked ramp like any other sprite",
+      "no green pixel ships. The recipe runs against your own imported "
+        .. "cache on install, and a cache that carries none of the five "
+        .. "pictures leaves the player exactly as the base game drew him",
+    },
+  },
+  credits = {
+    { who = "distilledorion-sketch", for_ = "Crystal Animated Sprites with "
+      .. "Shiny Visuals, which this is meant to sit beside rather than "
+      .. "replace -- it is an optional dependency, not a fork, and its "
+      .. "art stays its own" },
+    { who = "Gen1Recomp", for_ = "the mod API, the asset-transform sandbox "
+      .. "this recolor runs in, and the title screen it draws on" },
+    { who = "pret", for_ = "the disassemblies underneath all of it" },
+  },
+  compat = { engine = ">=0.1.37 <2.0.0", modApi = 2 },
+}
