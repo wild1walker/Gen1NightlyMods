@@ -135,9 +135,7 @@ do
   eq(store.ui_theme, "dark", "and writes through the bundle's own writer")
   eq(rows.theme.value(game), "DARK", "which the row then reads back")
   rows.theme.step(game, 1)
-  eq(rows.theme.value(game), "COLORFUL*", "the work-in-progress one says so")
-  rows.theme.step(game, 1)
-  eq(store.ui_theme, "light", "and it wraps")
+  eq(store.ui_theme, "light", "and it wraps -- two values, not three")
 end
 
 io.write("PLAYER turns the row the mod publishes\n")

@@ -6,6 +6,36 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.8.0] - 2026-08-30
+
+### Removed
+
+- **`COLORFUL`.** `UI THEME` is `LIGHT` and `DARK` now, and the row no longer
+  wears an asterisk because there is nothing unfinished left on it.
+
+  What went with it, rather than being left dormant: `Theme.TINTS` (eleven
+  four-colour ramps), `Theme.band`, `theme.tint`, the
+  `state:gen1wildThemeZones(tint, theme)` contract and the zone-splice that
+  existed to serve it, the party screen's header/footer bands and its card per
+  Pokémon, and the suite menu's card-per-group colours. `theme.matte()` lost
+  its hint argument, `Theme.PAGES` lost its tint column and is a plain list of
+  classes, and `state.gen1wildTheme` is now a marker rather than a tint name —
+  the theme takes any state that carries one.
+
+  Carrying a half-built third option through the one file that every frame of
+  the game runs through is a worse trade than looking it up in the history. The
+  work is at `v0.7.0` if it is ever wanted back.
+
+Nothing else changed. `DARK` reaches exactly what it reached in 0.7.0 — the
+same pages, the same panels over the map, the same matte behind true-colour art
+— and `LIGHT` is still the identity, handing back the list it was given by
+reference.
+
+`tests/runtime_test.lua` is 217 assertions (was 303: the tint-ramp, band and
+COLORFUL blocks are gone), `tests/partytheme_test.lua` 7 (was 31, and now
+covers the marker and the screen's own icon and HP-bar zones rather than the
+cards that sat under them), `tests/matte_test.lua` 27 (was 29).
+
 ## [0.7.0] - 2026-08-30
 
 ### Fixed

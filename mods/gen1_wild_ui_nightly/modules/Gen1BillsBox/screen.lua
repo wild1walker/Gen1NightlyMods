@@ -88,10 +88,10 @@ return function(mod)
   --
   -- Under LIGHT the colour is white, which is what this drew before the theme
   -- existed, so a build with no theme in it is unchanged.
-  local function matte(x, y, w, h, hint)
+  local function matte(x, y, w, h)
     local theme = type(mod.theme) == "function" and mod.theme() or nil
     local colour = theme and type(theme.matte) == "function"
-      and theme.matte(hint) or nil
+      and theme.matte() or nil
     if type(colour) ~= "table" then return end
     love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
     love.graphics.rectangle("fill", x, y, w, h)
@@ -1527,7 +1527,7 @@ return function(mod)
     -- pass out means sitting the THEME out too, so the page under the art is
     -- painted first -- see matte above.
     local rect = fullColourRect(self.game, mon)
-    if rect then matte(x, y, rect.w, rect.h, "box") end
+    if rect then matte(x, y, rect.w, rect.h) end
     love.graphics.setColor(1, 1, 1, 1)
     pcall(PartyMenu.drawIcon, self.game, mon, x, y, false, 0,
           selected and self:animAlt() or false)

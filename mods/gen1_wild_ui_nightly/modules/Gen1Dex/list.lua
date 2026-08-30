@@ -203,10 +203,10 @@ return function(mod, DexData, C, Area)
   --
   -- Under LIGHT the colour is white, which is what this drew before the theme
   -- existed, so a build with no theme in it is unchanged.
-  local function matte(x, y, w, h, hint)
+  local function matte(x, y, w, h)
     local theme = type(mod.theme) == "function" and mod.theme() or nil
     local colour = theme and type(theme.matte) == "function"
-      and theme.matte(hint) or nil
+      and theme.matte() or nil
     if type(colour) ~= "table" then return end
     love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
     love.graphics.rectangle("fill", x, y, w, h)
@@ -216,7 +216,7 @@ return function(mod, DexData, C, Area)
     if not species then return end
     if discovered then
       local rect = fullColour(game, species)
-      if rect then matte(x, y, rect.w, rect.h, "dex") end
+      if rect then matte(x, y, rect.w, rect.h) end
       C.white()
       pcall(PartyMenu.drawIcon, game, stubFor(species), x, y, false, 0, false)
       if rect then

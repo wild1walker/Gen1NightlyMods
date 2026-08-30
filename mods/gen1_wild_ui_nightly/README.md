@@ -22,9 +22,9 @@ merging, rather than overwriting a tree that has diverged on purpose.
 ## UI THEME
 
 `START > OPTION > UI THEME` cycles **`LIGHT`** (the default, and what every
-build before this one looked like), **`DARK`** and **`COLORFUL*`**.
+build before this one looked like) and **`DARK`**.
 
-Every page this suite draws is black and white on purpose: the art is the
+Every page in this game is drawn in black and white on purpose: the art is the
 game's own four DMG shades and the colour arrives afterwards, from the SGB
 pass. So a theme swaps the four colours a zone carries and nothing else —
 `runtime/theme.lua` wraps `render.zones` and hands the same pixels a different
@@ -32,8 +32,8 @@ palette. Nothing is redrawn, no screen is edited, and no feature knows themes
 exist.
 
 Which frames it answers for is decided by **whose the frame is**: the topmost
-state on the stack that either says what it is (`state.gen1wildTheme`, which
-this suite's own screens set) or is one of the engine UI classes named in
+state on the stack that either says so (`state.gen1wildTheme`, which this
+suite's own screens set) or is one of the engine UI classes named in
 `Theme.PAGES` is the page. A state that owns the frame's palettes and is
 neither — the overworld, a battle, the title screen — ends the search, so none
 of those is ever touched; an overlay that owns no palettes, like a text box or
@@ -66,8 +66,8 @@ Gen 1 game that is `PaletteFX.mode == "redpp"` — `ADVANCED`, nothing else. In
 every other mode the marks are discarded, the art goes through the shade pass
 with the rest of the screen, and there is no box.
 
-Screens this suite owns paint `theme.matte(hint)` into the rectangle before the
-art goes in. Screens it does not own — the trainer card's portrait, the summary
+Screens this suite owns paint `theme.matte()` into the rectangle before the art
+goes in. Screens it does not own — the trainer card's portrait, the summary
 screen's Pokémon, the Hall of Fame PC, the diploma — are handled by
 [`runtime/matte.lua`](runtime/matte.lua), which wraps the class's `draw` and
 runs it twice: once with `markTrueColor` swapped for a recorder to learn where
@@ -83,23 +83,11 @@ palette over the whole game, and `PaletteFX.effectiveColors` replaces every
 zone's colours to give it to them. A theme cannot outrank that and does not try
 — `OG INV` already is a dark mode for the whole screen.
 
-`COLORFUL` is saturated on purpose. Each screen has a four-colour ramp — a
-light, clearly coloured **paper** that black type reads on at 9:1 or better, a
-**mid**, a **deep** that carries white type at 4.5:1 or better, and an **ink** —
-and a screen that knows what its rows *are* paints them itself through
-`state:gen1wildThemeZones(tint, theme)`:
-
-- the **party screen** gets a band across its header and footer in the page's
-  deep shade, and every Pokémon a card the width of its row in that Pokémon's
-  own species colour — the colour `SPECIES COLOURS` already puts on its icon,
-  brought out to the whole card. The icon cell and the HP bar keep their own
-  palettes: a screen's zones splice in *above the page and below its own*, so
-  a full bar is still green rather than the colour of the card behind it.
-- the suite's **own menu screens** colour each card by what it opens.
-
-It still wears an asterisk because the **bag**, the **box**, the **dex list**
-and the battle command grid do not paint themselves yet. See
-[CHANGELOG.md](CHANGELOG.md).
+**There were three.** `COLORFUL` — a saturated tint per screen, a band across a
+header, a card per Pokémon in its own species colour — was taken out at 0.8.0
+rather than finished. Carrying a half-built third option through the file that
+every frame of the game runs through is a worse trade than looking it up in the
+history if it is ever wanted back.
 
 Its other half is [Gen1WildQOL](https://github.com/wild1walker/Gen1WildQOL),
 which carries the quality-of-life features. The two know about each other: a

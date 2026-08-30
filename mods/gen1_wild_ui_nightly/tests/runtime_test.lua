@@ -1323,50 +1323,6 @@ do
 end
 
 do
-  io.write("COLORFUL tints the page by what the screen is\n")
-  local mod = fakeMod()
-  local theme = themeOver(mod)
-  theme.write("colorful")
-
-  -- no state to ask: the fallback paper, not a colour
-  local plain = theme.apply({}, menuZones())
-  eq(hex(plain[1].colors[1]), hex(Theme.TINTS.page[1]),
-    "a page with nothing to say about itself takes the default paper")
-  eq(hex(plain[2].colors[2]), "ffc864",
-    "and the panels inside it keep their own colours: a species colour "
-    .. "means something and a theme must not repaint it")
-
-  -- a screen that names its tint
-  local screen = { gen1wildTheme = "dex", sgbPalettes = true }
-  local game = { stack = { states = { screen } } }
-  local dex = theme.apply(game, menuZones())
-  eq(hex(dex[1].colors[1]), hex(Theme.TINTS.dex[1]),
-    "a screen that says it is the Pokedex is drawn on the Pokedex's paper")
-
-  -- and a screen that colours its own rows
-  screen.gen1wildThemeZones = function()
-    return { { colors = Theme.TINTS.bag, x = 0, y = 32, w = 160, h = 32 } }
-  end
-  local carded = theme.apply(game, menuZones())
-  eq(#carded, 3, "a screen's own row zones join the list")
-  eq(hex(carded[2].colors[2]), hex(Theme.TINTS.bag[2]),
-    "...in the colour of what that row opens")
-  -- and they go in ABOVE the page and BELOW whatever the screen had already
-  -- put down.  menuZones()'s second zone is a species-coloured icon panel:
-  -- appending the card after it would paint over it, which on a party screen
-  -- is an HP bar that turns the colour of the card behind it.
-  eq(hex(carded[1].colors[1]), hex(Theme.TINTS.dex[1]),
-    "the page is still first")
-  eq(hex(carded[3].colors[2]), "ffc864",
-    "and the screen's own panel is still last, so it still wins")
-
-  -- a screen whose themeZones raises must not take the frame down with it
-  screen.gen1wildThemeZones = function() error("nope") end
-  local survived = theme.apply(game, menuZones())
-  eq(#survived, 2, "and a screen that raises simply contributes nothing")
-end
-
-do
   io.write("a menu box over the map is themed by its own rectangle\n")
   -- The bug this is for: START > OPTION said DARK and the START menu behind
   -- it was still white.  A menu box owns no palettes, so the engine hands the
@@ -1468,82 +1424,7 @@ do
     .. "existed -- so a build with no theme pays nothing for the call")
 
   theme.write("dark")
-  eq(hex(theme.matte()), "000000", "under DARK it is the dark page")
-  eq(hex(theme.matte("dex")), "000000", "whatever screen is asking")
-
-  theme.write("colorful")
-  eq(hex(theme.matte("dex")), hex(Theme.TINTS.dex[1]),
-    "under COLORFUL it is that screen's own paper")
-  eq(hex(theme.matte()), hex(Theme.TINTS.page[1]), "or the default paper")
-  -- a screen that knows the exact palette covering the spot passes it: a
-  -- party icon sits on its Pokemon's card, not on the page
-  local card = { { 0x63, 0xc8, 0x4a }, { 0x63, 0xc8, 0x4a },
-                 { 0x21, 0x73, 0x21 }, { 0, 0, 0 } }
-  eq(hex(theme.matte(card)), "63c84a", "...and gets that palette's paper")
-end
-
-do
-  io.write("every tint is a colour, and reads both ways\n")
-  -- The rule this replaced was the bug.  0.2.0 held every ramp to the DMG
-  -- ramp's own lightness within a few values -- paper at 246 against 255 --
-  -- so that a tint would be "not intrusive".  Held that tightly a tint is not
-  -- perceptible: paper at 246 IS white, and COLORFUL came out as LIGHT with a
-  -- rumour of a hue on it.  These two assertions are the rule that replaced
-  -- it, and the first of them is the one the old ramps would fail.
-  local function lin(c)
-    c = c / 255
-    if c <= 0.03928 then return c / 12.92 end
-    return ((c + 0.055) / 1.055) ^ 2.4
-  end
-  local function lum(c)
-    return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
-  end
-  local function ratio(a, b)
-    local la, lb = lum(a), lum(b)
-    if la < lb then la, lb = lb, la end
-    return (la + 0.05) / (lb + 0.05)
-  end
-  local function chroma(c)
-    local hi = math.max(c[1], c[2], c[3])
-    local lo = math.min(c[1], c[2], c[3])
-    return hi - lo
-  end
-  local BLACK = { 0, 0, 0 }
-  local WHITE = { 255, 255, 255 }
-
-  for name, ramp in pairs(Theme.TINTS) do
-    eq(#ramp, 4, name .. " is four colours")
-    -- A COLOUR.  Not a white with a rumour on it: paper and deep both have to
-    -- carry real chroma, which is the whole complaint this rewrite answers.
-    ok(chroma(ramp[1]) >= 40,
-      ("%s's paper is actually coloured (chroma %d, needs 40)")
-        :format(name, chroma(ramp[1])))
-    ok(chroma(ramp[3]) >= 40,
-      ("%s's deep is actually coloured (chroma %d, needs 40)")
-        :format(name, chroma(ramp[3])))
-    -- And READABLE, which is what buys the saturation its licence: black type
-    -- on the paper, white type on the band the deep shade makes.
-    ok(ratio(ramp[1], BLACK) >= 7,
-      ("%s reads black on its paper at %.1f:1 (needs 7)")
-        :format(name, ratio(ramp[1], BLACK)))
-    ok(ratio(ramp[3], WHITE) >= 4.5,
-      ("%s reads white on its band at %.1f:1 (needs 4.5)")
-        :format(name, ratio(ramp[3], WHITE)))
-    -- lightest first, like every palette in the engine
-    ok(lum(ramp[1]) > lum(ramp[2]) and lum(ramp[2]) > lum(ramp[3])
-       and lum(ramp[3]) > lum(ramp[4]), name .. " runs lightest first")
-  end
-end
-
-do
-  io.write("a band is the page's own colour, reversed out\n")
-  -- One zone over the tile rows a screen's header box already occupies, so
-  -- a band can never be a different colour from the page it caps.
-  local band = Theme.band(Theme.TINTS.party)
-  eq(hex(band[1]), hex(Theme.TINTS.party[3]), "the deep shade is the ground")
-  eq(hex(band[4]), "ffffff", "and the type is reversed out white")
-  eq(Theme.band(nil), nil, "nothing in, nothing out")
-  eq(Theme.band({ { 1, 1, 1 } }), nil, "and a ramp that is not four is not a ramp")
+  eq(hex(theme.matte()), "000000", "and under DARK it is the dark page")
 end
 
 do
@@ -1633,12 +1514,9 @@ do
   themeRow.step(game, 1)
   eq(themeRow.value(), "DARK", "one press right is DARK")
   themeRow.step(game, 1)
-  eq(themeRow.value(), "COLORFUL*",
-    "the next is COLORFUL, marked as work in progress")
-  themeRow.step(game, 1)
-  eq(themeRow.value(), "LIGHT", "and it wraps")
+  eq(themeRow.value(), "LIGHT", "and it wraps -- two values, not three")
   themeRow.step(game, -1)
-  eq(themeRow.value(), "COLORFUL*", "left goes the other way")
+  eq(themeRow.value(), "DARK", "left goes the other way")
 
   -- one row, not two: the other half of the suite may have added it already
   local twice = wrap(function(_, r) return r end, game, rows)
@@ -1650,7 +1528,7 @@ do
 end
 
 do
-  io.write("the suite's own screens are themed, and colour their cards\n")
+  io.write("the suite's own screens say they are ours\n")
 
   local Bundle = load_("runtime/bundle.lua", function(name)
     return load_("runtime/" .. name .. ".lua")
@@ -1681,16 +1559,16 @@ do
   local factory = mod.screens["Gen1WildUI"]
   ok(factory ~= nil, "the suite's root screen is registered")
   local screen = factory.new({ save = { options = {} } })
-  eq(screen.gen1wildTheme, "settings",
-    "and says which paper it takes -- it opens on MEWMON, not on the greys, "
-    .. "so nothing else would recognise it as a page")
+  ok(screen.gen1wildTheme ~= nil,
+    "and marks itself as one of ours -- it opens on MEWMON, not on the "
+    .. "greys, so nothing else would recognise it as a page")
 
-  local zones = screen:gen1wildThemeZones()
-  ok(type(zones) == "table", "it colours its own cards")
-  ok(#zones >= 1, "...at least the one card this spec declares")
-  eq(hex(zones[1].colors[2]), hex(Theme.TINTS.battle[2]),
-    "and BATTLES is drawn on the battle paper")
-  eq(zones[1].h, 32, "over exactly the 4-tile box OptionRows draws it in")
+  -- and the marker alone is enough: the theme takes any state that carries
+  -- it, without a table of names to keep current
+  local theme = themeOver(fakeMod())
+  theme.write("dark")
+  local out = theme.apply({ stack = { states = { screen } } }, menuZones())
+  eq(hex(out[1].colors[1]), "000000", "so a screen that says so is themed")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))

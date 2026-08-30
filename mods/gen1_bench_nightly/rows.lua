@@ -103,14 +103,14 @@ end
 -- The suite's UI theme.  Read and written through the bundle's own reader, so
 -- the bench and START > OPTION > UI THEME are the same setting rather than two
 -- that agree until they do not.
-local THEMES = { "light", "dark", "colorful" }
-local THEME_LABELS = { light = "LIGHT", dark = "DARK", colorful = "COLORFUL*" }
+local THEMES = { "light", "dark" }
+local THEME_LABELS = { light = "LIGHT", dark = "DARK" }
 
 local function themeRow(context)
   return {
     id = "theme",
     label = "UI THEME",
-    help = "THE SUITE'S SCREENS: LIGHT, DARK, OR COLORFUL (WIP).",
+    help = "THE SUITE'S SCREENS: LIGHT OR DARK.",
     value = function()
       local ui = exportsOf(context.find, "gen1_wild_ui_nightly")
       if not (ui and ui.optionValue) then return DASH end

@@ -678,8 +678,8 @@ function Menu.new(context)
           screenId = groupScreenId(group.id),
           -- what the card IS, as declared in features.lua, kept beside the
           -- screen id it opens.  The id is a string this file built and is not
-          -- meant to be taken apart again; COLORFUL colours a card by what it
-          -- opens and needs the name rather than the address.
+          -- meant to be taken apart again, so anything that wants to know what
+          -- a card opens reads this rather than parsing the address.
           groupId = group.id,
           label = group.label or group.id,
           description = group.description,
@@ -817,10 +817,9 @@ function Menu.new(context)
         scroll = 0,
         isOpaque = true,
         isModOptions = true,
-        -- One of ours, and which paper it takes under COLORFUL.  runtime/
-        -- theme.lua reads this off the instance: a screen that names itself
-        -- does not have to be recognised by its class, and these screens have
-        -- no engine class to be recognised by.
+        -- One of ours.  runtime/theme.lua reads this off the instance: a
+        -- screen that names itself does not have to be recognised by its
+        -- class, and these screens have no engine class to be recognised by.
         --
         -- It also opts the page into being themed at all.  The theme's rule
         -- is "a whole-screen zone of the four DMG greys is a black-and-white
@@ -858,56 +857,6 @@ function Menu.new(context)
           return PaletteFX.wholeNamed(g.data, "MEWMON")
         end
         return nil
-      end
-
-      -- ------- COLORFUL: a card is a button, and a button is the colour of
-      -- what it opens
-      --
-      -- The cards on this screen are the one place in the suite where a row
-      -- IS a choice of subject rather than a value: BATTLES opens the battle
-      -- settings, ITEMS the bag's, YOUR POKEMON the party's.  So under
-      -- COLORFUL each one is drawn on the paper of the thing it opens, and a
-      -- player picks the card by colour before they have read the word.
-      --
-      -- Zones, not drawing.  The chrome is still src.ui.OptionRows and this
-      -- file has not been taught to paint anything: OptionRows lays four
-      -- 4-tile boxes down the screen from the top, so slot N is the 160x32
-      -- rectangle at y = (N-1)*32, and a zone over it recolours exactly that
-      -- card.  Nothing here can move a box, because nothing here draws one.
-      --
-      -- Gen 2 draws this screen through Chrome's seven 2-tile rows instead,
-      -- with different geometry and a colour model of its own (Gold is a GBC
-      -- title and has no SGB zone pass at all), so there is nothing to return
-      -- there and this says so rather than guessing.
-      local CARD_TINTS = {
-        general = "world",
-        pokemon = "party",
-        battle = "battle",
-        items = "bag",
-        save = "box",
-        interface = "settings",
-      }
-      local CARD_H = 4 * 8            -- OptionRows' box, in pixels
-      local CARDS = 4                 -- OptionRows.VISIBLE
-
-      function screen:gen1wildThemeZones()
-        local theme = context.theme
-        if context.isGen2 or not theme or type(theme.tint) ~= "function" then
-          return nil
-        end
-        local out = {}
-        for slot = 1, CARDS do
-          local entry = self.entries[self.scroll + slot]
-          if not entry then break end
-          local tint = entry.kind == "card" and CARD_TINTS[entry.groupId]
-          if tint then
-            out[#out + 1] = {
-              colors = theme.tint(tint),
-              x = 0, y = (slot - 1) * CARD_H, w = 160, h = CARD_H,
-            }
-          end
-        end
-        return out
       end
 
       local function activate(entry)
@@ -1216,9 +1165,9 @@ function Menu.new(context)
     -- in the suite that is not about a feature -- turning it off does not
     -- turn anything off -- so it has no card to sit under.
     --
-    -- It cycles LIGHT / DARK / COLORFUL* like every other value row on that
-    -- screen, and takes effect on the next frame: the theme is read by the
-    -- render hook rather than settled at load.
+    -- It cycles LIGHT / DARK like every other value row on that screen, and
+    -- takes effect on the next frame: the theme is read by the render hook
+    -- rather than settled at load.
     local function themeRow()
       local theme = context.theme
       if not theme then return nil end

@@ -75,10 +75,9 @@ local Matte = chunkOf("runtime/matte.lua")
 local themeValue = "dark"
 local theme = {
   read = function() return themeValue end,
-  matte = function(hint)
+  matte = function()
     if themeValue == "light" then return { 255, 255, 255 } end
-    if themeValue == "dark" then return { 0, 0, 0 } end
-    return { 0x9c, 0xd1, 0xe8 }        -- the card tint's paper
+    return { 0, 0, 0 }
   end,
 }
 
@@ -102,7 +101,7 @@ local function reset()
 end
 
 local function wrapped(fn)
-  return Matte.new(context).wrap(fn or screenDraw, "card")
+  return Matte.new(context).wrap(fn or screenDraw)
 end
 
 -- ---------------------------------------------------------------- the tests
@@ -153,20 +152,9 @@ do
 
   reset()
   local bare = Matte.new({ theme = nil, mod = context.mod })
-  bare.wrap(screenDraw, "card")({})
+  bare.wrap(screenDraw)({})
   eq(drawn, 1, "a build with no theme draws once")
   eq(#fills, 1, "...and is untouched")
-end
-
-io.write("COLORFUL paints the screen's own paper\n")
-do
-  reset()
-  themeValue = "colorful"
-  wrapped()({})
-  -- LOVE takes colour in 0..1, so the wrapper divides by 255 on the way out
-  eq(fills[2].colour[1], 0x9c / 255, "the card tint's paper, not black")
-  eq(fills[2].colour[3], 0xe8 / 255, "...on every channel")
-  themeValue = "dark"
 end
 
 io.write("a screen that marks nothing is drawn once and left alone\n")
@@ -212,13 +200,13 @@ io.write("the screens it patches are the ones that mark and are themed\n")
 do
   -- A screen that marks nothing has nothing to matte; a screen the theme
   -- leaves alone is still on white paper, where a white box is invisible.
-  local names = {}
-  for _, entry in ipairs(Matte.SCREENS) do names[entry[1]] = entry[2] end
-  eq(names["src.ui.TrainerCard"], "card", "the trainer card's portrait")
-  eq(names["src.ui.SummaryMenu"], "summary", "the summary screen's POKeMON")
-  eq(names["src.ui.LeaguePC"], "box", "the Hall of Fame PC")
-  eq(names["src.ui.Diploma"], "card", "the diploma")
-  eq(names["src.ui.DexEntryMenu"], "dex",
+  local named = {}
+  for _, path in ipairs(Matte.SCREENS) do named[path] = true end
+  ok(named["src.ui.TrainerCard"], "the trainer card's portrait")
+  ok(named["src.ui.SummaryMenu"], "the summary screen's POKeMON")
+  ok(named["src.ui.LeaguePC"], "the Hall of Fame PC")
+  ok(named["src.ui.Diploma"], "the diploma")
+  ok(named["src.ui.DexEntryMenu"],
     "and the engine's dex entry, for the build with POKEDEX switched off")
 end
 

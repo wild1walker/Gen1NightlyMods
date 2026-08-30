@@ -532,30 +532,20 @@ return function(mod, C)
   --
   -- Under LIGHT the colour is white, which is what this drew before the theme
   -- existed, so a build with no theme in it is unchanged.
-  local function matte(x, y, w, h, hint)
+  local function matte(x, y, w, h)
     local theme = type(mod.theme) == "function" and mod.theme() or nil
     local colour = theme and type(theme.matte) == "function"
-      and theme.matte(hint) or nil
+      and theme.matte() or nil
     if type(colour) ~= "table" then return end
     love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
     love.graphics.rectangle("fill", x, y, w, h)
-  end
-
-  -- The four a Pokemon's card wears under COLORFUL: its own light shade as
-  -- paper, its dark one kept, black ink.  One function because the card zone
-  -- and the matte under the icon ON that card have to be the same colour, and
-  -- two spellings of the same four numbers drift.
-  local function cardRamp(game, mon)
-    local colors = PaletteFX.monPal(game.data, mon.species)
-    if not colors then return nil end
-    return { colors[2], colors[2], colors[3], colors[4] }
   end
 
   local function drawIcon(self, mon, y, selected)
     -- before the art, and only where the art will be marked
     local rect = fullColour(self.game, mon)
     if rect then
-      matte(ICON_X, y, rect.w, rect.h, cardRamp(self.game, mon))
+      matte(ICON_X, y, rect.w, rect.h)
     end
     C.white()
     pcall(PartyMenu.drawIcon, self.game, mon, ICON_X, y, selected,
@@ -781,60 +771,6 @@ return function(mod, C)
     end
   end
 
-  -- ------- COLORFUL
-  --
-  -- The theme asks a screen that knows what its rows ARE to colour them, and
-  -- this screen knows: it already puts a zone on every Pokemon's icon, in
-  -- that Pokemon's own palette, which is what SPECIES COLOURS is.  Under
-  -- COLORFUL that colour comes out of the icon cell and becomes the whole
-  -- row -- a card per Pokemon, the way the party screens people have built
-  -- for this engine do it -- with a band across the header and the footer in
-  -- the screen's own green.
-  --
-  -- Three things about the palettes, because none of them is arbitrary:
-  --
-  --   The CARD takes the species' LIGHT shade as its paper and leaves shade 3
-  --   alone, so the name, the level and the HP numbers stay black on it.  A
-  --   card is a ground, and a ground that fights the type on it is a worse
-  --   card than no card.
-  --
-  --   The BAND is `theme.band`, which is the page's own deep shade with the
-  --   type reversed out white.  It is one zone over the tile rows the header
-  --   box already occupies, so it caps the screen rather than moving it.
-  --
-  --   Nothing here touches the ICON or the HP BAR.  The theme splices these
-  --   zones in UNDER the ones this screen already returned, so the icon keeps
-  --   its own full palette and the bar keeps its green -- a bar that turned
-  --   the colour of the card behind it would be information taken away to add
-  --   decoration.
-  --
-  -- Returns nothing at all when the theme is not there to ask (a build with
-  -- the bundle's own runtime missing) or when the party is empty, which is
-  -- the same answer as "this screen has no opinion".
-  local function themeZones(self, _tint, theme)
-    if not (theme and type(theme.band) == "function") then return nil end
-    local game = self.game
-    if not game then return nil end
-    local out = {}
-
-    local band = theme.band("party")
-    if band then
-      out[#out + 1] = PaletteFX.zone(band, 0, 0, 19, C.HEADER_TH - 1)
-      out[#out + 1] = PaletteFX.zone(band, 0, C.FOOTER_TY, 19, 17)
-    end
-
-    local party = self.party or (game.save and game.save.party) or {}
-    for i, mon in ipairs(party) do
-      local colors = cardRamp(game, mon)
-      if colors then
-        local ty = BODY_TY + (i - 1) * 2
-        -- the same four the matte under this Pokemon's icon uses
-        out[#out + 1] = PaletteFX.zone(colors, 0, ty, 19, ty + 1)
-      end
-    end
-    return out
-  end
-
   -- ------- the screen
   --
   -- Built by the vanilla constructor, then re-dressed.  Every mode and every
@@ -848,11 +784,10 @@ return function(mod, C)
     menu.draw = draw
     menu.sgbPalettes = palettesFor(vanillaSgb)
     menu.update = updateFor(PartyMenu.update)
-    -- what UI THEME calls this screen, and how it colours itself under
-    -- COLORFUL.  Both are read only by the theme and cost nothing when it is
-    -- not installed.
+    -- one of ours, as far as UI THEME is concerned: the theme reads this off
+    -- the instance rather than matching the engine's class, and it costs
+    -- nothing when no theme is installed
     menu.gen1wildTheme = "party"
-    menu.gen1wildThemeZones = themeZones
     return menu
   end
 

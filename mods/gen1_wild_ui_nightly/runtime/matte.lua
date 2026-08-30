@@ -76,11 +76,11 @@ local Matte = {}
 -- with it on, Gen1Dex registers its own entry screen, that instance carries
 -- its own `draw`, and this wrapper is never reached for it.
 Matte.SCREENS = {
-  { "src.ui.TrainerCard", "card" },
-  { "src.ui.SummaryMenu", "summary" },
-  { "src.ui.LeaguePC", "box" },
-  { "src.ui.Diploma", "card" },
-  { "src.ui.DexEntryMenu", "dex" },
+  "src.ui.TrainerCard",
+  "src.ui.SummaryMenu",
+  "src.ui.LeaguePC",
+  "src.ui.Diploma",
+  "src.ui.DexEntryMenu",
 }
 
 function Matte.new(context)
@@ -90,7 +90,7 @@ function Matte.new(context)
   -- The colour to paint, or nil for "there is nothing to do here".  Three
   -- ways to answer nil, and each of them is a whole build that pays nothing:
   -- no theme, LIGHT, or a mode that discards true-colour marks anyway.
-  local function matteColour(tint)
+  local function matteColour()
     local theme = context.theme
     if type(theme) ~= "table" or type(theme.read) ~= "function" then
       return nil
@@ -101,7 +101,7 @@ function Matte.new(context)
         and not PaletteFX.honorsTrueColor() then
       return nil
     end
-    local colour = theme.matte(tint)
+    local colour = theme.matte()
     if type(colour) ~= "table" or #colour < 3 then return nil end
     return colour
   end
@@ -129,9 +129,9 @@ function Matte.new(context)
     love.graphics.setColor(1, 1, 1, 1)
   end
 
-  function self.wrap(base, tint)
+  function self.wrap(base)
     return function(state, ...)
-      local colour = matteColour(tint)
+      local colour = matteColour()
       if not colour then return base(state, ...) end
 
       local rects, problem = record(base, state, ...)
@@ -150,12 +150,12 @@ function Matte.new(context)
   end
 
   function self.install()
-    for _, entry in ipairs(Matte.SCREENS) do
-      local ok, class = pcall(require, entry[1])
+    for _, path in ipairs(Matte.SCREENS) do
+      local ok, class = pcall(require, path)
       if ok and type(class) == "table" and type(class.draw) == "function"
           and not patched[class] then
         patched[class] = true
-        class.draw = self.wrap(class.draw, entry[2])
+        class.draw = self.wrap(class.draw)
       end
     end
   end

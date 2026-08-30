@@ -69,10 +69,10 @@ return function(mod, DexData, C)
   --
   -- Only ever inside a rectangle about to be marked: a dark rectangle
   -- anywhere else is shade-3 pixels, which the theme maps to the page's ink.
-  local function matte(x, y, w, h, hint)
+  local function matte(x, y, w, h)
     local theme = type(mod.theme) == "function" and mod.theme() or nil
     local colour = theme and type(theme.matte) == "function"
-      and theme.matte(hint) or nil
+      and theme.matte() or nil
     if type(colour) ~= "table" then return end
     love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
     love.graphics.rectangle("fill", x, y, w, h)
@@ -518,7 +518,7 @@ return function(mod, DexData, C)
     local x, y, scale, dw, dh = C.fit(w, h, PIC_X, PIC_Y, PIC_SPAN, PIC_SPAN)
     -- the page under the sprite, before the sprite: the rect below is blitted
     -- raw, so the cleared white inside it survives a dark page otherwise
-    if self.spriteTrueColor then matte(x, y, dw, dh, "dex") end
+    if self.spriteTrueColor then matte(x, y, dw, dh) end
     C.white()
     love.graphics.draw(sprite, x, y, 0, scale, scale)
     if self.spriteTrueColor then

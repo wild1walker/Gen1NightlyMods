@@ -5,6 +5,13 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.8.0] - 2026-08-30
+
+### Changed
+
+- **`UI THEME` on the bench is two values, not three**, following the suite:
+  `COLORFUL` was removed rather than finished.
+
 ## [0.7.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

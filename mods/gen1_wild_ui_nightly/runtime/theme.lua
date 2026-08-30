@@ -1,4 +1,4 @@
--- UI THEME: the same screens, in light, dark, or colour.
+-- UI THEME: the same screens, in light or dark.
 --
 -- ------- what a theme is allowed to touch
 --
@@ -76,13 +76,15 @@
 -- ------- one honest limit
 --
 -- This works by changing the colours a zone carries, so it works in the
--- display modes that USE them: SGB, SGB INV, ADVANCED, OG RED.  The flat
--- modes -- OG, OG INV, CLASSIC, and a custom ramp -- are the player asking
--- for one palette over the whole game, and `PaletteFX.effectiveColors`
--- replaces every zone's colours to give it to them.  A theme cannot outrank
--- that and should not try: OG INV already IS dark mode for the whole screen.
+-- display modes that USE them.  ADVANCED is the one it is built for and
+-- tested against; SGB, SGB INV and OG RED pass a zone's colours through the
+-- same way.  The flat modes -- OG, OG INV, CLASSIC, and a custom ramp -- are
+-- the player asking for one palette over the whole game, and
+-- `PaletteFX.effectiveColors` replaces every zone's colours to give it to
+-- them.  A theme cannot outrank that and should not try: OG INV already IS
+-- dark mode for the whole screen.
 --
--- ------- the three
+-- ------- the two
 --
 --   LIGHT     the identity.  The hook returns the list it was handed, by
 --             reference, so a light boot is byte-identical to a build with
@@ -94,12 +96,14 @@
 --             to the whole game.  Doing it per zone is what keeps it to the
 --             menus.  A page whose reversal would not actually be dark falls
 --             back to plain black paper; see darkPage.
---   COLORFUL  work in progress.  The page takes a tint chosen by WHAT THE
---             SCREEN IS -- the Pokedex reads red, the box blue, the party
---             green -- and a screen that says what its rows are gets a
---             colour per row on top of that.  Every tint keeps the DMG
---             ramp's own lightness within a few values, so a coloured page
---             has the contrast a black-and-white one had.
+--
+-- There were three.  COLORFUL -- a saturated tint per screen, a band across
+-- a header, a card per Pokemon in its own species colour -- was taken out at
+-- 0.8.0 rather than finished.  Everything it needed went with it: the tint
+-- table, `Theme.band`, `gen1wildThemeZones`, and the party screen's cards.
+-- The history has it if it is ever wanted back; carrying a half-built third
+-- option in the file that every frame of the game runs through is a worse
+-- trade than looking it up.
 --
 -- ------- what is deliberately NOT themed
 --
@@ -117,147 +121,60 @@ local Theme = {}
 local GREYS = { { 255, 255, 255 }, { 170, 170, 170 }, { 85, 85, 85 },
                 { 0, 0, 0 } }
 
-Theme.ORDER = { "light", "dark", "colorful" }
+Theme.ORDER = { "light", "dark" }
 
 Theme.LABELS = {
   light = "LIGHT",
   dark = "DARK",
-  -- The asterisk is the suite's own mark for a row that is not finished, and
-  -- this row is the reason the mark is in the menu's legend.
-  colorful = "COLORFUL*",
 }
 
 Theme.DEFAULT = "light"
 
--- ------- the tints
---
--- Lightest first, like every palette in the engine.  Four colours per screen:
--- a PAPER to draw the page on, two shades, and an INK.
---
--- 0.2.0 built these to a rule that turned out to be the wrong rule.  Each ramp
--- held the DMG ramp's own lightness to within a few values -- paper at 246
--- against the greys' 255 -- on the theory that "tastefully colourful" meant a
--- background you notice after the words.  Held that tightly, a tint is a
--- background you never notice at all: paper at 246 IS white, and COLORFUL
--- came out as LIGHT with a rumour of a hue on it.
---
--- What colourful actually means here is what the mods that have done it
--- already do -- a party screen where every Pokemon sits on a card in its own
--- colour, a bag where the pocket owns the whole screen, a header band you can
--- read the screen's identity off from across the room.  Saturated, and
--- meaning something.  So the rule now is contrast rather than sameness:
---
---     PAPER  light and clearly coloured -- around 0.72 lightness, high
---            chroma.  Black text on it reads at 9:1 or better, which is far
---            past what small type needs, and it is unmistakably a colour.
---     MID    the same hue at half lightness: panels, rules, the shade under
---            a card.
---     DEEP   the same hue at a third: the header and footer BANDS, which
---            carry WHITE text at 5:1 or better (see Theme.band).
---     INK    the hue crushed nearly to black, for a page that wants its own
---            black rather than the flat one.
---
--- tests/runtime_test.lua measures every ramp both ways -- black on paper and
--- white on deep -- and also that the ramp is actually coloured, which is the
--- assertion 0.2.0's rule would have failed.
---
--- `page` is what everything else falls back to.  It is a paper rather than a
--- colour: a screen with nothing to say about itself should look like a page
--- of the same book as the ones that do.
-Theme.TINTS = {
-  -- a page of the same book as the rest
-  page      = { { 0xe8, 0xd5, 0xb0 }, { 0xcb, 0xa1, 0x4d },
-                { 0x86, 0x67, 0x27 }, { 0x1c, 0x15, 0x08 } },
-  -- out in the world
-  world     = { { 0xab, 0xe3, 0xa0 }, { 0x4e, 0xbe, 0x37 },
-                { 0x30, 0x77, 0x22 }, { 0x0a, 0x18, 0x07 } },
-  -- the Pokedex is a red device
-  dex       = { { 0xee, 0x99, 0x96 }, { 0xdb, 0x2a, 0x24 },
-                { 0x95, 0x1c, 0x18 }, { 0x1d, 0x08, 0x07 } },
-  -- a PC
-  box       = { { 0x96, 0xc5, 0xee }, { 0x24, 0x86, 0xdb },
-                { 0x18, 0x5b, 0x95 }, { 0x07, 0x13, 0x1d } },
-  -- your team, in a full HP bar's green
-  party     = { { 0x95, 0xe4, 0xa9 }, { 0x2f, 0xbc, 0x52 },
-                { 0x1f, 0x7a, 0x36 }, { 0x06, 0x18, 0x0b } },
-  -- a fight
-  battle    = { { 0xf0, 0xaf, 0x89 }, { 0xe3, 0x65, 0x1c },
-                { 0x9a, 0x45, 0x13 }, { 0x1d, 0x0f, 0x07 } },
-  -- leather
-  bag       = { { 0xe6, 0xc1, 0x94 }, { 0xbe, 0x7d, 0x2d },
-                { 0x7c, 0x51, 0x1d }, { 0x18, 0x10, 0x06 } },
-  -- money
-  shop      = { { 0xea, 0xd2, 0x86 }, { 0xbf, 0x9a, 0x22 },
-                { 0x7e, 0x66, 0x16 }, { 0x18, 0x14, 0x06 } },
-  -- an ID card
-  card      = { { 0x9c, 0xd1, 0xe8 }, { 0x2f, 0x99, 0xc6 },
-                { 0x1f, 0x66, 0x84 }, { 0x07, 0x16, 0x1d } },
-  -- settings, and the mod manager
-  settings  = { { 0xce, 0xa4, 0xea }, { 0x94, 0x39, 0xd0 },
-                { 0x61, 0x21, 0x8c }, { 0x14, 0x07, 0x1d } },
-  -- stats
-  summary   = { { 0x94, 0xe6, 0xe0 }, { 0x2d, 0xbe, 0xb4 },
-                { 0x1d, 0x7c, 0x76 }, { 0x06, 0x18, 0x17 } },
-}
-
--- ------- a band
---
--- A header or footer strip in the screen's own colour, with the type reversed
--- out of it: the deep shade where the paper was, white where the ink was.  It
--- is the one move every modern-looking menu in this game's mod scene has in
--- common, and on this engine it costs a single zone over the tile rows the
--- screen's own header box already occupies.
---
--- Built from a tint rather than listed separately so a band can never be a
--- different colour from the page it caps.
-local BAND_WHITE = { 0xff, 0xff, 0xff }
-
-function Theme.band(ramp)
-  if type(ramp) ~= "table" or #ramp < 4 then return nil end
-  return { ramp[3], ramp[2], ramp[1], BAND_WHITE }
-end
-
--- ------- the pages, and what colour each one is
+-- ------- the pages
 --
 -- Two ways a screen is recognised, and it only needs one.
 --
--- A screen this suite REGISTERED says so itself: `state.gen1wildTheme` is a
--- tint name, set on the instance when it is built.  That covers the suite's
--- own menu screens and the test bench, and it costs a feature nothing.
+-- A screen this suite REGISTERED says so itself: `state.gen1wildTheme` is set
+-- on the instance when it is built.  That covers the suite's own menu screens
+-- and the test bench, and it costs a feature nothing.
 --
 -- Everything else is recognised by its class.  The list below is of STATE
 -- classes -- things that go on `game.stack.states` -- which is why the bag,
 -- the shop, Bill's PC and the prize counter are not in it by name: none of
 -- them is a state.  `src/ui/BagMenu.lua` and its neighbours are modules that
--- build a `src.ui.ListMenu` and push THAT, so the one ListMenu entry themes
--- all four.  (The cost is that COLORFUL cannot tell a bag from a shop yet and
--- gives all of them the default paper.  That is the WIP half of that row.)
+-- build a `src.ui.ListMenu` and push THAT, so the one ListMenu entry covers
+-- all four.
 --
 -- Left out deliberately: the screens that are pictures rather than pages --
 -- the intro, Oak's speech, the Hall of Fame, the credits, the slots, the
--- trade animation, Pikachu's beach, the title screen -- and PaletteScreen,
--- which is the colour picker itself and has to show colours as they are.
+-- trade animation, the title screen -- and PaletteScreen, which is the colour
+-- picker itself and has to show colours as they are.
 Theme.PAGES = {
-  { "src.ui.PokedexMenu", "dex" },
-  { "src.ui.DexEntryMenu", "dex" },
+  "src.ui.PokedexMenu",
+  "src.ui.DexEntryMenu",
   -- the bag, the shops, the box, the PC and the prize counter all push one
-  { "src.ui.ListMenu", "page" },
-  { "src.ui.PartyMenu", "party" },
-  { "src.ui.SummaryMenu", "summary" },
-  { "src.ui.TrainerCard", "card" },
-  { "src.ui.Diploma", "card" },
-  { "src.ui.TownMap", "world" },
-  { "src.ui.NamingScreen", "page" },
-  { "src.ui.LeaguePC", "box" },
-  { "src.ui.OptionsMenu", "settings" },
-  { "src.mods.ManagerState", "settings" },
+  "src.ui.ListMenu",
+  "src.ui.PartyMenu",
+  "src.ui.SummaryMenu",
+  "src.ui.TrainerCard",
+  "src.ui.Diploma",
+  "src.ui.TownMap",
+  "src.ui.NamingScreen",
+  "src.ui.LeaguePC",
+  "src.ui.OptionsMenu",
+  "src.mods.ManagerState",
 }
 
-local function classTints()
+-- The engine classes above, resolved to the class tables themselves so a
+-- state can be matched by `getmetatable`.  Built on the first frame rather
+-- than at load, because a mod's require of an engine module is cheap but not
+-- free and a LIGHT boot never needs it.  A module that is not present
+-- resolves to nothing and simply has no entry.
+local function pageClasses()
   local out = {}
-  for _, entry in ipairs(Theme.PAGES) do
-    local ok, class = pcall(require, entry[1])
-    if ok and type(class) == "table" then out[class] = entry[2] end
+  for _, path in ipairs(Theme.PAGES) do
+    local ok, class = pcall(require, path)
+    if ok and type(class) == "table" then out[class] = true end
   end
   return out
 end
@@ -362,12 +279,7 @@ function Theme.new(context)
 
   local self = {}
 
-  local tintOf                          -- built on the first frame
-  -- One table per source palette per theme, kept for as long as the source is
-  -- kept.  The hook runs on every frame of every menu, and a menu with a
-  -- dozen icon zones would otherwise allocate a dozen tables sixty times a
-  -- second to say the same thing each time.  Weak keys, so a palette that
-  -- goes away takes its cached reversal with it.
+  local classes                         -- built on the first frame
   local reversals = setmetatable({}, { __mode = "k" })
 
   function self.read()
@@ -385,19 +297,6 @@ function Theme.new(context)
   -- own rows.  runtime/menu.lua cannot require this file -- a mod's require
   -- does not reach into its own folder -- so the instance carries the lookup
   -- rather than the table being read directly.
-  function self.tint(name)
-    return Theme.TINTS[name] or Theme.TINTS.page
-  end
-
-  -- The header/footer strip for a tint, by name or by ramp.  Screens reach it
-  -- through the theme instance handed to gen1wildThemeZones, for the same
-  -- reason they reach self.tint that way: a mod's require does not reach into
-  -- its own folder, so the table cannot be read directly.
-  function self.band(name)
-    local ramp = type(name) == "table" and name or self.tint(name)
-    return Theme.band(ramp)
-  end
-
   function self.label(value)
     return Theme.LABELS[value or self.read()] or Theme.LABELS[Theme.DEFAULT]
   end
@@ -425,7 +324,6 @@ function Theme.new(context)
       choices = {
         { Theme.LABELS.light, "light" },
         { Theme.LABELS.dark, "dark" },
-        { Theme.LABELS.colorful, "colorful" },
       },
       default = Theme.DEFAULT,
     })
@@ -451,16 +349,12 @@ function Theme.new(context)
     for i = #states, 1, -1 do
       local state = states[i]
       if type(state) == "table" then
-        local named = state.gen1wildTheme
-        if type(named) == "string" and Theme.TINTS[named] then
-          return state, named, i
-        end
-        tintOf = tintOf or classTints()
-        local byClass = tintOf[getmetatable(state)]
-        if byClass then return state, byClass, i end
+        if state.gen1wildTheme ~= nil then return state, i end
+        classes = classes or pageClasses()
+        if classes[getmetatable(state)] then return state, i end
         -- owns the frame and is not a page: the frame is not ours, but
         -- anything stacked ON it still might be, so say where it sits
-        if state.sgbPalettes then return nil, nil, i end
+        if state.sgbPalettes then return nil, i end
       end
     end
     return nil
@@ -474,7 +368,7 @@ function Theme.new(context)
   -- colour at best and a box over its own content at worst.  What is left
   -- above the owner is exactly the overlays -- the START menu on the map, the
   -- bag's windows, a field-move list, a battle's command box.
-  local function panelZones(game, theme, ownerAt)
+  local function panelZones(game, ownerAt)
     local states = game and game.stack and game.stack.states
     if type(states) ~= "table" then return nil end
     local out
@@ -483,12 +377,11 @@ function Theme.new(context)
       if type(state) == "table" then
         local rects = panelsOf(state)
         if rects then
-          local colors = (theme == "dark") and DARK_PAGE or tintFor(state)
           for _, rect in ipairs(rects) do
             if type(rect) == "table" and type(rect.w) == "number"
                 and type(rect.h) == "number" and rect.w > 0 and rect.h > 0 then
               out = out or {}
-              out[#out + 1] = { colors = colors, x = rect.x or 0,
+              out[#out + 1] = { colors = DARK_PAGE, x = rect.x or 0,
                                 y = rect.y or 0, w = rect.w, h = rect.h }
             end
           end
@@ -515,20 +408,6 @@ function Theme.new(context)
     return { { colors = GREYS, x = 0, y = 0, w = 160, h = 144 } }
   end
 
-  local function tintFor(state)
-    if type(state) ~= "table" then return Theme.TINTS.page end
-    local named = state.gen1wildTheme
-    if type(named) == "string" and Theme.TINTS[named] then
-      return Theme.TINTS[named]
-    end
-    tintOf = tintOf or classTints()
-    local byClass = tintOf[getmetatable(state)]
-    if byClass and Theme.TINTS[byClass] then
-      return Theme.TINTS[byClass]
-    end
-    return Theme.TINTS.page
-  end
-
   -- ------- the matte
   --
   -- What a shade-0 pixel ENDS UP as, for the one thing a palette swap cannot
@@ -552,12 +431,9 @@ function Theme.new(context)
   -- before this existed, so the call costs a build with no theme nothing.
   local MATTE_WHITE = { 255, 255, 255 }
 
-  function self.matte(hint)
-    local theme = self.read()
-    if theme == "light" then return MATTE_WHITE end
-    if theme == "dark" then return DARK_PAGE[1] end
-    local ramp = type(hint) == "table" and hint or self.tint(hint)
-    return ramp[1] or MATTE_WHITE
+  function self.matte()
+    if self.read() == "light" then return MATTE_WHITE end
+    return DARK_PAGE[1]
   end
 
   local function reverse(colors)
@@ -639,53 +515,6 @@ function Theme.new(context)
     end)
   end
 
-  -- ---- COLORFUL
-  --
-  -- The page takes its screen's tint, and a screen that knows what its rows
-  -- ARE paints them itself: `state:gen1wildThemeZones(tint, theme)` returns
-  -- extra zones -- a header band, a card per Pokemon in that Pokemon's own
-  -- colour, a card per settings row in the colour of what it opens.  That is
-  -- the half of this row that is still work in progress: the suite's party
-  -- screen and its own menus answer it, the bag and the box do not yet.
-  --
-  -- Those zones go in ABOVE THE PAGE AND BELOW THE SCREEN'S OWN, which is the
-  -- whole reason this is a splice rather than an append.  A party screen
-  -- already puts a zone on each Pokemon's icon and each HP bar; a card
-  -- appended after those would paint straight over both, and a green bar that
-  -- turns the colour of the card behind it is information taken away.  Going
-  -- in under them lets the card be the ground and the icon and the bar stay
-  -- themselves.
-  --
-  -- Only the PAGE is retinted by the theme itself.  The panels a screen has
-  -- already put down are already colour and already mean something -- a party
-  -- icon is the species' own colour, an HP bar is green because it is nearly
-  -- full -- and a theme that repainted those would be taking information away
-  -- to add decoration.
-  local function colorful(zones, pageAt, state, tintName)
-    local tint = (tintName and Theme.TINTS[tintName]) or tintFor(state)
-    local painted = restyled(zones, function(index, zone)
-      if index == pageAt then return tint end
-      return zone.colors
-    end)
-
-    local extra = {}
-    if state and type(state.gen1wildThemeZones) == "function" then
-      local ok, got = pcall(state.gen1wildThemeZones, state, tint, self)
-      if ok and type(got) == "table" then
-        for _, zone in ipairs(got) do
-          if type(zone) == "table" then extra[#extra + 1] = zone end
-        end
-      end
-    end
-    if #extra == 0 then return painted end
-
-    local out = {}
-    for index = 1, pageAt do out[#out + 1] = painted[index] end
-    for _, zone in ipairs(extra) do out[#out + 1] = zone end
-    for index = pageAt + 1, #painted do out[#out + 1] = painted[index] end
-    return out
-  end
-
   -- The hook itself.  `next` first, so a mod downstream that builds zones of
   -- its own has already built them and is themed with everything else.
   --
@@ -695,22 +524,15 @@ function Theme.new(context)
   -- every battle, and on those frames it must cost a table lookup and a walk
   -- down a stack that is usually two states deep.
   function self.apply(game, zones)
-    local theme = self.read()
-    if theme == "light" then return zones end
+    if self.read() ~= "dark" then return zones end
 
-    local state, tintName, ownerAt = pageState(game)
+    local state, ownerAt = pageState(game)
     local out
     if state then
-      out = pageZones(zones, state)
-      if theme == "dark" then
-        out = dark(out, 1)
-      else
-        out = colorful(out, 1, state, tintName)
-      end
+      out = dark(pageZones(zones, state), 1)
     elseif basePage(zones) then
       -- no page state, but the list itself says it is a page
-      out = (theme == "dark") and dark(zones, 1)
-        or colorful(zones, 1, nil, "page")
+      out = dark(zones, 1)
       ownerAt = ownerAt or 0
     else
       out = zones
@@ -721,7 +543,7 @@ function Theme.new(context)
     -- zones that colour the map.  This is also the ONE path that can theme a
     -- frame that is not a page at all -- which is the whole point, because
     -- the START menu has never been one.
-    local panels = panelZones(game, theme, ownerAt)
+    local panels = panelZones(game, ownerAt)
     if not panels then return out end
 
     local spread = {}
