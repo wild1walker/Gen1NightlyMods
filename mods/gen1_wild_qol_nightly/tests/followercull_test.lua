@@ -13,10 +13,18 @@
 -- and the renderer's scissor on that replay is the UI's rect, not the
 -- world's, which on a portrait phone is the taller of the two.
 --
--- So a cell entirely off the world canvas is never queued.  What is checked
--- here is that bound and nothing else: on the canvas is queued, off it is
--- not, a cell straddling the edge IS queued, and with no renderer to ask
--- nothing is culled.
+-- 0.10.0 culled the cells that were ENTIRELY off the canvas.  That was half a
+-- fix and this file now covers the other half: a cell STRADDLING the edge is
+-- not entirely off, so it was still queued and the replay still drew all
+-- sixteen of its rows.  The one in the second capture had its art at world y
+-- -9 to 0 -- hanging over the edge by nine pixels, exactly the case a cull
+-- cannot reach.
+--
+-- So three bounds are checked here rather than one: entirely off (drop it),
+-- wholly on (queue it), and straddling (draw it into the canvas instead,
+-- which clips).  Plus the rule that decides whether the replay is wanted at
+-- all, and the arithmetic that makes the fall-through draw the same pixels
+-- the queue would have.
 --
 -- Run:  luajit tests/followercull_test.lua
 
@@ -123,6 +131,81 @@ do
   eq(cullFor({})(0, -16), false, "and so does a renderer with no canvas yet")
   eq(cullFor({ getDimensions = function() error("no") end })(0, -16), false,
      "and one whose canvas raises")
+end
+
+
+io.write("wholly-on is a tighter bound than not-off\n")
+do
+  -- The two together are what sort a cell into three: off, straddling, on.
+  local function wholly(w, h)
+    return function(x, y)
+      return x >= 0 and y >= 0 and x + 16 <= w and y + 16 <= h
+    end
+  end
+  local on = wholly(160, 144)
+  local off = cullFor(canvasOf(160, 144))
+
+  eq(on(0, 0), true, "the top-left cell is wholly on")
+  eq(on(144, 128), true, "and so is the bottom-right one")
+
+  -- the capture's sprite: nine pixels of it over the top edge
+  eq(off(0, -9), false, "a cell nine pixels over the top is not entirely off")
+  eq(on(0, -9), false, "...nor is it wholly on")
+  -- which is the whole point: it is in neither bucket, so it takes the
+  -- canvas draw, which is the only one of the two that can cut it off
+  eq(off(0, -9) == false and on(0, -9) == false, true,
+     "so it straddles, and straddling is what the replay cannot handle")
+
+  eq(on(152, 40), false, "hanging over the right edge is straddling too")
+  eq(on(40, 136), false, "and over the bottom")
+end
+
+io.write("the replay is only wanted where markTrueColor is not honoured\n")
+do
+  -- ADVANCED is the one mode that honours a true-colour rect, so it is the
+  -- one mode that does not need the replay -- and the replay is the path that
+  -- cannot clip.  Everything else still takes it.
+  local function needsRedraw(honors)
+    if type(honors) ~= "function" then return true end
+    local ok, honored = pcall(honors)
+    if not ok then return true end
+    return not honored
+  end
+  eq(needsRedraw(function() return true end), false,
+     "ADVANCED marks its rectangle instead, and draws into the canvas")
+  eq(needsRedraw(function() return false end), true,
+     "SGB and OG RED still want the replay")
+  eq(needsRedraw(nil), true, "an engine too old to be asked gets the replay")
+  eq(needsRedraw(function() error("no") end), true, "and so does one that raises")
+end
+
+io.write("the fall-through draws the same pixels the queue would have\n")
+do
+  -- The queue draws the frame at (drawX, y) with scale sx.  The fall-through
+  -- draws it anchored at (x+8, y+16) with origin (8, 16).  At scale 1 those
+  -- have to be the same pixels or ADVANCED would lose something by taking the
+  -- second, so the two are worked out here for both mirrors.
+  local function queued(x, u, v, flip)
+    local drawX = flip and (x + 16) or x
+    local sx = flip and -1 or 1
+    return drawX + u * sx, v
+  end
+  local function fallthrough(x, u, v, flip)
+    local sx = flip and -1 or 1
+    return (x + 8) + (u - 8) * sx, ((0) + 16) + (v - 16)
+  end
+  for _, flip in ipairs({ false, true }) do
+    for _, u in ipairs({ 0, 7, 15 }) do
+      for _, v in ipairs({ 0, 9, 15 }) do
+        local qx, qy = queued(40, u, v, flip)
+        local fx, fy = fallthrough(40, u, v, flip)
+        eq(fx, qx, ("column %d lands in the same place (flip=%s)")
+          :format(u, tostring(flip)))
+        eq(fy, qy, ("row %d lands in the same place (flip=%s)")
+          :format(v, tostring(flip)))
+      end
+    end
+  end
 end
 
 io.write(("\nfollower cull: %d passed, %d failed\n"):format(passed, failed))

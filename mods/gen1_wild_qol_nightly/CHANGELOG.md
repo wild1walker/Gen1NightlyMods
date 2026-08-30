@@ -7,6 +7,47 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.11.0] - 2026-08-30
+
+### Fixed
+
+- **Map Pokémon still rendered above the game screen.** 0.10.0 culled the ones
+  whose cell was **entirely** off the world canvas, and that was half a fix.
+
+  Measured off the second capture, the remaining stray's art ran from world y
+  **-9 to 0** — hanging over the top edge by nine pixels. A cell straddling
+  the edge is not entirely off, so it was still queued, and the replay still
+  drew all sixteen of its rows into the black margin. A cull cannot reach that
+  case by construction.
+
+  Two changes:
+
+  - **`ADVANCED` does not queue at all now.** The post-zone replay exists for
+    the modes that would otherwise repaint this art through the shade shader.
+    `ADVANCED` has a better answer to the same problem — `markTrueColor`,
+    which exempts the rectangle in place — and `PaletteFX.honorsTrueColor()`
+    *is* that mode for a Gen 1 game and nothing else. So the sprite falls
+    through to the draw the scaled followers already use: it marks its
+    rectangle and goes onto the world canvas like everything else on the map,
+    and **the canvas clips it, per pixel, for free**. At scale 1 that draw is
+    the same pixels the queue would have produced — the anchor and origin
+    cancel out exactly, which the tests work through for both mirrors — so
+    nothing is lost by taking it.
+
+  - **A straddling cell takes the canvas draw in every other mode too.** The
+    replay cannot clip and the canvas can, so `SGB` and `OG RED` send that one
+    case down the same path. The trade is the few pixels at the very edge
+    going through the colorize pass rather than round it, against a Pokémon
+    drawn outside the screen.
+
+  Three bounds now, not one: entirely off (drop it), wholly on (queue it),
+  straddling (draw it). `tests/followercull_test.lua` covers all three, the
+  rule that decides whether the replay is wanted, and the arithmetic that
+  makes the fall-through equivalent — 67 assertions, up from 20.
+
+  Still not a nightly regression: `modules/Gen1Follower` has never been edited
+  on this channel other than by these two fixes.
+
 ## [0.10.0] - 2026-08-30
 
 ### Fixed

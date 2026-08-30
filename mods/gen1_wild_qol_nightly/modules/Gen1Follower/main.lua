@@ -1071,6 +1071,58 @@ return function(mod)
     return x + 16 <= 0 or y + 16 <= 0 or x >= w or y >= h
   end
 
+  -- Wholly inside the canvas -- the only case the replay can be trusted with,
+  -- because it is the only one where clipping never has to happen.  Same
+  -- lookup as offCanvas and the same answer when there is no renderer to ask:
+  -- assume the sprite is fine and change nothing.
+  local function whollyOnCanvas(x, y)
+    if rendererModule == nil then
+      local ok, found = pcall(require, "src.render.Renderer")
+      rendererModule = (ok and type(found) == "table") and found or false
+    end
+    if not rendererModule then return true end
+    local canvas = rendererModule.worldCanvas
+    if not (canvas and canvas.getDimensions) then return true end
+    local ok, w, h = pcall(canvas.getDimensions, canvas)
+    if not (ok and type(w) == "number" and type(h) == "number") then
+      return true
+    end
+    return x >= 0 and y >= 0 and x + 16 <= w and y + 16 <= h
+  end
+
+  -- Does this mode need the redraw at all?
+  --
+  -- The redraw exists for the modes that would otherwise repaint this art
+  -- through the shade shader: it queues the sprite and the renderer replays it
+  -- in screen space after the zone pass, in its own colours.  ADVANCED has a
+  -- better answer for the same problem -- `markTrueColor`, which exempts the
+  -- rectangle in place -- and `PaletteFX.honorsTrueColor()` IS that mode, for
+  -- a Gen 1 game, and nothing else.
+  --
+  -- Which matters here because of what the two paths do about the edge of the
+  -- screen.  Drawing into the world canvas is clipped by the canvas, per
+  -- pixel, for free.  The replay is not: it is the one draw in the game that
+  -- happens after the canvas, and the renderer scissors it to the UI's rect
+  -- rather than the world's -- which on a portrait phone is the taller of the
+  -- two, so a sprite that hangs over the top of the map is drawn in the black
+  -- margin above it.
+  --
+  -- 0.10.0 culled the sprites that were ENTIRELY off the canvas, and that was
+  -- half a fix: a cell straddling the edge is not entirely off, so it was
+  -- still queued and the replay still drew all sixteen of its rows.  The one
+  -- in the capture had its art at world y -9 to 0 -- hanging over the edge by
+  -- nine pixels, which is exactly the case a cull cannot reach.
+  --
+  -- So in ADVANCED this does not queue at all.  It falls through to the draw
+  -- below, which marks its rectangle and puts the sprite on the canvas like
+  -- everything else on the map, and the canvas cuts it off at the edge.
+  local function needsRedraw()
+    if type(PaletteFX.honorsTrueColor) ~= "function" then return true end
+    local ok, honored = pcall(PaletteFX.honorsTrueColor)
+    if not ok then return true end
+    return not honored
+  end
+
   local origSpriteDraw = SpriteRenderer.draw
   local wrappedSpriteDraw
   wrappedSpriteDraw = function(self, px, py, camX, camY, facing, walkPhase,
@@ -1115,13 +1167,25 @@ return function(mod)
         and love.graphics.setColor and love.graphics.getColor and true or false
       local dark = canDraw and darkFrame()
 
-      if not dark and (unscaled or not canDraw) then
-        -- `x`, not `drawX`: a mirrored sprite covers the same sixteen pixels
-        -- from the other side of them, and the cull is about the cell.
-        if not offCanvas(x, y) then
+      -- The queue is for the modes that need it, and for a build with no
+      -- love.graphics to draw with; everything else falls through to the draw
+      -- below, where the canvas does the clipping.  At scale 1 that draw is
+      -- the same pixels this branch used to queue -- the anchor and origin
+      -- cancel out exactly -- so ADVANCED loses nothing by taking it.
+      -- `x`, not `drawX`, throughout: a mirrored sprite covers the same
+      -- sixteen pixels from the other side of them, and all of this is about
+      -- the cell.
+      if not dark and (unscaled or not canDraw) and (needsRedraw() or not canDraw) then
+        if offCanvas(x, y) then return end
+        if whollyOnCanvas(x, y) or not canDraw then
           PaletteFX.markSpriteRedraw(followerImg, quad, drawX, y, flipSx, nil, false)
+          return
         end
-        return
+        -- Straddling the edge, in a mode that wanted the replay.  The replay
+        -- cannot clip and the canvas can, so this one falls through to the
+        -- draw below instead.  The trade is the few pixels at the very edge
+        -- going through the colorize pass rather than round it -- against a
+        -- POKeMON drawn in the margin outside the screen, which is the bug.
       end
 
       -- Pivot around the feet so changing size never makes the follower float
