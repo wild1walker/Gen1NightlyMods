@@ -6,6 +6,50 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.26.0] - 2026-08-30
+
+### Fixed
+
+- **A box over a battle no longer repaints the battle.** In DARK, the moment
+  `Will WILD change POKéMON?` came up the entire battle behind it went black
+  and white — backdrop, mon and all.
+
+  `Renderer:blitCanvas` opens with
+
+  ```lua
+  local shader = zoneList and zoneList[1] and PaletteFX.shader() or nil
+  if not shader then ... draw the canvas RAW ...
+  ```
+
+  So an **empty zone list is not "colour nothing"** — it is *"run no shader at
+  all and blit this frame in the colours it was drawn in"*. And a battle is
+  exactly that: `BattleState:sgbPalettes` returns `nil` for every layout but
+  the wide one.
+
+  Appending a single panel to that list turns the shader **on for the whole
+  frame**, and every pixel no zone covers — which is the entire battle — goes
+  through the palette pass instead of being left alone. One dark dialogue box
+  cost the whole screen its colour.
+
+  Panels are only ever added to a frame that already had zones now. The map
+  has a list, so everything over the overworld is themed exactly as before;
+  a battle has none, so nothing is added to it.
+
+  **What that gives up, plainly:** a dialogue box or `YES` / `NO` over a battle
+  stays light in DARK. There is no zone this suite can add to a frame with no
+  zone list without repainting everything behind it, so the box and the battle
+  cannot both be right this way. Themed battle boxes need a different
+  mechanism — a whole-screen `colors = false` zone under the panels would do it
+  on paper — and that is worth trying in the game rather than shipping on a
+  guess, having just shipped one.
+
+  This was reachable from 0.6.0 for any `Menu` or `ChoiceBox` over a battle and
+  became common in 0.23.0, when `TextBox`'s own spelling of its rect started
+  being read.
+
+  `tests/savescreen_test.lua` is 38 assertions, holding both a nil list and an
+  empty one handed straight back, and the map still getting its panels.
+
 ## [0.25.0] - 2026-08-30
 
 ### Changed

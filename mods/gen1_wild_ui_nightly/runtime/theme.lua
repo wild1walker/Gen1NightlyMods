@@ -772,6 +772,29 @@ function Theme.new(context)
     local panels = panelZones(game, ownerAt, drawn)
     if not panels then return out end
 
+    -- ------- a frame with no zones is a frame that wanted none
+    --
+    -- `Renderer:blitCanvas` opens with
+    --
+    --     local shader = zoneList and zoneList[1] and PaletteFX.shader() or nil
+    --     if not shader then ... draw the canvas RAW ...
+    --
+    -- so an EMPTY list is not "colour nothing", it is "run no shader at all
+    -- and blit this frame in the colours it was drawn in".  A battle is
+    -- exactly that: `BattleState:sgbPalettes` returns nil for every layout but
+    -- the wide one (BattleState.lua:173-176).
+    --
+    -- Appending a panel to that list turns the shader ON for the whole frame,
+    -- and every pixel no zone covers -- which is the entire battle -- goes
+    -- through the palette pass instead of being left alone.  That is the
+    -- battle scene going black and white the moment a box opens over it.
+    --
+    -- So panels are only ever added to a frame that already had zones.  The
+    -- cost is that a dialogue box over a battle stays light in DARK, and that
+    -- is the honest trade: there is no zone this suite can add to a frame with
+    -- no zone list without repainting everything behind it.
+    if type(out) ~= "table" or not out[1] then return out end
+
     local spread = {}
     for _, zone in ipairs(out or {}) do spread[#spread + 1] = zone end
     for _, zone in ipairs(panels) do spread[#spread + 1] = zone end

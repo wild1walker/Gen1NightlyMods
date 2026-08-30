@@ -392,5 +392,54 @@ do
   eq(out[2].x, 72, "and it is the tx/ty one")
 end
 
+-- --------------------------------------- a battle has no zone list at all
+
+do
+  io.write("a box over a battle does not repaint the battle\n")
+  -- From a screenshot of "Will WILD change POKeMON?" in DARK: the boxes were
+  -- themed and the ENTIRE battle behind them had gone black and white.
+  --
+  -- Renderer:blitCanvas opens with
+  --
+  --     local shader = zoneList and zoneList[1] and PaletteFX.shader() or nil
+  --     if not shader then ... draw the canvas RAW ...
+  --
+  -- so an empty list is not "colour nothing", it is "run no shader and blit
+  -- this frame in the colours it was drawn in".  BattleState:sgbPalettes
+  -- returns nil for every layout but the wide one, so a battle IS that -- and
+  -- appending one panel to it turns the shader on for the whole screen.
+  local theme = themeOver()
+  local battle = { sgbPalettes = true }
+  local prompt = { boxTx = 0, boxTy = 12, boxTw = 20, boxTh = 6 }
+  local choice = { tx = 0, ty = 7, tw = 6, th = 4 }
+
+  draw(0, 12, 20, 6)
+  draw(0, 7, 6, 4)
+
+  local out = theme.apply({ stack = { states = { battle, prompt, choice } } },
+                          nil)
+  ok(out == nil, "a frame with no zones is handed back with no zones")
+
+  -- and the same for a list that is there but empty
+  local empty = {}
+  eq(theme.apply({ stack = { states = { battle, prompt, choice } } }, empty),
+     empty, "an empty list is the same answer")
+end
+
+do
+  io.write("a frame that does have zones still gets its panels\n")
+  -- the guard is about the EMPTY list, not about panels: the map has a zone
+  -- list, so a box over it is themed exactly as before
+  local theme = themeOver()
+  local world = { sgbPalettes = true }
+  local prompt = { boxTx = 0, boxTy = 12, boxTw = 20, boxTh = 6 }
+  draw(0, 12, 20, 6)
+
+  local out = theme.apply({ stack = { states = { world, prompt } } },
+                          overworldZones())
+  eq(#out, 2, "the map's zone and the dialogue's panel")
+  ok(covers(out, 0, 96, 160, 48), "which is the dialogue")
+end
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
