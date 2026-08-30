@@ -63,35 +63,107 @@ return function(mod)
 
   local C = { W = W, H = H }
 
-  -- ------- the card an icon sits on
+  -- ------- the paper an icon sits on
   --
   -- These icons are pictures drawn ON PAPER.  All 106 draw their line work in
   -- pure black on transparency and carry no white at all -- the page is a
-  -- POKe BALL's lower half, the white of a TOWN MAP, the gap inside a
-  -- BICYCLE's frame -- so the paper is part of the picture and not a
-  -- background it happens to be sitting on.
+  -- POKe BALL's lower half, the white inside a TOWN MAP, the gap in a
+  -- BICYCLE's frame -- so the paper is part of the picture rather than a
+  -- background it happens to sit on.  On a dark page it has to come from
+  -- somewhere, and the somewhere is here: the paper is BAKED INTO THE ART at
+  -- load, as the icon's own silhouette.
   --
-  -- So an icon keeps its paper whatever the page does.  A white cell behind
-  -- it, always, and the art drawn into that.
+  -- Grow, flood, keep what the flood could not reach:
   --
-  -- Two things were tried first and are recorded here because both look like
-  -- the obvious answer and neither is:
+  --   1. every opaque pixel grows by one in all eight directions.  That is
+  --      the sticker edge, and it is also what CLOSES the outline -- these
+  --      outlines are not closed, because on white paper they never had to
+  --      be, and a bare flood leaks straight out through the gaps.  (It does:
+  --      over the real POKe BALL a plain fill caught six pixels of 256.)
+  --   2. flood the outside of the grown shape in from the border.
+  --   3. anything the flood could not reach is inside the item.  Paint it
+  --      opaque white.
   --
-  --   0.6.0 painted the cell the colour the page was about to be.  On a dark
-  --   page that takes the paper away, and a POKe BALL comes out a red blob.
+  -- One pixel of growth and not two.  Two closes bigger gaps but swells the
+  -- shape until several icons fill their whole cell, which is the square this
+  -- is here to stop being.  At one, none of the 106 fills its cell; the
+  -- median covers about 70% of it, so every icon keeps a shape of its own.
   --
-  --   0.9.0 kept the dark cell and drew the line work white instead, on the
-  --   theory that black on transparency is an OUTLINE and an outline inverts.
-  --   For a ball it does.  For a BICYCLE it does not: 69% of that icon's
-  --   opaque pixels are pure black, because the black IS the bicycle, and
-  --   flipping it turns the subject into white scribble.  Measured across all
-  --   106, a dozen are more than half black.
-  --
-  -- The cell is the same size as the icon and is marked true-colour with it,
-  -- so it is one rectangle either way and costs nothing extra.
-  local function matte(x, y, w, h)
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.rectangle("fill", x, y, w, h)
+  -- Baked rather than drawn behind: it is one image and one draw, the light
+  -- page cannot tell (white on white), and nothing here has to know a theme
+  -- exists.
+  local function bakePaper(data)
+    local w, h = data:getDimensions()
+    if w <= 0 or h <= 0 then return false end
+
+    local function solid(x, y)
+      local _, _, _, a = data:getPixel(x, y)
+      return a > 0
+    end
+
+    -- 1. grow
+    local grown = {}
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        if solid(x, y) then
+          for dy = -1, 1 do
+            for dx = -1, 1 do
+              local nx, ny = x + dx, y + dy
+              if nx >= 0 and ny >= 0 and nx < w and ny < h then
+                grown[ny * w + nx] = true
+              end
+            end
+          end
+        end
+      end
+    end
+
+    -- 2. flood the outside
+    local outside, queue, head = {}, {}, 1
+    local function push(x, y)
+      if x < 0 or y < 0 or x >= w or y >= h then return end
+      local key = y * w + x
+      if outside[key] or grown[key] then return end
+      outside[key] = true
+      queue[#queue + 1] = x
+      queue[#queue + 1] = y
+    end
+    for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
+    for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+    while head < #queue do
+      local x, y = queue[head], queue[head + 1]
+      head = head + 2
+      push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1)
+    end
+
+    -- 3. what it could not reach is the item's own paper
+    local painted = false
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        if not outside[y * w + x] and not solid(x, y) then
+          data:setPixel(x, y, 1, 1, 1, 1)
+          painted = true
+        end
+      end
+    end
+    return painted
+  end
+
+  -- The pixels of a file, or nil.  Two ways in because a mod reaches
+  -- love.image directly on one build and through the engine's own resolver on
+  -- another; either answers, and neither answering is not fatal -- the icon
+  -- loads without its paper and draws the way it did before this existed.
+  local function pixelsOf(path)
+    if love and love.image and love.image.newImageData then
+      local ok, data = pcall(love.image.newImageData, path)
+      if ok and data then return data end
+    end
+    local okAssets, Assets = pcall(require, "src.render.Assets")
+    if okAssets and type(Assets) == "table" and Assets.imageData then
+      local ok, data = pcall(Assets.imageData, path)
+      if ok and data then return data end
+    end
+    return nil
   end
 
   -- Every path asked for, hit or miss.  `false` is a file that is not there,
@@ -103,8 +175,20 @@ return function(mod)
   local function load(path)
     local cached = images[path]
     if cached ~= nil then return cached or nil end
-    local ok, image = pcall(love.graphics.newImage, path)
-    if ok and image then
+    local image
+    -- through the pixels, so the item's own paper is baked in before the
+    -- image is made
+    local data = pixelsOf(path)
+    if data then
+      pcall(bakePaper, data)
+      local ok, made = pcall(love.graphics.newImage, data)
+      if ok and made then image = made end
+    end
+    if not image then
+      local ok, made = pcall(love.graphics.newImage, path)
+      if ok and made then image = made end
+    end
+    if image then
       -- Pixel art inside a 160x144 frame that is integer-scaled afterwards;
       -- anything but nearest turns a 16-pixel icon to soup.
       pcall(image.setFilter, image, "nearest", "nearest")
@@ -135,7 +219,7 @@ return function(mod)
   end
 
   -- for tests/itemicons_test.lua
-  C.matte = matte
+  C.bakePaper = bakePaper
 
   -- The icon for an item, or nil.  Nil is an ordinary answer -- a badge has
   -- no icon, and neither does an item a mod added -- and the row is drawn
@@ -163,12 +247,9 @@ return function(mod)
   -- caller can keep drawing text without knowing this happened.
   function C.draw(image, x, y)
     if not image then return end
-    -- the icon's own paper first, then the icon on it -- see matte.  Only
-    -- when the rectangle is about to be marked, because that is the only case
-    -- where the page under it is not already whatever the screen cleared to.
-    if PaletteFX and PaletteFX.markTrueColor then
-      matte(x, y, W, H)
-    end
+    -- No paper to lay down first: it is in the art (see bakePaper), so the
+    -- icon is one image and one draw, and the cell around its silhouette is
+    -- left as whatever the screen put there.
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(image, x, y)
     if PaletteFX and PaletteFX.markTrueColor then

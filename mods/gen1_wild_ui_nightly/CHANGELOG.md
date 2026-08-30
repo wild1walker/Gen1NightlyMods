@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.14.0] - 2026-08-30
+
+### Changed
+
+- **An item icon sits on a paper blob of its own shape**, not a white square.
+
+  The paper is baked into the art at load, as the icon's own silhouette:
+
+  1. every opaque pixel grows by one in all eight directions — that is the
+     sticker edge, and it is also what **closes the outline**;
+  2. the outside of the grown shape is flooded in from the border;
+  3. anything the flood could not reach is inside the item, and is painted
+     opaque white.
+
+  Step 1 is the one that makes it work. These outlines are **not closed** —
+  on white paper they never had to be — so a bare flood leaks straight out
+  through the gaps: run over the real POKé BALL it caught six pixels of 256
+  and left the ball exactly as broken as it was. Growing first closes them.
+
+  **One pixel of growth and not two.** Two closes bigger gaps but swells the
+  shape until several icons fill their whole cell, which is the square this
+  is here to stop being. At one, none of the 106 fills its cell and the median
+  covers about 70% of it, so every icon keeps a shape of its own.
+
+  Baked rather than drawn behind: one image, one draw, the light page cannot
+  tell the difference (white on white), and the icon kit no longer has to know
+  a theme exists — `matte` and its reach into `mod.theme()` are both gone.
+
+  This is the fourth answer to the same question and the previous three are
+  written down beside it, in the code and in `tests/itemicons_test.lua`,
+  because each of them looks like the obvious one: paint the cell the page's
+  colour (0.6.0), invert the line work (0.9.0), give it a white square
+  (0.13.0).
+
 ## [0.13.0] - 2026-08-30
 
 ### Fixed
