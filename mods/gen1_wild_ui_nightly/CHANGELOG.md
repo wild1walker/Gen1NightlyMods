@@ -6,6 +6,50 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.20.0] - 2026-08-30
+
+### Fixed
+
+- **The `CONTINUE` menu is dark all the way into the corners.** In DARK it was
+  a black `CONTINUE` / `NEW GAME` box in the top left, a black
+  `PLAYER` / `BADGES` / `POKéDEX` / `TIME` box under it, and white paper in the
+  corners neither of them reached. The boxes were themed and the page they sit
+  on was not.
+
+  The title screen owns its frame and is not in `Theme.PAGES`, quite rightly:
+  for most of its life it is the logo, the mon and the version ribbon, and
+  reversing that would be vandalism. But `TitleState:draw` opens with a white
+  fill of the whole screen and then `if self.menuOpen then return end` —
+  MainMenu's own `ClearScreen`, which wipes the logo, the mon and the sprites
+  before the border goes down. From the moment that menu opens there is no art
+  on that screen at all: it is blank paper with two boxes on it, and it is the
+  first thing a dark-mode boot puts in front of you.
+
+  So the rule is the stack rather than the class. `Theme.COVERED_PAGES` names a
+  frame owner that is **a page when something is stacked on it and a picture
+  when it is alone**. Nothing is pushed over the title but that menu, and the
+  menu is exactly when the art is gone, so the two questions have the same
+  answer and this one can be asked without the engine's own `menuOpen` being
+  reachable from a mod.
+
+- **And the rest of the sweep, since one of these has now come up twice.**
+  Twenty-four states in the engine own a frame. The theme names twelve of them
+  as pages. Each of the other twelve was read:
+
+  - the overworld and a battle — correctly declined; a map that goes dark is a
+    map you cannot read
+  - the intro, the Yellow intro, Oak's speech, the Hall of Fame, the evolution
+    and trade animations, the slots, the surfing minigame — pictures, correctly
+    declined
+  - `PaletteScreen` — the colour picker itself, which has to show colours as
+    they are
+  - `TitleState` — the one false negative, fixed above
+
+  So one gap, and it was the one in the screenshot. `tests/titlepage_test.lua`
+  holds both halves of the title's double life plus a picture that stays a
+  picture and a map that stays a map, and asserts that no class is ever in both
+  lists.
+
 ## [0.19.0] - 2026-08-30
 
 Nothing in this mod changed for 0.19.0; the channel ships as one release, so

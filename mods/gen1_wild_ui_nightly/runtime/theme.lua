@@ -146,9 +146,11 @@ Theme.DEFAULT = "light"
 -- all four.
 --
 -- Left out deliberately: the screens that are pictures rather than pages --
--- the intro, Oak's speech, the Hall of Fame, the credits, the slots, the
--- trade animation, the title screen -- and PaletteScreen, which is the colour
--- picker itself and has to show colours as they are.
+-- the intro, Oak's speech, the Hall of Fame, the evolution and trade
+-- animations, the slots, the surfing minigame -- and PaletteScreen, which is
+-- the colour picker itself and has to show colours as they are.  Those, the
+-- overworld and a battle are every frame owner in the engine that this list
+-- does not name; each was read before being left out.
 Theme.PAGES = {
   "src.ui.PokedexMenu",
   "src.ui.DexEntryMenu",
@@ -165,19 +167,48 @@ Theme.PAGES = {
   "src.mods.ManagerState",
 }
 
+-- ------- a page only while something is standing on it
+--
+-- The title screen is a picture for most of its life and a page for the rest
+-- of it, and the difference is whether the menu is open.
+--
+-- `TitleState:draw` opens with a white fill of the whole screen and then
+-- `if self.menuOpen then return end` (TitleState.lua:711-715) -- MainMenu's
+-- own ClearScreen, which wipes the logo, the mon and the sprites before the
+-- CONTINUE / NEW GAME border goes down.  So from the moment that menu opens
+-- there is no art on that screen at all: it is blank paper with two boxes on
+-- it, and it is the first thing a dark-mode boot puts in front of you.
+--
+-- Treated as a picture it came out as the boxes reversed and the paper around
+-- them left white -- a black CONTINUE box in the top left, a black
+-- PLAYER / BADGES / POKeDEX / TIME box under it, and white in the corners
+-- neither of them reaches.
+--
+-- So the rule is the stack rather than the class: a frame owner named here is
+-- a page WHEN SOMETHING IS STACKED ON IT, and a picture when it is alone.
+-- Nothing is pushed over the title but that menu, and the menu is exactly
+-- when the art is gone, so the two questions have the same answer and this
+-- one can be asked without the engine's own `menuOpen` being reachable.
+Theme.COVERED_PAGES = {
+  "src.ui.TitleState",
+}
+
 -- The engine classes above, resolved to the class tables themselves so a
 -- state can be matched by `getmetatable`.  Built on the first frame rather
 -- than at load, because a mod's require of an engine module is cheap but not
 -- free and a LIGHT boot never needs it.  A module that is not present
 -- resolves to nothing and simply has no entry.
-local function pageClasses()
+local function resolve(paths)
   local out = {}
-  for _, path in ipairs(Theme.PAGES) do
+  for _, path in ipairs(paths) do
     local ok, class = pcall(require, path)
     if ok and type(class) == "table" then out[class] = true end
   end
   return out
 end
+
+local function pageClasses() return resolve(Theme.PAGES) end
+local function coveredClasses() return resolve(Theme.COVERED_PAGES) end
 
 -- ------- the transforms
 
@@ -366,6 +397,7 @@ function Theme.new(context)
   local self = {}
 
   local classes                         -- built on the first frame
+  local covered
   local reversals = setmetatable({}, { __mode = "k" })
 
   function self.read()
@@ -438,9 +470,17 @@ function Theme.new(context)
         if state.gen1wildTheme ~= nil then return state, i end
         classes = classes or pageClasses()
         if classes[getmetatable(state)] then return state, i end
-        -- owns the frame and is not a page: the frame is not ours, but
-        -- anything stacked ON it still might be, so say where it sits
-        if state.sgbPalettes then return nil, i end
+        if state.sgbPalettes then
+          -- A picture with something standing on it is a page after all; see
+          -- Theme.COVERED_PAGES.  Alone, it is the picture it looks like.
+          covered = covered or coveredClasses()
+          if i < #states and covered[getmetatable(state)] then
+            return state, i
+          end
+          -- owns the frame and is not a page: the frame is not ours, but
+          -- anything stacked ON it still might be, so say where it sits
+          return nil, i
+        end
       end
     end
     return nil
