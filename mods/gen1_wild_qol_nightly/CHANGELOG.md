@@ -7,6 +7,54 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.19.0] - 2026-08-30
+
+### Added
+
+- **`MATCH LEVELS`** — a rematch is fought at your levels, not the ones you
+  beat them at.
+
+  Their party moves so its top mon meets the top of yours, keeping the spread
+  between their own mons exactly: a 12 / 14 / 16 gym leader met with a level 40
+  party is 36 / 38 / 40, still stepping up to the same ace. An offset rather
+  than a multiplier, because multiplying 12 / 14 / 16 up to a top of 40 would
+  spread them to 30 / 35 / 40 and flatten the lead-in. It moves down as well as
+  up, so a leader you left behind is a fair practice fight rather than a
+  formality.
+
+  Their mons learn what they would know at the level they arrive at
+  (`Pokemon.movesAtLevel`), so a scaled opponent is a coherent one and not an
+  old moveset on a bigger body. Parties that carry an explicit move list — the
+  designed boss teams — keep theirs.
+
+  **Rematches only, and enforced by construction rather than promised.** The
+  scaling rides `trainer.party`, which is a hook the whole game runs through,
+  so the wrap is armed for exactly the length of this module's own call to
+  `newTrainer` and is otherwise a straight pass through. There is no state in
+  which a first encounter, a rival, an arena battle or anybody else's trainer
+  sees a level this file touched — `tests/rematch_test.lua` calls the hook
+  from outside a rematch with a level 80 party standing by and asserts the
+  party comes back the same table, at the same levels.
+
+  The party handed to the battle is a copy. `partyDef` is the trainer's own row
+  in the shared data table, and writing a level into it would rewrite that
+  trainer for the rest of the session.
+
+  Off is the fight you already had, at the levels you had it.
+
+### Changed
+
+- **The price follows the levels**, with nothing added to make it. Both the
+  prize and the price are `baseMoney × the last mon's level`, and 0.18.0
+  already read the price off the battle as built rather than off the data
+  table — so scaling the party moves them together. A rematch that is worth
+  more to win costs proportionally more to enter.
+
+  The invariant that makes the whole thing safe: the price is `floor(prize/2)`
+  and the win pays `prize`, so a win returns `ceil(prize/2)` — never less than
+  the stake, and strictly more for every prize above zero. The test walks it
+  across eight levels from 1 to 100 rather than asserting two numbers.
+
 ## [0.18.0] - 2026-08-30
 
 ### Changed

@@ -33,10 +33,26 @@
 -- on this path and can be fought again for the practice; the badge is already
 -- yours and stays exactly once yours.
 --
--- The team is the one you beat, at the levels you beat it.  Nothing scales.
--- That is a deliberate floor rather than a limitation to fix later: a rematch
--- whose levels move is a different feature, and it would want to say so on
--- screen before the battle starts.
+-- ------- the levels
+--
+-- The team is the one you beat.  The levels are yours.
+--
+-- MATCH LEVELS moves their party so its top mon meets the top of yours, and
+-- keeps the spread between their own mons exactly: a 12 / 14 / 16 gym leader
+-- met with a level 40 party is 36 / 38 / 40, still stepping up to the same
+-- ace.  It moves down as well as up, so a leader you left behind is a fair
+-- practice fight rather than a formality.
+--
+-- REMATCHES ONLY, and that is enforced by construction rather than promised.
+-- The scaling rides `trainer.party`, which is a hook the whole game runs
+-- through, so the wrap is armed for exactly the length of this module's own
+-- call to `newTrainer` and is otherwise a straight pass to next().  There is
+-- no state in which a first encounter, a rival, an arena battle or anybody
+-- else's trainer sees a level this file touched.
+--
+-- The party it hands back is a copy.  `partyDef` is the trainer's own row in
+-- the data table, shared by every battle in the session, and writing a level
+-- into it would rewrite that trainer permanently.
 --
 -- ------- what it costs
 --
@@ -78,6 +94,10 @@ return function(mod)
     -- the engine pays you back for winning.  Off is a rematch that is worth
     -- exp and nothing else, and costs the same.
     { key = "prize", type = "toggle", label = "REMATCH PRIZE", default = true,
+      visible_if = { key = "enabled", equals = true } },
+    -- Off is the fight you already had, at the levels you had it -- which is
+    -- worth keeping for anyone who wants a rematch to be the same rematch.
+    { key = "scale", type = "toggle", label = "MATCH LEVELS", default = true,
       visible_if = { key = "enabled", equals = true } },
   })
 
@@ -130,13 +150,75 @@ return function(mod)
   -- A rematch restored through it would hand out the badge a second time.
   -- With no origin the checkpoint simply does not restore this battle, which
   -- is the failure worth having.
+  -- ------- matching their levels to yours
+  --
+  -- The top of your party, because that is the mon you would lead with and
+  -- the one number a player can predict this from.  Fainted mons count: a
+  -- revive is a POKe CENTER away and a party that shrinks when you lose would
+  -- make the rematch easier for having gone badly.
+  local function partyTop(game)
+    local best = 0
+    for _, mon in ipairs(game and game.save and game.save.party or {}) do
+      local level = type(mon) == "table" and tonumber(mon.level) or nil
+      if level and level > best then best = level end
+    end
+    return best
+  end
+
+  -- One offset for the whole party rather than a multiplier, so the steps
+  -- between their mons survive: multiplying 12 / 14 / 16 up to a top of 40
+  -- would spread them to 30 / 35 / 40 and flatten the lead-in, and
+  -- multiplying down would bunch them together.  An offset moves the party
+  -- without redesigning it.
+  local function matched(game, party)
+    local yours = partyTop(game)
+    if yours <= 0 then return party end
+
+    local theirs = 0
+    for _, slot in ipairs(party) do
+      local level = type(slot) == "table" and tonumber(slot.level) or nil
+      if level and level > theirs then theirs = level end
+    end
+    if theirs <= 0 then return party end
+
+    local delta = yours - theirs
+    if delta == 0 then return party end
+
+    local out = {}
+    for i, slot in ipairs(party) do
+      -- Shallow, which is enough: the only field written is `level`, and a
+      -- slot's `moves` list is read and never touched.
+      local copy = {}
+      for key, value in pairs(slot) do copy[key] = value end
+      local level = (tonumber(slot.level) or 1) + delta
+      copy.level = math.max(1, math.min(100, level))
+      out[i] = copy
+    end
+    return out
+  end
+
+  -- Armed only for the length of our own newTrainer call, below.  Every other
+  -- trainer battle in the game reaches next() and nothing else.
+  local scaling = false
+
+  mod.hooks:wrap("trainer.party", function(next, oppClass, partyIndex, party)
+    local built = next(oppClass, partyIndex, party)
+    if not scaling or not on("scale") then return built end
+    if type(built) ~= "table" then return built end
+    local ok, out = pcall(matched, mod.world and mod.world.game, built)
+    if ok and type(out) == "table" then return out end
+    return built
+  end)
+
   local function build(npc)
     local game = mod.world and mod.world.game
     local def = npc.def
     local made, BattleState = pcall(require, "src.battle.BattleState")
     if not made or type(BattleState) ~= "table" then return nil end
+    scaling = true
     local built, battle = pcall(BattleState.newTrainer, game, def.trainerClass,
                                 def.trainerParty)
+    scaling = false
     if not built or type(battle) ~= "table" then
       mod.log:warn("rematch could not be started: %s", tostring(battle))
       return nil

@@ -64,12 +64,26 @@ package.loaded["src.render.TextBox"] = {
 -- both, the way a real one does.
 local BASE_MONEY, LAST_LEVEL = 40, 24        -- prize 960, price 480
 
+-- The engine runs the trainer's data party through the trainer.party hook and
+-- builds enemyParty from whatever comes back (BattleState.lua:856-878), so the
+-- fake does the same -- otherwise nothing here would exercise the scaling.
+local ROSTER = { { species = "WEEDLE", level = 9 },
+                 { species = "KAKUNA", level = LAST_LEVEL } }
+local partyHook
+
 package.loaded["src.battle.BattleState"] = {
   newTrainer = function(game, class, party)
+    local def = ROSTER
+    if partyHook then
+      def = partyHook(function(_, _, p) return p end, class, party or 1, ROSTER)
+    end
+    local enemy = {}
+    for i, slot in ipairs(def) do enemy[i] = { level = slot.level } end
     local battle = {
       game = game, oppClass = class, partyIndex = party,
       trainer = { baseMoney = BASE_MONEY },
-      enemyParty = { { level = 9 }, { level = LAST_LEVEL } },
+      enemyParty = enemy,
+      builtParty = def,
     }
     battles[#battles + 1] = battle
     return battle
@@ -86,7 +100,12 @@ local function newWorld(options)
   local pressed = {}
 
   local game = {
-    save = { money = options.money or 3000 },
+    save = {
+      money = options.money or 3000,
+      -- Level matching reads the top of this.  Nil means "no party", which is
+      -- how the not-scaling cases are asked for.
+      party = options.party,
+    },
     stack = { pushed = {}, push = function(self, state)
       self.pushed[#self.pushed + 1] = state
     end },
@@ -126,9 +145,9 @@ end
 -- ------------------------------------------------------------------ the mod
 
 local function install(stored)
-  boxes, battles = {}, {}
-  local world = newWorld(stored and (stored.world or { money = stored.money })
-                         or nil)
+  boxes, battles, partyHook = {}, {}, nil
+  local w = stored or {}
+  local world = newWorld(w.world or { money = w.money, party = w.party })
   local values = (stored and stored.options) or {}
   local wrapped
 
@@ -140,6 +159,7 @@ local function install(stored)
     },
     hooks = { wrap = function(_, name, fn)
       if name == "world.talk" then wrapped = fn end
+      if name == "trainer.party" then partyHook = fn end
     end },
     log = { warn = function() end, info = function() end,
             error = function() end },
@@ -323,6 +343,109 @@ do
   eq(lost.game.save.money, 1500, "a blackout's cost is not refunded")
   eq(lost.ow.finished, "lose", "and the overworld still hears about it")
   ok(not lost.npc.frozen, "the trainer is let go either way")
+end
+
+-- --------------------------------------------------------- MATCH LEVELS
+
+local function levelsOf(battle)
+  local out = {}
+  for i, slot in ipairs(battle.builtParty) do out[i] = slot.level end
+  return table.concat(out, "/")
+end
+
+local function party(...)
+  local mons = {}
+  for _, level in ipairs({ ... }) do mons[#mons + 1] = { level = level } end
+  return mons
+end
+
+do
+  io.write("their party moves to meet yours, keeping its own steps\n")
+  -- theirs is 9 / 24, so a spread of 15 under the ace
+  local up = install({ party = party(31, 40, 12) })
+  up.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "25/40", "the ace meets your best, the spread holds")
+
+  local down = install({ party = party(20, 11) })
+  down.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "5/20",
+     "and it moves down too -- a leader you left behind is still a fight")
+
+  local level = install({ party = party(24) })
+  level.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "9/24", "already level with you is left alone")
+end
+
+do
+  io.write("the ends of the ladder are clamped, not wrapped\n")
+  local high = install({ party = party(100) })
+  high.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "85/100", "nothing goes past 100")
+
+  local low = install({ party = party(2) })
+  low.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "1/2", "and nothing goes below 1")
+end
+
+do
+  io.write("MATCH LEVELS off is the fight you already had\n")
+  local w = install({ party = party(40), options = { scale = false } })
+  w.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "9/24", "their own levels, untouched")
+end
+
+do
+  io.write("the trainer's own data is not rewritten\n")
+  local w = install({ party = party(40) })
+  w.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(ROSTER[1].level, 9, "the shared data row keeps its levels")
+  eq(ROSTER[2].level, LAST_LEVEL, "...both of them")
+  ok(battles[1].builtParty ~= ROSTER, "the battle got a copy")
+  eq(battles[1].builtParty[1].species, "WEEDLE", "carrying the rest of the slot")
+end
+
+-- This is the guarantee, and it is the reason the wrap is armed for the
+-- length of one call rather than left on: trainer.party is a hook the whole
+-- game runs through, and every trainer battle that is not a rematch has to
+-- come out of it holding exactly what it went in with.
+do
+  io.write("nothing but a rematch is scaled\n")
+  local w = install({ party = party(80) })
+  local handed = { { species = "PIDGEY", level = 6 } }
+  local back = partyHook(function(_, _, p) return p end,
+                         "OPP_BUG_CATCHER", 1, handed)
+  ok(back == handed, "a first encounter is handed back the same table")
+  eq(back[1].level, 6, "at the same level")
+
+  -- and it is still armed correctly for the rematch immediately after
+  w.talk(); boxes[1].onDone(); boxes[2].opts.choice(true)
+  eq(levelsOf(battles[1]), "65/80", "while the rematch is scaled")
+end
+
+-- ------------------------------------------------- the price never exceeds it
+
+do
+  io.write("the buy-in is always less than the pay-out\n")
+  -- The price is half the prize, floored, and the prize is what the engine
+  -- pays for the win -- so what comes back is ceil(prize / 2), which is more
+  -- than what went in for every prize above zero.  Walked over a spread of
+  -- levels because the scaling makes the prize move.
+  for _, top in ipairs({ 1, 2, 5, 24, 37, 50, 99, 100 }) do
+    local w = install({ party = party(top), money = 999999 })
+    w.talk(); boxes[1].onDone()
+    boxes[2].opts.choice(true)
+
+    local stake = 999999 - w.game.save.money
+    local last = battles[1].enemyParty[#battles[1].enemyParty].level
+    local prize = BASE_MONEY * last
+    eq(stake, math.floor(prize / 2), ("level %d: the stake is half"):format(top))
+    ok(prize > stake, ("level %d: and the win pays more than it"):format(top))
+
+    w.game.save.money = w.game.save.money + prize
+    battles[1].onFinish("win")
+    ok(w.game.save.money > 999999,
+       ("level %d: so a win leaves you up"):format(top))
+  end
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
