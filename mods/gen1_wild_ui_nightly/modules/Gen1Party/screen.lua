@@ -743,6 +743,62 @@ return function(mod, C)
     end
   end
 
+  -- ------- COLORFUL
+  --
+  -- The theme asks a screen that knows what its rows ARE to colour them, and
+  -- this screen knows: it already puts a zone on every Pokemon's icon, in
+  -- that Pokemon's own palette, which is what SPECIES COLOURS is.  Under
+  -- COLORFUL that colour comes out of the icon cell and becomes the whole
+  -- row -- a card per Pokemon, the way the party screens people have built
+  -- for this engine do it -- with a band across the header and the footer in
+  -- the screen's own green.
+  --
+  -- Three things about the palettes, because none of them is arbitrary:
+  --
+  --   The CARD takes the species' LIGHT shade as its paper and leaves shade 3
+  --   alone, so the name, the level and the HP numbers stay black on it.  A
+  --   card is a ground, and a ground that fights the type on it is a worse
+  --   card than no card.
+  --
+  --   The BAND is `theme.band`, which is the page's own deep shade with the
+  --   type reversed out white.  It is one zone over the tile rows the header
+  --   box already occupies, so it caps the screen rather than moving it.
+  --
+  --   Nothing here touches the ICON or the HP BAR.  The theme splices these
+  --   zones in UNDER the ones this screen already returned, so the icon keeps
+  --   its own full palette and the bar keeps its green -- a bar that turned
+  --   the colour of the card behind it would be information taken away to add
+  --   decoration.
+  --
+  -- Returns nothing at all when the theme is not there to ask (a build with
+  -- the bundle's own runtime missing) or when the party is empty, which is
+  -- the same answer as "this screen has no opinion".
+  local function themeZones(self, _tint, theme)
+    if not (theme and type(theme.band) == "function") then return nil end
+    local game = self.game
+    if not game then return nil end
+    local out = {}
+
+    local band = theme.band("party")
+    if band then
+      out[#out + 1] = PaletteFX.zone(band, 0, 0, 19, C.HEADER_TH - 1)
+      out[#out + 1] = PaletteFX.zone(band, 0, C.FOOTER_TY, 19, 17)
+    end
+
+    local party = self.party or (game.save and game.save.party) or {}
+    for i, mon in ipairs(party) do
+      local colors = PaletteFX.monPal(game.data, mon.species)
+      if colors then
+        local ty = BODY_TY + (i - 1) * 2
+        -- the species' light shade as paper, its dark one kept, black ink
+        out[#out + 1] = PaletteFX.zone(
+          { colors[2], colors[2], colors[3], colors[4] },
+          0, ty, 19, ty + 1)
+      end
+    end
+    return out
+  end
+
   -- ------- the screen
   --
   -- Built by the vanilla constructor, then re-dressed.  Every mode and every
@@ -756,6 +812,11 @@ return function(mod, C)
     menu.draw = draw
     menu.sgbPalettes = palettesFor(vanillaSgb)
     menu.update = updateFor(PartyMenu.update)
+    -- what UI THEME calls this screen, and how it colours itself under
+    -- COLORFUL.  Both are read only by the theme and cost nothing when it is
+    -- not installed.
+    menu.gen1wildTheme = "party"
+    menu.gen1wildThemeZones = themeZones
     return menu
   end
 

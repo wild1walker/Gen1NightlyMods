@@ -6,6 +6,56 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.5.0] - 2026-08-30
+
+### Changed
+
+- **`COLORFUL` is actually colourful.** 0.2.0 built every tint to a rule that
+  turned out to be the wrong rule: each ramp held the DMG ramp's own lightness
+  to within a few values — paper at 246 against the greys' 255 — so that a
+  tint would be "not intrusive". Held that tightly, a tint is not perceptible.
+  Paper at 246 *is* white, and `COLORFUL` came out as `LIGHT` with a rumour of
+  a hue on it.
+
+  The rule is contrast now, not sameness. Every screen's ramp is a light,
+  clearly coloured **paper** (black type reads on it at 9:1 or better), a
+  **mid**, a **deep** (white type on it at 4.5:1 or better), and an **ink**.
+  The test that measured drift against the DMG ramp is gone; in its place one
+  that measures chroma and reads the ramp both ways — the assertion the old
+  ramps would fail.
+
+### Added
+
+- **A band, and a card per Pokémon, on the party screen.** `Theme.band(tint)`
+  turns any tint into a header strip — the deep shade where the paper was,
+  white where the ink was — built from the tint so a band can never be a
+  different colour from the page it caps.
+
+  The party screen uses it across its header and footer rows, and gives every
+  member a card the full width of its row in that Pokémon's **own species
+  colour**: the colour `SPECIES COLOURS` has always put on the icon cell,
+  brought out to the whole card. The species' light shade is the paper and
+  shade 3 is left alone, so the name, the level and the HP numbers stay black
+  on it.
+
+- **A screen's own zones now splice in above the page and below its own**,
+  where they used to be appended after everything. That is what lets a card be
+  a *ground*: the icon keeps its full species palette and the HP bar keeps its
+  green, instead of both being painted over by the card behind them. A green
+  bar that turns the colour of its card is information taken away to add
+  decoration.
+
+  `tests/partytheme_test.lua` is new and covers this against the real
+  `screen.lua` and `chrome.lua`: which tile rows each band and card lands on,
+  which palette each carries, and that the icon and bar zones still claim
+  their own cells. 31 assertions.
+
+### Still WIP
+
+The bag, the box, the dex list and the battle command grid do not paint
+themselves yet — they take their screen's tint and nothing more. `COLORFUL`
+keeps its asterisk until they do.
+
 ## [0.4.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

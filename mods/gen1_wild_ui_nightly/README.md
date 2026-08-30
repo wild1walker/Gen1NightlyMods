@@ -55,11 +55,23 @@ player asking for one palette over the whole game, and `PaletteFX` replaces
 every zone's colours to give it to them. A theme cannot outrank that and does
 not try — `OG INV` already is a dark mode for the whole screen.
 
-`COLORFUL` wears an asterisk because it is not finished: the pages are tinted
-by what the screen is and the suite's own cards are coloured by what they open,
-but the battle command grid's four buttons are not coloured yet. They sit over
-a battle rather than over a black-and-white page, which is a different
-mechanism. See [CHANGELOG.md](CHANGELOG.md).
+`COLORFUL` is saturated on purpose. Each screen has a four-colour ramp — a
+light, clearly coloured **paper** that black type reads on at 9:1 or better, a
+**mid**, a **deep** that carries white type at 4.5:1 or better, and an **ink** —
+and a screen that knows what its rows *are* paints them itself through
+`state:gen1wildThemeZones(tint, theme)`:
+
+- the **party screen** gets a band across its header and footer in the page's
+  deep shade, and every Pokémon a card the width of its row in that Pokémon's
+  own species colour — the colour `SPECIES COLOURS` already puts on its icon,
+  brought out to the whole card. The icon cell and the HP bar keep their own
+  palettes: a screen's zones splice in *above the page and below its own*, so
+  a full bar is still green rather than the colour of the card behind it.
+- the suite's **own menu screens** colour each card by what it opens.
+
+It still wears an asterisk because the **bag**, the **box**, the **dex list**
+and the battle command grid do not paint themselves yet. See
+[CHANGELOG.md](CHANGELOG.md).
 
 Its other half is [Gen1WildQOL](https://github.com/wild1walker/Gen1WildQOL),
 which carries the quality-of-life features. The two know about each other: a

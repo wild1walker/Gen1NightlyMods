@@ -1348,9 +1348,17 @@ do
     return { { colors = Theme.TINTS.bag, x = 0, y = 32, w = 160, h = 32 } }
   end
   local carded = theme.apply(game, menuZones())
-  eq(#carded, 3, "a screen's own row zones are appended")
-  eq(hex(carded[3].colors[2]), hex(Theme.TINTS.bag[2]),
+  eq(#carded, 3, "a screen's own row zones join the list")
+  eq(hex(carded[2].colors[2]), hex(Theme.TINTS.bag[2]),
     "...in the colour of what that row opens")
+  -- and they go in ABOVE the page and BELOW whatever the screen had already
+  -- put down.  menuZones()'s second zone is a species-coloured icon panel:
+  -- appending the card after it would paint over it, which on a party screen
+  -- is an HP bar that turns the colour of the card behind it.
+  eq(hex(carded[1].colors[1]), hex(Theme.TINTS.dex[1]),
+    "the page is still first")
+  eq(hex(carded[3].colors[2]), "ffc864",
+    "and the screen's own panel is still last, so it still wins")
 
   -- a screen whose themeZones raises must not take the frame down with it
   screen.gen1wildThemeZones = function() error("nope") end
@@ -1359,27 +1367,67 @@ do
 end
 
 do
-  io.write("every tint keeps the DMG ramp's own lightness\n")
-  -- The whole claim of "not intrusive" rests on this: a coloured page has to
-  -- read with the contrast the black-and-white one had, or the words on it
-  -- get harder to see and the theme has cost something.
-  local function lum(c)
-    return 0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3]
+  io.write("every tint is a colour, and reads both ways\n")
+  -- The rule this replaced was the bug.  0.2.0 held every ramp to the DMG
+  -- ramp's own lightness within a few values -- paper at 246 against 255 --
+  -- so that a tint would be "not intrusive".  Held that tightly a tint is not
+  -- perceptible: paper at 246 IS white, and COLORFUL came out as LIGHT with a
+  -- rumour of a hue on it.  These two assertions are the rule that replaced
+  -- it, and the first of them is the one the old ramps would fail.
+  local function lin(c)
+    c = c / 255
+    if c <= 0.03928 then return c / 12.92 end
+    return ((c + 0.055) / 1.055) ^ 2.4
   end
-  -- Paper is allowed nine values of drift and no more: held at 255 exactly,
-  -- every ramp comes out pure white and the tint is one nobody can see.  Ink
-  -- cannot be held at 0 at all, because a black carrying a hue is not black.
-  local want = { 255, 170, 85, 0 }
-  local slack = { 12, 3, 3, 12 }
+  local function lum(c)
+    return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
+  end
+  local function ratio(a, b)
+    local la, lb = lum(a), lum(b)
+    if la < lb then la, lb = lb, la end
+    return (la + 0.05) / (lb + 0.05)
+  end
+  local function chroma(c)
+    local hi = math.max(c[1], c[2], c[3])
+    local lo = math.min(c[1], c[2], c[3])
+    return hi - lo
+  end
+  local BLACK = { 0, 0, 0 }
+  local WHITE = { 255, 255, 255 }
+
   for name, ramp in pairs(Theme.TINTS) do
     eq(#ramp, 4, name .. " is four colours")
-    for shade = 1, 4 do
-      local drift = math.abs(lum(ramp[shade]) - want[shade])
-      ok(drift <= slack[shade],
-        ("%s shade %d is within %d of the DMG ramp (off by %d)")
-          :format(name, shade, slack[shade], math.floor(drift + 0.5)))
-    end
+    -- A COLOUR.  Not a white with a rumour on it: paper and deep both have to
+    -- carry real chroma, which is the whole complaint this rewrite answers.
+    ok(chroma(ramp[1]) >= 40,
+      ("%s's paper is actually coloured (chroma %d, needs 40)")
+        :format(name, chroma(ramp[1])))
+    ok(chroma(ramp[3]) >= 40,
+      ("%s's deep is actually coloured (chroma %d, needs 40)")
+        :format(name, chroma(ramp[3])))
+    -- And READABLE, which is what buys the saturation its licence: black type
+    -- on the paper, white type on the band the deep shade makes.
+    ok(ratio(ramp[1], BLACK) >= 7,
+      ("%s reads black on its paper at %.1f:1 (needs 7)")
+        :format(name, ratio(ramp[1], BLACK)))
+    ok(ratio(ramp[3], WHITE) >= 4.5,
+      ("%s reads white on its band at %.1f:1 (needs 4.5)")
+        :format(name, ratio(ramp[3], WHITE)))
+    -- lightest first, like every palette in the engine
+    ok(lum(ramp[1]) > lum(ramp[2]) and lum(ramp[2]) > lum(ramp[3])
+       and lum(ramp[3]) > lum(ramp[4]), name .. " runs lightest first")
   end
+end
+
+do
+  io.write("a band is the page's own colour, reversed out\n")
+  -- One zone over the tile rows a screen's header box already occupies, so
+  -- a band can never be a different colour from the page it caps.
+  local band = Theme.band(Theme.TINTS.party)
+  eq(hex(band[1]), hex(Theme.TINTS.party[3]), "the deep shade is the ground")
+  eq(hex(band[4]), "ffffff", "and the type is reversed out white")
+  eq(Theme.band(nil), nil, "nothing in, nothing out")
+  eq(Theme.band({ { 1, 1, 1 } }), nil, "and a ramp that is not four is not a ramp")
 end
 
 do
