@@ -6,6 +6,39 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.21.0] - 2026-08-30
+
+### Fixed
+
+- **The white square on the `CONTINUE` menu.** A solid white rectangle at
+  (82, 80), sitting on the black menu screen 0.20.0 had just made dark. It was
+  this mod, and it had been there since the title figure was written.
+
+  The `TitleState:draw` wrap marks the figure's rectangle **before** calling
+  the real draw, and it has to: that draw takes `local playerImage = self.player`
+  at its top, so the mark and the picture both have to be in before it runs.
+  But the same draw fills the screen white and returns the moment the
+  `CONTINUE` / `NEW GAME` menu is open — MainMenu's own `ClearScreen`, which
+  wipes the logo, the mon and the figure before the border goes down. So on a
+  menu frame the mark landed over a patch of screen with nothing on it, and a
+  true-colour rect is re-blitted **raw** from the canvas. The canvas there is
+  the white fill.
+
+  White on white for as long as this cart had no dark mode, which is exactly
+  why it went unnoticed for eleven releases.
+
+  The mark is asked for now, rather than assumed: nothing is marked while the
+  menu is open. The picture is still put on the instance, so the frame the menu
+  closes on is right.
+
+  **The rule this is an instance of, since it is the second of its kind:
+  _mark after you draw_.** Every other true-colour mark in this suite — the
+  bag's and the item screen's icons, the party's, the box's, the Pokédex list's
+  and entry's, the battle EXP bar's three — is emitted by the line after the
+  draw it belongs to and cannot be wrong about whether the art is there. This
+  one has to run first, so it has to ask. All eleven were read before this
+  release; it was the only one.
+
 ## [0.20.0] - 2026-08-30
 
 Nothing in this mod changed for 0.20.0; the channel ships as one release, so

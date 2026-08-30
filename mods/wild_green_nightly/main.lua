@@ -887,7 +887,26 @@ return function(mod)
         -- "ball", so in that phase nothing marked it and the figure went
         -- purple no matter who had set the picture.  Marking the same rect
         -- twice in a frame costs nothing; not marking it at all costs this.
-        if mark and type(PaletteFX.markTrueColor) == "function" then
+        -- ...but only when the draw about to run will actually put him
+        -- there.  `TitleState:draw` opens with a white fill of the whole
+        -- screen and then `if self.menuOpen then return end` -- MainMenu's
+        -- own ClearScreen, which wipes the logo, the mon and the figure
+        -- before the CONTINUE / NEW GAME border goes down.  This wrap marks
+        -- BEFORE calling it, because the same call reads `self.player` at its
+        -- top; on a menu frame that left a true-colour rect over a patch of
+        -- screen with nothing on it, and a true-colour rect is re-blitted RAW
+        -- from the canvas.  The canvas there is the white fill.
+        --
+        -- White on white for as long as this cart had no dark mode, which is
+        -- why it went unnoticed: under UI THEME = DARK it is a white rectangle
+        -- at 82,80 sitting on a black CONTINUE menu.
+        --
+        -- The rule this is an instance of, for the next one: MARK AFTER YOU
+        -- DRAW.  Every other mark in this suite is emitted by the line after
+        -- the draw it belongs to and cannot be wrong about whether the art is
+        -- there; this one has to run first, so it has to ask.
+        if mark and not title.menuOpen
+            and type(PaletteFX.markTrueColor) == "function" then
           local okDim, w, h = pcall(baked.getDimensions, baked)
           if okDim and w and h then
             pcall(PaletteFX.markTrueColor, FIGURE_X, FIGURE_Y, w, h)

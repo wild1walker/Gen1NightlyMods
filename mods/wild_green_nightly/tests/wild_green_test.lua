@@ -1214,6 +1214,10 @@ local function titleScreen(options, mode, lazy, cache)
   function TitleState:draw()
     inner.draws = inner.draws + 1
     inner.drew = self.player
+    -- MainMenu's ClearScreen: the real draw fills the screen white and
+    -- returns the moment the CONTINUE / NEW GAME menu is open, so nothing of
+    -- the title is on screen from then on (TitleState.lua:711-715)
+    if self.menuOpen then return end
     -- the stub's title tables are plain, so reach the wrapper by name the
     -- way the engine reaches it through TitleState's metatable
     if not self.skipSprite then TitleState.currentSprite(self) end
@@ -1349,6 +1353,38 @@ do
 end
 
 io.write("main.lua -- reading an Image's pixels back\n")
+do
+  io.write("the figure's rect is not marked while the menu is open\n")
+  -- The white square, from a phone screenshot of the CONTINUE menu in DARK.
+  --
+  -- This wrap marks the figure's rectangle BEFORE calling the real draw,
+  -- because that draw reads `self.player` at its top and the mark has to be
+  -- in for the frame that reads it.  But the same draw fills the screen white
+  -- and returns the moment the menu is open -- so on a menu frame the mark
+  -- landed over a patch of screen with nothing on it, and a true-colour rect
+  -- is re-blitted RAW from the canvas.  The canvas there is the white fill.
+  --
+  -- White on white for as long as this cart had no dark mode, which is why it
+  -- went unnoticed: under UI THEME = DARK it is a white rectangle at 82,80
+  -- sitting on a black CONTINUE menu.
+  local screen = titleScreen({ player = "green", ribbon = true }, "redpp")
+
+  local playing = { player = screen.raw }
+  screen.TitleState.draw(playing)
+  ok(#screen.marks > 0, "the title itself still marks the figure")
+  eq(screen.marks[1].x, 82, "at the rect the engine draws him in")
+  eq(screen.marks[1].y, 80, "...both ways")
+
+  local before = #screen.marks
+  local menu = { player = screen.raw, menuOpen = true }
+  screen.TitleState.draw(menu)
+  eq(#screen.marks, before, "and marks nothing once the menu has cleared him")
+
+  -- the picture is still asserted, so the frame the menu closes on is right
+  ok(menu.player ~= nil and menu.player ~= screen.raw,
+     "the green copy is still put on the instance, ready for the way back")
+end
+
 do
   -- 1.4.0 called Image:getData and gave up when it was not there.  Under
   -- LOVE 11 it never is: the texture does not keep the ImageData it was
