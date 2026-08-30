@@ -70,14 +70,13 @@ return function(mod)
 
   -- The ribbon band is lettering on white and not a sprite, so it does not
   -- use the character ramp -- but it is lettered in the character's OWN
-  -- green.  Shade 2 is the word and shade 3 the one pixel of shadow under
-  -- it, which is what gives an 8px letter its edge on white paper.
+  -- green, in shade 2.
   --
-  -- Through 0.3.0 those two were the other way round -- the word in the dark
-  -- green, its shadow in the lighter one -- and the version line came out
-  -- visibly darker than the character standing beneath it.  It is the same
-  -- two colours; the word takes the outfit now and the dark green went to
-  -- the shadow.  tools/ribbon.py draws the art to match.
+  -- Shade 3 is not in the art any more.  0.12.0 traced the game's own ribbon
+  -- face off Version_GFX, which is 1bpp -- two colours, one ink -- and a
+  -- shadow under a five-row letter reads as smear rather than as weight.  The
+  -- palette still carries the darker green because the cartridge shell is
+  -- that number.  tools/ribbon.py draws the art.
   local WILD_GREEN_TITLE = {
     { 0xff, 0xff, 0xff },
     { 0x65, 0xba, 0x3f },

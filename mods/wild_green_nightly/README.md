@@ -585,15 +585,14 @@ directly above the character wearing it:
 
 | | | |
 |---|---|---|
-| letter | `#65ba3f` | the `VERSION` lettering — the outfit itself |
-| shadow | `#14571f` | one pixel down and right, **and the cartridge shell** |
+| letter | `#65ba3f` | the lettering — the outfit itself |
+| (shade 3) | `#14571f` | not in the art; **the cartridge shell** is this |
 
-Two tones rather than one, the way the vanilla ribbon is built. The letter on
-its own is about 2.4:1 against white paper, which is thin for 8px type; the
-shadow under it is 8.7:1, and that edge is what the eye reads the stroke by.
-Through 0.3.0 the two were the other way round — the word in `#14571f` and a
-lighter green above it — and the version line came out visibly darker than the
-character standing beneath it.
+One ink, which is the game's own construction: `Version_GFX` is 80×8 **1bpp**,
+two colours, and a third is not expressible. The face is traced off it —
+mixed case, five rows, variable width — so `Wild Green Version` is set the way
+`Red Version` is. `W`, `G` and `l` do not occur in "Red Version" and are drawn
+to match the eight letters that do.
 
 In the other eight suits the letter is that suit's outfit, capped so it is
 never paler than green's; the cap binds on `YELLOW` and `WHITE` only.

@@ -24,15 +24,73 @@ any machine produces byte-identical output.
 import struct
 import zlib
 
-TEXT = "WILD GREEN VERSION"
+# Mixed case, because the screen it sits on is: "Red Version".
+TEXT = "Wild Green Version"
 
 # the importer's four shades (src/import/ImageWriter.lua), lightest first
 PAPER, LIGHT, DARK, INK = 255, 170, 85, 0
 
+# ------- the title face
+#
+# Traced, pixel for pixel, off the game's own version ribbon.
+#
+# `Version_GFX` is 80x8 1bpp in the ROM (tools/build_rom_data.py:
+# raw_1bpp("Version_GFX", 80, 8, "title/red_version.png")), and the extractor
+# writes it to assets/generated/title/red_version.png.  Switching TITLE RIBBON
+# off puts that art back on the title screen, which is how these shapes were
+# read: a capture at 7x, sampled back down to game pixels.
+#
+# Three things about it that the face this mod used to draw got wrong, and
+# they are the whole of "that is not the right font":
+#
+#   MIXED CASE.  The game says "Red Version", not "RED VERSION".  This mod
+#   shouted its name in a screen that does not shout.
+#
+#   FIVE ROWS, not seven.  The lettering sits on rows 67-71 of the screen with
+#   nothing above or below it inside the band -- checked against the raw
+#   pixels rather than a threshold, so it is five and not six.
+#
+#   VARIABLE WIDTH.  `i` is two columns and `V` is six.  A fixed 5-wide cell
+#   cannot draw this face at all.
+#
+# The letters below marked TRACED are the ROM's, exactly.  W, G and l are not
+# in "Red Version" and are drawn here to match: 2-pixel strokes, 1-pixel
+# counters, cap height five and x-height four, and V's own way of stepping a
+# diagonal inward a row at a time.
+TITLE_H = 5
+
+TITLE_FONT = {
+    # TRACED
+    "R": ("####.", "##.##", "####.", "##.##", "##.##"),
+    "V": ("##..##", "##..##", "##..##", ".####.", "..##.."),
+    "d": ("...##", ".####", "##.##", "##.##", ".####"),
+    "e": ("....", ".###", "##.#", "###.", ".###"),
+    "i": ("##", "..", "##", "##", "##"),
+    "n": ("....", "###.", "##.#", "##.#", "##.#"),
+    "o": (".....", ".###.", "##.##", "##.##", ".###."),
+    "r": ("....", "####", "##..", "##..", "##.."),
+    "s": (".....", ".####", "###..", "..###", "####."),
+    # DRAWN to match -- not in "Red Version"
+    #   W is V doubled: the same stems, the same inward step, sharing the
+    #   middle pair, which is what puts W's vertex at the top where it belongs.
+    "W": ("##..##..##", "##..##..##", "##..##..##", ".########.", "..##..##.."),
+    #   G is the cap bowl with a bar into it on the third row.
+    "G": (".####.", "##....", "##.###", "##..##", ".####."),
+    #   l is i without the dot, which is how this face builds a stem.
+    "l": ("##", "##", "##", "##", "##"),
+}
+
+# Between letters, and between words: both measured off the ROM art.  R ends
+# at column 60 and e starts at 62, so a letter gap is one column; d ends at 71
+# and V starts at 80, so a word is worth eight.
+TITLE_GAP = 1
+TITLE_SPACE = 8
+
 GLYPH_W, GLYPH_H = 5, 7
 GAP = 1          # between glyphs
 SPACE = 3        # a word gap, on top of the glyph gap
-HEIGHT = 10      # 1 blank row, 7 glyph rows, 1 shadow row, 1 blank row
+HEIGHT = 8       # 1 blank row, 5 glyph rows, 2 blank -- which is the
+                 # height Version_GFX itself is
 
 FONT = {
     "A": (".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"),
@@ -80,34 +138,48 @@ def layout(text):
     return placed, x - GAP + 1
 
 
+def title_layout(text=TEXT):
+    """Where each glyph goes, and how wide the strip is, in the title face."""
+    placed, x = [], 0
+    for ch in text:
+        if ch == " ":
+            x += TITLE_SPACE
+            continue
+        glyph = TITLE_FONT.get(ch)
+        if glyph is None:
+            raise SystemExit("ribbon: no title glyph for %r" % ch)
+        placed.append((x, glyph))
+        x += len(glyph[0]) + TITLE_GAP
+    # the trailing gap is not part of the ribbon, and there is no shadow
+    # column to keep any more
+    return placed, x - TITLE_GAP
+
+
 def draw(text=TEXT):
     """The strip as (width, rows of shade values)."""
-    placed, width = layout(text)
+    placed, width = title_layout(text)
     grid = [[PAPER] * width for _ in range(HEIGHT)]
 
     def put(x, y, shade):
         if 0 <= x < width and 0 <= y < HEIGHT:
             grid[y][x] = shade
 
-    # The shadow goes down first so the letter sits on top of it rather than
-    # having to be drawn around it.  One pixel down and right.
+    # ONE INK, no shadow -- which is the ROM's own construction and not a
+    # simplification of it.  Version_GFX is 1bpp: two colours, and a third is
+    # not expressible.  The face this mod used to draw had a letter and a
+    # shadow under it, and at seven rows that read as weight; at five it reads
+    # as smear, because the shadow is a fifth of the letter's height rather
+    # than a seventh and it closes the counters.
     #
-    # The letter is the LIGHTER of the two ink shades and the shadow the
-    # darker, which is the way round a shadow has to be and was not always.
-    # Through 0.3.0 the letter was drawn in DARK and its shadow in LIGHT --
-    # a highlight, not a shadow -- because the band's palette put its bright
-    # colour in shade 2 and its dark one in shade 3.  That is what made the
-    # words on the title screen darker than the character they are named
-    # after.  The palette now letters the band in the character's own outfit
-    # and keeps a dark version of it for the shadow, so the shades swap here
-    # to match: shade 2 is the letter, shade 3 is the shadow, and both stay in
-    # the importer's lightest-first order.
-    for offset, shade in ((1, DARK), (0, LIGHT)):
-        for x0, glyph in placed:
-            for row, bits in enumerate(glyph):
-                for col, bit in enumerate(bits):
-                    if bit == "#":
-                        put(x0 + col + offset, 1 + row + offset, shade)
+    # The letter goes in shade 2, which the band's palette paints the
+    # character's own outfit colour (see tools/palette.py).  Shade 3 is left
+    # unused by the art now; the palette still carries it because the
+    # cartridge shell is that number.
+    for x0, glyph in placed:
+        for row, bits in enumerate(glyph):
+            for col, bit in enumerate(bits):
+                if bit == "#":
+                    put(x0 + col, 1 + row, LIGHT)
     return width, grid
 
 

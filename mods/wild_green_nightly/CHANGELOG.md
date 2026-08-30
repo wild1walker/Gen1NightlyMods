@@ -6,6 +6,44 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.12.0] - 2026-08-30
+
+### Changed
+
+- **The version ribbon is set in the game's own face now.** It was drawn in a
+  hand-made 5x7 alphabet — a plain blocky uppercase set — which is a *text*
+  face, not the lettering the title screen uses. Three things were wrong with
+  it, and the third is the one that made it unmistakable:
+
+  - **It shouted.** The game says `Red Version`. This mod said
+    `WILD GREEN VERSION`. It is `Wild Green Version` now.
+  - **It was seven rows tall; the real face is five.** Checked against the raw
+    pixels rather than a threshold, the ROM's lettering occupies exactly five
+    rows with nothing above or below it inside the band.
+  - **It was fixed-width; the real face is not.** `i` is two columns and `V`
+    is six. A 5-wide cell cannot draw this face at all.
+
+  `Version_GFX` is 80×8 1bpp in the ROM, and switching `TITLE RIBBON` off puts
+  it back on the title screen — which is how the shapes here were read, from a
+  capture at 7×, sampled back to game pixels. **R e d V r s i o n are the
+  ROM's own, exactly.** `W`, `G` and `l` do not occur in "Red Version" and are
+  drawn to match: 2-pixel strokes, 1-pixel counters, cap height five and
+  x-height four, and `V`'s own way of stepping a diagonal inward a row at a
+  time. The letter gap (1px) and the word gap (8px) are measured off the art.
+
+- **The shadow is gone, because the ROM has not got one.** `Version_GFX` is
+  1bpp: two colours, and a third is not expressible. The letter-plus-shadow
+  construction read as weight at seven rows; at five it reads as smear,
+  because the shadow is a fifth of the letter's height rather than a seventh
+  and it closes the counters.
+
+  The letter stays the character's own `#65ba3f`. The darker green stays in
+  the palette because **the cartridge shell is that number** — no cart changed
+  colour.
+
+The cart label keeps the block face: it stamps `NIGHTLY` in capitals, and the
+traced face has none but `R`, `V`, `W` and `G`.
+
 ## [0.11.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

@@ -140,8 +140,11 @@ def suit_pic_ramp(name):
 
 # The title ribbon band (LOGO1), lightest first like every ramp here.
 #
-# TITLE_LETTER is the word; TITLE_SHADOW is the one pixel down and right of
-# it.  The letter is OUTFIT itself -- the character's own green, so the words
+# TITLE_LETTER is the word.  TITLE_SHADOW no longer appears in the art at
+# all: 0.12.0 traced the game's own ribbon face, which is 1bpp -- two colours,
+# one ink -- and a shadow under a five-row letter reads as smear rather than
+# as weight.  It stays in the table because the cartridge shell IS that
+# number, and because a suit's pair is what tools/check.py compares.  The letter is OUTFIT itself -- the character's own green, so the words
 # on the title screen are the colour of the character standing under them --
 # and the shadow is that green at a fixed dark lightness, which is what gives
 # an 8px letter its edge against white paper.
