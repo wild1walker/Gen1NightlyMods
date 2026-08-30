@@ -6,6 +6,41 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.22.0] - 2026-08-30
+
+### Fixed
+
+- **The white square behind an item icon, for real this time.** 0.14.0 baked
+  the paper into the art as the icon's own silhouette and took the matte out,
+  on the grounds that the icon now carried its own. It does — and the **cell
+  around it** does not.
+
+  `markTrueColor` hands the renderer a 16×16 rect, and a marked rect is
+  re-blitted **raw** from the canvas. So whatever the screen cleared that cell
+  to comes back with it, and every screen these icons appear on clears to
+  white. The square returned, sourced from the page instead of from a rectangle
+  this file drew — which is exactly why the bake looked like it had never
+  worked.
+
+  Both halves now, in this order: **the matte is the cell, the bake is the
+  paper.** The cell is painted the colour that spot is going to end up, the
+  icon goes on top carrying its own silhouette-shaped white, and only then is
+  the rect marked. What is left is a sticker on a page, which is what it was
+  meant to be two releases ago.
+
+  This is the same rule 0.21.0 wrote down one screen over, read the other way:
+  a marked rect is raw, so everything inside it has to be put there on purpose
+  — the art *and* the ground under it.
+
+  `tests/itemicons_test.lua` covers the order now as well as the bake — matte,
+  icon, mark, over the same rect — plus a build with no theme and an icon that
+  is not there. 30 assertions, and the new ones fail against 0.21.0.
+
+- **`maintained/Gen1ItemInfo/icons.lua` had drifted from `modules/`.** The
+  0.14.0 bake landed in the shipped copy only, so the tree's own source for
+  that module was three releases behind the file it is the source of. Both
+  carry this fix and are identical again.
+
 ## [0.21.0] - 2026-08-30
 
 Nothing in this mod changed for 0.21.0; the channel ships as one release, so

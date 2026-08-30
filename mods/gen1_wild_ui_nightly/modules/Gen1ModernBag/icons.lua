@@ -89,9 +89,21 @@ return function(mod)
   -- is here to stop being.  At one, none of the 106 fills its cell; the
   -- median covers about 70% of it, so every icon keeps a shape of its own.
   --
-  -- Baked rather than drawn behind: it is one image and one draw, the light
-  -- page cannot tell (white on white), and nothing here has to know a theme
-  -- exists.
+  -- Baked rather than drawn behind: it is one image and one draw, and the
+  -- light page cannot tell (white on white).
+  --
+  -- THE BAKE IS HALF OF IT, and 0.14.0 shipped only that half.  It gives the
+  -- icon paper of its own shape; it says nothing about the rest of the 16x16
+  -- CELL, and the cell is what `markTrueColor` hands the renderer.  A marked
+  -- rect is re-blitted RAW from the canvas, so whatever the screen cleared
+  -- that cell to comes back with it -- and every screen these icons appear on
+  -- clears to white.  Black silhouette, white paper, and a white square around
+  -- it after all, sourced from the page instead of from a rectangle this file
+  -- drew.
+  --
+  -- So the cell is painted the colour it is going to END UP first, and the
+  -- icon goes on top of that.  Both halves: the matte is the cell, the bake is
+  -- the paper, and what is left is a sticker on a page.
   local function bakePaper(data)
     local w, h = data:getDimensions()
     if w <= 0 or h <= 0 then return false end
@@ -241,15 +253,30 @@ return function(mod)
     return shipped(id:lower())
   end
 
+  -- What a shade-0 pixel in this cell ENDS UP as: black on a dark page, white
+  -- on a light one.  Asked of the theme rather than of its name, so a theme
+  -- that grows another answer needs no change here, and absent on a build with
+  -- no theme -- which is the white every screen already cleared to.
+  local function matte(x, y, w, h)
+    local theme = type(mod.theme) == "function" and mod.theme() or nil
+    local colour = theme and type(theme.matte) == "function"
+      and theme.matte() or nil
+    if type(colour) ~= "table" then return end
+    love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
+    love.graphics.rectangle("fill", x, y, w, h)
+  end
+
   -- White before the image or its colours come out multiplied by whatever the
   -- caller last set -- black leaves a silhouette, which is exactly what the
   -- chrome around these rows is drawing in.  Black again on the way out, so a
   -- caller can keep drawing text without knowing this happened.
   function C.draw(image, x, y)
     if not image then return end
-    -- No paper to lay down first: it is in the art (see bakePaper), so the
-    -- icon is one image and one draw, and the cell around its silhouette is
-    -- left as whatever the screen put there.
+    -- The cell first, then the icon's own paper on top of it (see bakePaper).
+    -- Only ever inside a rectangle about to be marked: a dark rectangle
+    -- anywhere else is shade-3 pixels, which the theme would map to the
+    -- page's INK and put a hole in the page.
+    matte(x, y, W, H)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(image, x, y)
     if PaletteFX and PaletteFX.markTrueColor then

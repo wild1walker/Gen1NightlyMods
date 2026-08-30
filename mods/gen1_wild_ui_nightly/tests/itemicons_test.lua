@@ -100,22 +100,40 @@ local function imageData(rows)
   return data
 end
 
+-- Everything C.draw does, in order, so the test can read the frame back.
+local painted = {}
+local colour = { 1, 1, 1, 1 }
+
 love = {
   graphics = {
-    setColor = function() end,
-    rectangle = function() end,
-    draw = function() end,
+    setColor = function(r, g, b, a) colour = { r, g, b, a } end,
+    rectangle = function(mode, x, y, w, h)
+      painted[#painted + 1] = { what = "rect", mode = mode, x = x, y = y,
+                                w = w, h = h, colour = colour }
+    end,
+    draw = function(image, x, y)
+      painted[#painted + 1] = { what = "image", image = image, x = x, y = y }
+    end,
     newImage = function() return { setFilter = function() end } end,
   },
 }
 package.preload["src.render.PaletteFX"] = function()
-  return { markTrueColor = function() end }
+  return { markTrueColor = function(x, y, w, h)
+    painted[#painted + 1] = { what = "mark", x = x, y = y, w = w, h = h }
+  end }
 end
 
+-- The theme, as the facade hands it over: a function, because the theme is
+-- built after the features are.
+local matteColour = nil
 local mod = {
   path = ".",
   options = { get = function() return nil end },
   log = { warn = function() end, info = function() end },
+  theme = function()
+    if not matteColour then return nil end
+    return { matte = function() return matteColour end }
+  end,
 }
 local C = chunkOf("modules/Gen1ModernBag/icons.lua")(mod)
 ok(type(C) == "table" and type(C.bakePaper) == "function",
@@ -198,6 +216,65 @@ do
   eq(out[2], ".WWW.", "the ring around the dot is paper")
   eq(out[3], ".W#W.", "with the dot itself in the middle of it")
   eq(out[5], ".....", "and the bottom row is still the page")
+end
+
+-- ------- the cell around the paper
+--
+-- 0.14.0 baked the paper into the art and took the matte out, on the grounds
+-- that the icon now carried its own.  It does -- and the CELL around it does
+-- not.  markTrueColor hands the renderer a 16x16 rect and a marked rect is
+-- re-blitted RAW from the canvas, so whatever the screen cleared that cell to
+-- comes back with it, and every screen these icons appear on clears to white.
+-- The white square came back, sourced from the page instead of from a
+-- rectangle this file drew, which is why the bake looked like it had not
+-- worked at all.
+--
+-- Both halves, in this order: the cell, the icon, the mark.
+
+local function frame(fn)
+  painted = {}
+  fn()
+  return painted
+end
+
+do
+  io.write("the cell is painted before the icon goes on it\n")
+  local image = { kind = "an icon" }
+  matteColour = { 0x11, 0x22, 0x33 }
+  local drawn = frame(function() C.draw(image, 40, 72) end)
+
+  eq(drawn[1] and drawn[1].what, "rect", "the matte lands first")
+  eq(drawn[1].mode, "fill", "as a fill")
+  eq(drawn[1].x, 40, "at the icon's own x")
+  eq(drawn[1].y, 72, "...and y")
+  eq(drawn[1].w, 16, "over the whole cell")
+  eq(drawn[1].h, 16, "...both ways -- the rect markTrueColor is about to name")
+  eq(("%02x"):format(math.floor(drawn[1].colour[1] * 255 + 0.5)), "11",
+     "in the colour the theme says that spot ends up")
+  eq(("%02x"):format(math.floor(drawn[1].colour[3] * 255 + 0.5)), "33",
+     "...converted out of 0-255 into love's 0-1")
+
+  eq(drawn[2] and drawn[2].what, "image", "then the icon, on top of it")
+  eq(drawn[2].image, image, "the one it was handed")
+  eq(drawn[3] and drawn[3].what, "mark", "and only then the mark")
+  eq(drawn[3].w, 16, "over the same rect the matte covered")
+  eq(drawn[3].h, 16, "...both ways, or the raw re-blit shows what it missed")
+end
+
+do
+  io.write("a build with no theme draws what it always drew\n")
+  matteColour = nil
+  local drawn = frame(function() C.draw({ kind = "an icon" }, 8, 8) end)
+  eq(drawn[1] and drawn[1].what, "image",
+     "no matte: the white every screen already cleared to is the matte")
+  eq(drawn[2] and drawn[2].what, "mark", "and the mark still goes in")
+end
+
+do
+  io.write("nothing is drawn for an icon that is not there\n")
+  matteColour = { 0, 0, 0 }
+  local drawn = frame(function() C.draw(nil, 8, 8) end)
+  eq(#drawn, 0, "no matte, no mark, no hole in the page")
 end
 
 io.write(("\nitem icons: %d passed, %d failed\n"):format(passed, failed))
