@@ -1250,6 +1250,52 @@ do
 end
 
 do
+  io.write("a theme that raises stands down instead of taking the frame\n")
+  -- This hook runs on every frame of every screen, and it is the only thing
+  -- in the bundle that does.  A theme is decoration: if it raises, the right
+  -- outcome is the frame it was handed in the colours it already had.
+
+  local Bundle = load_("runtime/bundle.lua", function(name)
+    return load_("runtime/" .. name .. ".lua")
+  end)
+
+  local mod = fakeMod()
+  mod.files["modules/Only/main.lua"] = [[
+    return function(mod)
+      mod.options:define({
+        { key = "enabled", type = "toggle", label = "ONLY", default = true },
+      })
+    end
+  ]]
+  Bundle.install(mod, { id = "gen1_wild_ui", menu_label = "GEN1WILD UI",
+                        screen_id = "Gen1WildUI",
+                        paired_bundle = "gen1_wild_qol" }, {
+    { id = "only", dir = "Only", entry = "main.lua", label = "ONLY",
+      enabledKey = "enabled", default = true, priority = 100 },
+  })
+
+  local wrap
+  for _, hooked in ipairs(mod.hooked) do
+    if hooked.name == "render.zones" then wrap = hooked.fn end
+  end
+  ok(wrap ~= nil, "render.zones is wrapped")
+
+  -- a state whose themeZones raises is already handled; this is the harder
+  -- case -- a stack that raises when it is walked at all
+  local hostile = setmetatable({}, { __index = function() error("no") end })
+  local zones = menuZones()
+  local out
+  ok(pcall(function()
+    out = wrap(function(_, z) return z end, { stack = hostile }, zones)
+  end), "a game the theme cannot read does not take the frame down")
+  eq(out, zones, "and the frame is handed on exactly as it came")
+
+  -- and it stays stood down rather than raising once per frame forever
+  local second = wrap(function(_, z) return z end, { stack = hostile }, zones)
+  eq(second, zones, "the second frame is handed on too")
+end
+
+do
   io.write("the theme is a row on the game's own OPTION screen\n")
 
   local Bundle = load_("runtime/bundle.lua", function(name)

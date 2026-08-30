@@ -1055,8 +1055,14 @@ return function(mod)
     return nil
   end
 
-  mod.hooks:wrap("render.zones", function(nextLink, game, zones)
-    zones = nextLink(game, zones)
+  -- Guarded, and reported once, for the reason the title screen is worth
+  -- getting right in the first place: it is the first thing anybody sees, and
+  -- a crash there is a game that does not start.  A band that fails to be
+  -- recoloured is a band in the display mode's own colour, which is what
+  -- every build before this one showed.
+  local bandsBroken = false
+
+  local function paintBands(game, zones)
     if type(zones) ~= "table" or not zones[1] then return zones end
 
     local wantsRibbon = option("ribbon", true)
@@ -1068,6 +1074,17 @@ return function(mod)
 
     if wantsRibbon then ribbon.colors = WORN_TITLE end
     if wantsFigure then figure.colors = WORN_PIC end
+    return zones
+  end
+
+  mod.hooks:wrap("render.zones", function(nextLink, game, zones)
+    zones = nextLink(game, zones)
+    if bandsBroken then return zones end
+    local ok, out = pcall(paintBands, game, zones)
+    if ok then return out end
+    bandsBroken = true
+    mod.log:warn("the title bands stood down for this session: %s",
+      tostring(out))
     return zones
   end)
 

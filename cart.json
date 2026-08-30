@@ -31,14 +31,14 @@
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
       "version": "0.2.0",
-      "sha256": "8c923ed4b6d9a0d3633ad2883600991f3b259383317308b197b92f22ae7ff8b4"
+      "sha256": "b862e2bcb259577f1d0d2ce40e02d3a04f54ba0fa08359d9283213a24a60e872"
     },
     {
       "id": "wild_green_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
       "version": "0.2.0",
-      "sha256": "9328aaf926cda4c11a78f0a132fda7a026a739988093963762beac2793281e0a",
+      "sha256": "0683ff6b5bef4686ae99da2411a357a1820fbdd72535bfef15a5a6d885ed92a9",
       "options": {
         "ribbon": true
       }

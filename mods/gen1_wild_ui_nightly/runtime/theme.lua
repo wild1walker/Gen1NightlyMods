@@ -436,8 +436,26 @@ function Theme.new(context)
 
   function self.install()
     self.defineRow()
+    -- Guarded, and reported once.
+    --
+    -- This runs on every frame of every screen, and it is the only thing in
+    -- the bundle that does.  A theme is decoration: if it raises, the right
+    -- outcome is the frame it was handed, drawn in the colours it already
+    -- had -- not a crash in the middle of somebody's game over a tint.
+    --
+    -- Once, because a per-frame failure is a per-frame log line, and a log
+    -- nobody can scroll is a log nobody can read.  After the first the theme
+    -- stands down for the rest of the session, which also means the cost of
+    -- a broken theme is one pcall per frame rather than one error per frame.
+    local broken = false
     mod.hooks:wrap("render.zones", function(nextLink, game, zones)
-      return self.apply(game, nextLink(game, zones))
+      zones = nextLink(game, zones)
+      if broken then return zones end
+      local ok, out = pcall(self.apply, game, zones)
+      if ok then return out end
+      broken = true
+      mod.log:warn("UI THEME stood down for this session: %s", tostring(out))
+      return zones
     end)
   end
 
