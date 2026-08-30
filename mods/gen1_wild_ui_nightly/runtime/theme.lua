@@ -719,6 +719,50 @@ function Theme.new(context)
     return out
   end
 
+  -- ------- the title screen's black ground
+  --
+  -- The one page in the game that is a PICTURE, and the only one this suite
+  -- darkens by painting rather than by reversing.  matte.lua paints its page
+  -- black (and leaves the copyright row white) before the art goes down; this
+  -- is the other half of that, and the two are kept in step by a flag the
+  -- painter sets on the state for exactly the frame it painted.
+  --
+  -- The bands are left as they are, which is the whole point: the logo, the
+  -- ribbon and the mon keep colours 0, 1 and 2.  Only colour 3 is pinned --
+  -- that is what a black page reads as, and pinning it means the ground is
+  -- black whatever palette the cart ships rather than "whatever this band's
+  -- darkest colour happened to be".
+  --
+  -- Then one strip on top: the copyright row, reversed, because its ink is
+  -- black and its page is the white matte.lua left for it.
+  local COPYRIGHT_ROW = 17
+  local BLACK = { 0, 0, 0 }
+  local REVERSED_GREYS = reversed(GREYS)
+
+  local function darkGroundState(game)
+    local stack = game and game.stack
+    local states = stack and stack.states
+    if type(states) ~= "table" then return nil end
+    for i = #states, 1, -1 do
+      local state = states[i]
+      if type(state) == "table" and state.__gen1WildDarkGround then
+        return state
+      end
+    end
+    return nil
+  end
+
+  local function groundZones(zones)
+    local out = restyled(zones, function(_, zone)
+      local colors = zone.colors
+      if type(colors) ~= "table" then return colors end
+      return { colors[1], colors[2], colors[3], BLACK }
+    end)
+    out[#out + 1] = { colors = REVERSED_GREYS,
+                      x = 0, y = COPYRIGHT_ROW * 8, w = 160, h = 8 }
+    return out
+  end
+
   -- The page's own reversal, when that really is dark, and plain black-on-
   -- white when it is not.
   --
@@ -766,6 +810,13 @@ function Theme.new(context)
     -- thing that must always happen is that somebody empties it.
     local drawn = takeBoxes()
     if self.read() ~= "dark" then return zones end
+
+    -- The title screen with its ground already painted black.  Answered
+    -- before pageState, because with the menu CLOSED it is not a page at all
+    -- and would otherwise fall through untouched.
+    if type(zones) == "table" and zones[1] and darkGroundState(game) then
+      return groundZones(zones)
+    end
 
     local state, ownerAt = pageState(game)
     local out, page

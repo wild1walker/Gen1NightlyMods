@@ -171,6 +171,55 @@ do
   eq(out[3].colors[1][1], 255, "and so does the mon band")
 end
 
+-- ------------------------------------------- the ground, painted black
+
+do
+  io.write("a painted ground pins the bands' ink and lights the copyright\n")
+  -- matte.lua serves TitleState's opening full-screen fill as a black page
+  -- with the copyright row left white, and flags the state for the frame it
+  -- did it on.  This is the other half: the bands keep colours 0, 1 and 2 --
+  -- the logo, the ribbon and the mon keep their own colours, which is the
+  -- whole reason this is painted rather than reversed -- and only colour 3,
+  -- which is what a black page reads as, is pinned to black.
+  local theme = themeOver()
+  local title = setmetatable({ sgbPalettes = true,
+                               __gen1WildDarkGround = true }, TitleState)
+  local zones = {
+    zone(LOGO2, 0, 0, 19, 7),
+    zone(LOGO2, 0, 8, 19, 9),
+    zone(MEWMON, 0, 10, 19, 17),
+  }
+  local out = theme.apply({ stack = { states = { title } } }, zones)
+
+  eq(#out, 4, "the three bands, and one strip for the copyright row")
+  ok(out ~= zones, "and a new list -- the state's own is never written into")
+  eq(out[1].colors[1][1], 255, "the logo keeps its paper")
+  eq(out[1].colors[2][2], 200, "...and its own colour 1")
+  eq(out[3].colors[2][1], 255, "so does the mon")
+  eq(out[1].colors[4][1], 0, "colour 3 is pinned black: that is the ground")
+  eq(out[3].colors[4][1], 0, "...on every band, whatever the cart shipped")
+
+  eq(out[4].y, 136, "the strip is the copyright row")
+  eq(out[4].h, 8, "...and only that row")
+  eq(out[4].w, 160, "...all the way across")
+  eq(out[4].colors[1][1], 0, "its page is black")
+  eq(out[4].colors[4][1], 255, "and its ink is white, which is why the row "
+    .. "was left white to be reversed rather than painted with the rest")
+end
+
+do
+  io.write("and without the paint the picture is left exactly as it was\n")
+  -- LIGHT, a build with no matte installed, or a frame the fill was not
+  -- found on: the flag is the only thing that arms this, so the two halves
+  -- cannot disagree about whether the ground is black.
+  local theme = themeOver()
+  local title = setmetatable({ sgbPalettes = true }, TitleState)
+  local zones = { zone(LOGO2, 0, 0, 19, 7), zone(LOGO2, 0, 8, 19, 9),
+                  zone(MEWMON, 0, 10, 19, 17) }
+  local out = theme.apply({ stack = { states = { title } } }, zones)
+  eq(out, zones, "the list comes back by reference")
+end
+
 -- ---------------------------------------------- pictures stay pictures
 
 do

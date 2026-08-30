@@ -269,6 +269,15 @@ function Bundle.install(mod, spec, features)
               mod.log:warn("true-colour mattes not installed: %s",
                            tostring(problem))
             end
+            -- and the title screen, whose white page is the same problem
+            -- reached from the other side: painted rather than repaired.
+            -- Guarded on its own so a screen that will not patch does not
+            -- take the other four down with it.
+            local groundOk, groundProblem = pcall(mattes.installTitle)
+            if not groundOk then
+              mod.log:warn("title ground not installed: %s",
+                           tostring(groundProblem))
+            end
           else
             mod.log:warn("true-colour mattes not built: %s", tostring(mattes))
           end

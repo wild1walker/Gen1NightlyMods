@@ -6,6 +6,47 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.29.0] - 2026-08-30
+
+### Added
+
+- **A dark title screen, done the other way round.** 0.24.0 made the title a
+  themed page — reverse its palettes, black paper, white ink — and three
+  things went wrong on screen; 0.28.0 backed it out. This is the second
+  attempt, and it does not reverse anything.
+
+  The screen's page is **painted** black instead. `TitleState:draw` opens with
+  a white fill of the whole screen; that one fill is served as a black page
+  with the bottom row left white, and everything after it draws on top
+  exactly as it did before. Which means:
+
+  - the logo, the ribbon and the mon keep colours 0, 1 and 2 — **their own
+    colours**, not a reversal of them. Only colour 3, which is what a black
+    page reads as, is pinned to black so the ground is black whatever palette
+    the cart ships.
+  - **no white boxes.** The mon and the player figure are marked true colour,
+    so their rectangles are re-blitted raw from the canvas — and the canvas
+    under them is now black. There is nothing to repair, which is just as
+    well: a matte cannot fix this screen, because its second pass would begin
+    by filling the page white again.
+  - it works in **every display mode**, not only ADVANCED. It is the page, not
+    a true-colour mark.
+
+  The copyright line is black ink, and black ink on a black page is not there,
+  so its row is the one strip left white and reversed on its own — white
+  letters on black, the same trade every dialogue box here makes.
+
+  With the CONTINUE menu open none of this runs. `TitleState:draw` fills white
+  and returns, there is no art on the screen, and the frame is an ordinary
+  page that `Theme.COVERED_PAGES` reverses like any other — a painted ground
+  under that would reverse to a white one.
+
+  The two halves are kept in step by a flag the painter sets on the state for
+  exactly the frame it painted on, so a build where the patch did not take
+  gets the screen it always had rather than half of a dark one. And the fill
+  is served from inside whichever wrapper is innermost, so it does not matter
+  whether Wild Green's own title wrap ends up outside this one or under it.
+
 ## [0.28.0] - 2026-08-30
 
 ### Fixed

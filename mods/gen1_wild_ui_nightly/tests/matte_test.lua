@@ -196,6 +196,98 @@ do
     .. "would silently stop marking")
 end
 
+-- ------------------------------------------------ the title screen's ground
+
+-- The title is the one page this suite darkens by PAINTING rather than by
+-- reversing: `TitleState:draw` opens with a white fill of the whole screen,
+-- so a matte painted before it is painted over by it.  The fill is served
+-- black instead, the copyright row is left white for the theme to reverse,
+-- and a true-colour rectangle then re-blits a page that is already black --
+-- no white box, and nothing drawn twice.
+
+local function titleDraw(self)
+  drawn = drawn + 1
+  love.graphics.setColor(1, 1, 1)
+  love.graphics.rectangle("fill", 0, 0, 160, 144)     -- the page
+  if self.menuOpen then return end
+  PaletteFX.markTrueColor(82, 80, 16, 16)             -- the figure
+end
+
+io.write("the title screen's page is painted black under the art\n")
+do
+  reset()
+  local title = {}
+  Matte.new(context).wrapTitle(titleDraw)(title)
+
+  eq(drawn, 1, "drawn ONCE -- this is the page, not a matte, so there is "
+    .. "nothing to learn from a first pass")
+  eq(#fills, 2, "the one full-screen fill is served as two")
+  eq(fills[1].colour[1], 0, "the page is black")
+  eq(fills[1].h, 136, "...down to the copyright row and no further")
+  eq(fills[2].colour[1], 1, "and that row is left white")
+  eq(fills[2].y, 136, "...where the copyright line is drawn")
+  eq(fills[2].h, 8, "...one row of it")
+  eq(#PaletteFX.marks, 1, "the figure still marks, exactly once")
+  eq(PaletteFX.marks[1].x, 82, "...its own rectangle, untouched")
+  eq(title.__gen1WildDarkGround, true,
+    "and the state carries the frame's flag, which is what tells the theme "
+    .. "to pin colour 3 rather than reverse the bands")
+end
+
+io.write("...in every display mode, because it is a page and not a mark\n")
+do
+  reset()
+  PaletteFX.mode = "gbc"
+  local title = {}
+  Matte.new(context).wrapTitle(titleDraw)(title)
+  eq(#fills, 2, "SGB gets the black page too")
+  eq(fills[1].colour[1], 0, "...black")
+  eq(title.__gen1WildDarkGround, true, "and the flag with it")
+  PaletteFX.mode = "redpp"
+end
+
+io.write("with the CONTINUE menu open it is left alone\n")
+do
+  -- There is no art on that screen -- MainMenu's ClearScreen wipes the logo,
+  -- the mon and the figure -- so the frame is an ordinary page and
+  -- Theme.COVERED_PAGES reverses it.  A black ground would reverse to white.
+  reset()
+  local title = { menuOpen = true }
+  Matte.new(context).wrapTitle(titleDraw)(title)
+  eq(#fills, 1, "one fill, the screen's own")
+  eq(fills[1].colour[1], 1, "still white")
+  eq(title.__gen1WildDarkGround, nil, "and no flag, so the theme reverses it")
+end
+
+io.write("nor under LIGHT\n")
+do
+  reset()
+  themeValue = "light"
+  local title = {}
+  Matte.new(context).wrapTitle(titleDraw)(title)
+  eq(#fills, 1, "the page is white, which is what it always was")
+  eq(title.__gen1WildDarkGround, nil, "and nothing is flagged")
+  themeValue = "dark"
+end
+
+io.write("and the real rectangle is back even when the screen raises\n")
+do
+  reset()
+  local real = love.graphics.rectangle
+  local hostile = function(self)
+    drawn = drawn + 1
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+    if drawn == 1 then error("half way through") end
+  end
+  local out = Matte.new(context).wrapTitle(hostile)
+  ok(pcall(out, {}), "the wrapper does not take the frame down")
+  eq(love.graphics.rectangle, real,
+    "love.graphics.rectangle is the engine's own again, or every screen "
+    .. "after this one would draw through a shim that is not theirs")
+  eq(#warned, 1, "and it says so once")
+end
+
 io.write("the screens it patches are the ones that mark and are themed\n")
 do
   -- A screen that marks nothing has nothing to matte; a screen the theme

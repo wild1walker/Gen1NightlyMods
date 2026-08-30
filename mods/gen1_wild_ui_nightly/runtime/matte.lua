@@ -66,6 +66,65 @@
 -- installed once, and with a LIGHT theme or a mode that is not ADVANCED it is
 -- one comparison and a tail call.
 
+--
+-- ------- the title screen, which is the same white page by another road
+--
+-- 0.24.0 tried to make the title screen dark the way every other page in
+-- this suite is dark: reverse its palettes, so the paper goes black and the
+-- ink goes white.  Three things went wrong on screen and it was backed out
+-- in 0.28.0 (see Theme.COVERED_PAGES).  The one that matters here is the
+-- third: the mon and the player figure are marked TRUE COLOUR, so their
+-- rectangles are re-blitted raw from a canvas whose page is white -- two
+-- white boxes on a black screen, which is exactly what a matte is for, and
+-- exactly what a matte could not fix here.  `Matte.wrap` draws the screen
+-- twice with the paint in between, and `TitleState:draw` OPENS with a white
+-- fill of the whole screen: the second pass paints over the matte before it
+-- draws anything.
+--
+-- So the title screen is done the other way round.  Rather than reverse the
+-- palette and then repair the raw rectangles, paint the PAGE ITSELF black
+-- and leave the palettes alone:
+--
+--   * the ground is black pixels, which every band already reads as its own
+--     colour 3, and the theme pins that colour to black so it is black
+--     whatever palette the cart ships (theme.lua, groundZones);
+--   * the logo, the ribbon and the mon keep colours 0, 1 and 2 -- their own
+--     colours, which is what was asked for;
+--   * a true-colour rectangle re-blits a page that is ALREADY BLACK, so
+--     there is no white box to repair and nothing has to be drawn twice.
+--
+-- It works in every display mode rather than only ADVANCED, because it is
+-- not a true-colour fix -- it is the page.
+--
+-- Two details it has to get right:
+--
+--   The copyright line is BLACK INK, and black ink on a black page is not
+--   there.  So the bottom row is left WHITE and the theme reverses that one
+--   row on its own -- white letters on black, the same trade every dialogue
+--   box in this suite makes.  Everything above it is painted black.
+--
+--   With the CONTINUE menu open none of this applies.  `TitleState:draw`
+--   fills white and returns (MainMenu's own ClearScreen); there is no art on
+--   the screen, the frame is an ordinary page, and Theme.COVERED_PAGES
+--   reverses it like any other.  Painting a black ground under that would
+--   reverse to a WHITE one.
+--
+-- ------- the shim, and why it is one
+--
+-- The fill is the first line of `TitleState:draw`.  There is no seam before
+-- it and no colour to configure, so `love.graphics.rectangle` stands in for
+-- itself for the length of one call: the first full-screen fill is answered
+-- with the black page and the white copyright row, the real function is put
+-- back the moment that fill is served, and every other rectangle the screen
+-- draws goes through untouched.  It is the same shape as the markTrueColor
+-- swap above -- narrow, restored on every path including a raise, and doing
+-- nothing at all under LIGHT.
+--
+-- It is also indifferent to who else has wrapped this method.  Wild Green
+-- wraps `TitleState.draw` to mark the figure before the draw reads it, and
+-- whichever of the two ends up outermost, the fill is still served from
+-- inside the other one.
+
 local Matte = {}
 
 -- Engine screens that BOTH mark true colour and are themed pages.  A screen
@@ -82,6 +141,12 @@ Matte.SCREENS = {
   "src.ui.Diploma",
   "src.ui.DexEntryMenu",
 }
+
+-- The title screen, and the row its copyright line sits on.  `TitleState`
+-- draws that line at y = 136 (drawCopyright, called with 136 on every frame
+-- of the Red layout), so row 17 is the copyright and nothing else.
+Matte.TITLE = "src.ui.TitleState"
+Matte.GROUND_H = 136
 
 function Matte.new(context)
   local self = {}
@@ -146,6 +211,72 @@ function Matte.new(context)
 
       for _, rect in ipairs(rects) do paint(colour, rect) end
       return base(state, ...)
+    end
+  end
+
+  -- DARK, and nothing else -- unlike the matte above this is not a
+  -- true-colour repair, so the display mode does not come into it.
+  local function darkGround()
+    local theme = context.theme
+    if type(theme) ~= "table" or type(theme.read) ~= "function" then
+      return false
+    end
+    return theme.read() == "dark"
+  end
+
+  -- Serve the screen's opening full-screen fill as a black page with a white
+  -- copyright row, once, and then get out of the way.
+  local function withBlackPage(base, state, ...)
+    local lg = love.graphics
+    local real = lg.rectangle
+    local painted = false
+    lg.rectangle = function(mode, x, y, w, h, ...)
+      if not painted and mode == "fill"
+          and x == 0 and y == 0 and w == 160 and h == 144 then
+        painted = true
+        lg.rectangle = real
+        lg.setColor(0, 0, 0, 1)
+        real("fill", 0, 0, 160, Matte.GROUND_H)
+        lg.setColor(1, 1, 1, 1)
+        real("fill", 0, Matte.GROUND_H, 160, 144 - Matte.GROUND_H)
+        -- (1,1,1,1) is what the screen left set before its fill and what the
+        -- logo draw on the next line expects to find.
+        return
+      end
+      return real(mode, x, y, w, h, ...)
+    end
+    local ok, problem = pcall(base, state, ...)
+    lg.rectangle = real
+    return ok, problem, painted
+  end
+
+  function self.wrapTitle(base)
+    return function(state, ...)
+      if type(state) == "table" then state.__gen1WildDarkGround = nil end
+      -- With the menu open there is no art on this screen and the frame is an
+      -- ordinary page; the theme reverses it, and a black ground would reverse
+      -- to a white one.
+      if type(state) ~= "table" or state.menuOpen or not darkGround() then
+        return base(state, ...)
+      end
+      local ok, problem, painted = withBlackPage(base, state, ...)
+      if not ok then
+        -- the screen raised part way through with the shim in place: it is
+        -- already back, so let the frame be drawn plainly and the screen's own
+        -- error surface the way it would have without this wrapper
+        context.mod.log:warn("title ground stood down: %s", tostring(problem))
+        return base(state, ...)
+      end
+      state.__gen1WildDarkGround = painted or nil
+    end
+  end
+
+  function self.installTitle()
+    local ok, class = pcall(require, Matte.TITLE)
+    if ok and type(class) == "table" and type(class.draw) == "function"
+        and not patched[class] then
+      patched[class] = true
+      class.draw = self.wrapTitle(class.draw)
     end
   end
 

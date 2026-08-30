@@ -6,6 +6,15 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.29.0] - 2026-08-30
+
+### Changed
+
+- The title screen goes dark with UI THEME now (Gen1WildUI 0.29.0). Nothing
+  in this cart changed for it: the figure's true-colour mark is emitted the
+  same way it always was, and it no longer needs a white page under it
+  because the page is painted black before the art goes down.
+
 ## [0.28.0] - 2026-08-30
 
 Nothing in this mod changed for 0.28.0; the channel ships as one release, so
