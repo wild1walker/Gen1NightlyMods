@@ -63,7 +63,29 @@ FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 # Files that are for the repository rather than for the game.  A mod's own
 # tests and tools are the clearest case: they are how the source is kept
 # honest and they are dead weight inside an archive the launcher unpacks.
-SKIP_DIRS = {".git", "__pycache__", ".build-check", "dist"}
+#
+# That sentence has been here since the channel was stood up and the set below
+# did not act on it: `tests`, `tools` and `maintained` all rode every release
+# from 0.3.0 to 0.24.0.  Measured on 0.24.0 it was 137 KB of the UI bundle's
+# 1178, 80 of QOL's 769, 35 of Wild Green's 112 and 3 of the bench's 15 --
+# about a quarter of a megabyte per release of files the launcher unpacks onto
+# a phone and nothing ever opens.
+#
+#   tests/       every suite in the channel.  Run from the repo, by CI and by
+#                hand; there is no runner inside the game to run them.
+#   tools/       check.py, the packers, the art recipes.  Python, in a Lua
+#                sandbox that cannot execute it.
+#   maintained/  the SOURCE of a module the tree owns.  `modules/` is the copy
+#                the bundle loads (runtime/bundle.lua builds every entry path
+#                as `modules/<dir>/<entry>`), so shipping both ships it twice.
+#   upstream/    submodules: somebody else's mod at a pin, vendored into
+#                modules/ the same way.
+#
+# The line to hold: if the game can reach a file through `mod:read`, it is not
+# in this set.  Every path any feature reads is under modules/ or assets/,
+# which is what tools/check.py's "reads:" line already verifies on every run.
+SKIP_DIRS = {".git", "__pycache__", ".build-check", "dist",
+             ".github", "tests", "tools", "maintained", "upstream"}
 SKIP_SUFFIXES = {".pyc"}
 
 

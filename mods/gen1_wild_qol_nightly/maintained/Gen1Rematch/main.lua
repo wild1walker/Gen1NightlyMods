@@ -63,15 +63,18 @@
 -- price would be a money printer; one that paid nothing would be a trip for
 -- exp alone.  Half is the fight being worth making and worth losing.
 --
--- The price is read off the battle that is about to be fought rather than off
--- the trainer's data table, and that is deliberate: `baseMoney * level` uses
--- the level of the LAST mon in the party as the battle actually built it, so
--- anything that rewrites a trainer's party on the way in -- a difficulty mod
--- through `trainer.party`, this suite's own or somebody else's -- moves the
--- prize and the price together, with nothing here having to know it happened.
--- The cost is that the battle is built to be asked and thrown away if you say
--- no; the only trace that leaves is the first mon marked SEEN, which it was
--- when you beat them.
+-- The price is `baseMoney` times the level of the last mon in the roster, with
+-- MATCH LEVELS applied to that roster here the same way it is applied on the
+-- way into the battle -- so the quote and the prize are the same arithmetic
+-- on the same numbers.
+--
+-- 0.18.0 read it off a BattleState built to be asked and thrown away on a NO,
+-- which was exact to the point of being exact about another mod's rewrite as
+-- well.  It was also a live battle object constructed on the overworld and
+-- held across a prompt for as long as somebody took to answer it, and the
+-- first mon of a trainer you walked away from marked SEEN for the trouble.
+-- Quoting a price is not worth that, and nothing else in this cart rewrites
+-- a trainer's party.
 --
 -- REMATCH PRIZE off takes both halves out: nothing is charged, and the prize
 -- the engine paid is put back afterwards.  Off is a rematch with no money in
@@ -228,23 +231,46 @@ return function(mod)
 
   -- Half of what this battle is about to pay, which is `baseMoney` times the
   -- level of the LAST mon in the party -- the one whose fainting runs the win
-  -- branch, so the one the engine multiplies by.  Read off the built battle
-  -- so a party rewritten on the way in moves the price with the prize.
-  local function priceOf(battle)
+  -- branch, so the one the engine multiplies by.
+  --
+  -- Off the trainer's own roster, with MATCH LEVELS applied to it here the
+  -- same way the hook applies it on the way in.  0.18.0 read it off a battle
+  -- BUILT to be asked, which was exact to the point of being exact about
+  -- another mod's rewrite as well -- and which meant constructing a whole
+  -- BattleState on the overworld, holding it across the prompt, and throwing
+  -- it away on a NO.  Quoting a price is not worth a live battle object, and
+  -- a rematch is fought against a roster nobody else in this cart touches.
+  local function priceOf(def)
     if not on("prize") then return 0 end
-    local party = battle.enemyParty
-    local last = type(party) == "table" and party[#party] or nil
-    local base = type(battle.trainer) == "table" and battle.trainer.baseMoney
-    if type(base) ~= "number" or type(last) ~= "table"
-        or type(last.level) ~= "number" then
+    local game = mod.world and mod.world.game
+    local data = game and game.data
+    local trainer = data and data.trainers and data.trainers[def.trainerClass]
+    local base = type(trainer) == "table" and trainer.baseMoney or nil
+    local party = type(trainer) == "table" and trainer.parties
+      and trainer.parties[def.trainerParty or 1] or nil
+    if type(base) ~= "number" or type(party) ~= "table" or not party[1] then
       return 0
     end
-    return math.floor(base * last.level / 2)
+    if on("scale") then
+      local ok, out = pcall(matched, game, party)
+      if ok and type(out) == "table" and out[1] then party = out end
+    end
+    local last = party[#party]
+    local level = type(last) == "table" and tonumber(last.level) or nil
+    if not level then return 0 end
+    return math.floor(base * level / 2)
   end
 
-  local function startBattle(ow, battle, price, release)
+  local function startBattle(ow, npc, price, release)
     local game = mod.world and mod.world.game
     local save = game and game.save
+
+    -- Built here, on the YES, and not a frame before it.  Nothing of the
+    -- battle exists until the fight is agreed to: no party rewritten, no
+    -- first mon marked SEEN for a trainer you walked away from, and nothing
+    -- holding the save's party while the overworld carries on around it.
+    local battle = build(npc)
+    if not battle then return release() end
 
     -- Read before anything is charged, so REMATCH PRIZE off is neutral in
     -- both directions.  Putting the money back also takes back a PAY DAY used
@@ -267,14 +293,7 @@ return function(mod)
     local ok, TextBox = pcall(require, "src.render.TextBox")
     if not ok or type(TextBox) ~= "table" then return release() end
 
-    -- Built here rather than after the YES, because the price cannot be
-    -- quoted until the party is known and nobody should be charged for a
-    -- number they were not shown.  A NO throws it away; see the note at the
-    -- top about what that costs.
-    local battle = build(npc)
-    if not battle then return release() end
-
-    local price = priceOf(battle)
+    local price = priceOf(npc.def)
     local purse = (game.save and game.save.money) or 0
     if price > purse then
       return game.stack:push(TextBox.new(game, say(BROKE), release))
@@ -285,7 +304,7 @@ return function(mod)
     game.stack:push(TextBox.new(game, ask, nil, {
       choice = function(yes)
         if not yes then return release() end
-        startBattle(ow, battle, price, release)
+        startBattle(ow, npc, price, release)
       end,
     }))
   end

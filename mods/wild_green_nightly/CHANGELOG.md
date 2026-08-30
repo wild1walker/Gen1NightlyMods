@@ -6,6 +6,28 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.25.0] - 2026-08-30
+
+### Changed
+
+- **Tests, tools and sources stop riding the release.** `tools/pack.py` has
+  said since this channel was stood up that "a mod's own tests and tools are
+  the clearest case: they are how the source is kept honest and they are dead
+  weight inside an archive the launcher unpacks" — and its skip list did not
+  act on it. `tests/`, `tools/`, `maintained/` and `upstream/` were in every
+  archive from 0.3.0 to 0.24.0.
+
+  Measured on 0.24.0 that was 137 KB of the UI bundle's 1178, 80 of QOL's 769,
+  35 of Wild Green's 112 and 3 of the bench's 15 — about a quarter of a
+  megabyte per release of files a phone unpacks and nothing ever opens.
+  `maintained/` was the worst of it: it is the **source** of a module the tree
+  owns and `modules/` is the copy the bundle loads, so every one of those
+  modules shipped twice.
+
+  Nothing the game can reach through `mod:read` is in the skip list, and every
+  path a feature reads is under `modules/` or `assets/` — which each bundle's
+  own `check.py` already verifies on every run.
+
 ## [0.24.0] - 2026-08-30
 
 Nothing in this mod changed for 0.24.0; the channel ships as one release, so

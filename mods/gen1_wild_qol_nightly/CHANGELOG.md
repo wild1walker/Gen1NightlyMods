@@ -7,6 +7,52 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.25.0] - 2026-08-30
+
+### Changed
+
+- **Tests, tools and sources stop riding the release.** `tools/pack.py` has
+  said since this channel was stood up that "a mod's own tests and tools are
+  the clearest case: they are how the source is kept honest and they are dead
+  weight inside an archive the launcher unpacks" — and its skip list did not
+  act on it. `tests/`, `tools/`, `maintained/` and `upstream/` were in every
+  archive from 0.3.0 to 0.24.0.
+
+  Measured on 0.24.0 that was 137 KB of the UI bundle's 1178, 80 of QOL's 769,
+  35 of Wild Green's 112 and 3 of the bench's 15 — about a quarter of a
+  megabyte per release of files a phone unpacks and nothing ever opens.
+  `maintained/` was the worst of it: it is the **source** of a module the tree
+  owns and `modules/` is the copy the bundle loads, so every one of those
+  modules shipped twice.
+
+  Nothing the game can reach through `mod:read` is in the skip list, and every
+  path a feature reads is under `modules/` or `assets/` — which each bundle's
+  own `check.py` already verifies on every run.
+
+- **A rematch builds nothing until you say yes.** 0.18.0 read the price off a
+  `BattleState` built to be asked and thrown away on a `NO` — exact, and a live
+  battle object constructed on the overworld and held across the prompt for as
+  long as somebody took to answer it, with the first mon of a trainer you
+  walked away from marked `SEEN` for the trouble.
+
+  The price comes off the trainer's own roster now, with `MATCH LEVELS` applied
+  to it the same way the hook applies it on the way in — the same arithmetic on
+  the same numbers, so the quote and the prize still cannot disagree. The
+  battle is built on the `YES` and not a frame before it.
+
+  What this gives up, stated plainly: if another mod rewrote a trainer's party
+  through `trainer.party`, the quote would no longer follow it. Nothing else in
+  this cart does.
+
+  This is also the one thing the rematch did that nothing else in the game
+  does, and a trainer's overworld sprite vanishing before the battle starts was
+  reported against it. I could not reproduce that headlessly or find the
+  mechanism in the engine, so **this is not filed as the fix** — it is the
+  removal of the likeliest cause, and it is worth doing either way.
+
+  `tests/rematch_test.lua` is 87 assertions, and now holds that a `NO`, a price
+  quote and an unaffordable rematch each build no battle at all.
+
 ## [0.24.0] - 2026-08-30
 
 Nothing in this mod changed for 0.24.0; the channel ships as one release, so

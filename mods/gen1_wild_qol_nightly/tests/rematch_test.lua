@@ -69,6 +69,7 @@ local BASE_MONEY, LAST_LEVEL = 40, 24        -- prize 960, price 480
 -- fake does the same -- otherwise nothing here would exercise the scaling.
 local ROSTER = { { species = "WEEDLE", level = 9 },
                  { species = "KAKUNA", level = LAST_LEVEL } }
+
 local partyHook
 
 package.loaded["src.battle.BattleState"] = {
@@ -111,6 +112,11 @@ local function newWorld(options)
     end },
     input = { wasPressed = function(_, key) return pressed[key] == true end },
     data = {
+      -- The price is read off the trainer's own roster now, not off a battle
+      -- built to be asked, so the fake game carries one.
+      trainers = {
+        OPP_YOUNGSTER = { baseMoney = BASE_MONEY, parties = { [2] = ROSTER } },
+      },
       text = { TEXT_ROUTE3_AFTER = LINE },
       trainerHeader = function(_, label, index)
         if options.noHeader then return nil end
@@ -242,9 +248,11 @@ do
   w.talk()
   boxes[1].onDone()
   boxes[2].opts.choice(false)
-  -- The battle was BUILT to quote the price and then dropped: what matters is
-  -- that it never reached the stack and nothing was charged for it.
-  ok(w.ow.pushed == nil, "no battle is pushed")
+  -- Nothing of the battle exists until the fight is agreed to.  0.18.0 built
+  -- one to quote the price and dropped it on a NO; the price comes off the
+  -- trainer's roster now, so a NO constructs nothing at all.
+  eq(#battles, 0, "no battle is even built")
+  ok(w.ow.pushed == nil, "so none is pushed")
   eq(w.game.save.money, 3000, "and nothing is charged")
   ok(not w.npc.frozen, "the trainer is let go")
 end
@@ -288,6 +296,7 @@ do
   ok(boxes[2].opts == nil, "no YES / NO on it")
 
   boxes[2].onDone()
+  eq(#battles, 0, "nothing is built to tell you the price")
   ok(w.ow.pushed == nil, "nothing is fought")
   eq(w.game.save.money, 479, "and nothing is taken")
   ok(not w.npc.frozen, "the trainer is let go")
@@ -297,6 +306,7 @@ do
   exact.talk()
   boxes[1].onDone()
   ok(boxes[2].opts and boxes[2].opts.choice, "480 buys a 480 rematch")
+  eq(#battles, 0, "and the quote still costs no battle")
 end
 
 -- -------------------------------------------------- who is handed back
