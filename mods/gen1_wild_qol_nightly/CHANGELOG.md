@@ -7,6 +7,55 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.17.0] - 2026-08-30
+
+### Added
+
+- **`TRAINER REMATCH`** — talk to a trainer you have beaten, read them out
+  with `A`, and fight them again.
+
+  The offer sits where the conversation already ends. Every trainer has an
+  after-battle line, and walking up to a beaten one prints it; that is the
+  whole of what talking to them does today. So:
+
+  - `A` through the line → `Want to battle again?` → `YES` / `NO`
+  - `B` out of the line → nothing, exactly as before
+
+  Which button ended the box is the entire interface. No new row on any menu,
+  no prompt for anyone who did not ask, and it is the reading both buttons
+  already have everywhere else: `A` is "go on then", `B` is "I am done here".
+  The engine does not distinguish them — `TextBox` advances and closes on
+  either, faithfully to `home/text_script.asm:96` — but it does not have to.
+  `onDone` runs inside the same update that saw the press, one line after the
+  box pops, so the press is still this frame's and can still be read.
+
+  **A rematch is the battle and nothing else.** The victory path a first win
+  takes — `defeatedTrainers`, the header's event flag, `checkVictoryRewards` —
+  is not run, so no badge is handed out twice, no gift item reappears, and no
+  map's `onVictory` script fires again. A gym leader is an ordinary trainer
+  here and can be fought again for the practice; the badge stays exactly once
+  yours. The battle also carries no `checkpointOrigin`, deliberately: the
+  engine's restore path re-runs that whole first-win branch on anything it
+  brings back, so a restored rematch would award the badge a second time.
+  Without an origin the checkpoint declines to restore it, which is the
+  failure worth having.
+
+  The team is the one you beat, at the levels you beat it. Nothing scales — a
+  rematch whose levels move is a different feature, and it would want to say
+  so on screen before the battle starts.
+
+  **`REMATCH PRIZE`** (on) decides whether the win pays. The engine adds
+  `baseMoney × level` inside the battle's own win branch, downstream of
+  anything a mod can reach, so off does not suppress the prize: it reads your
+  money before the battle and puts it back after. That also takes back a
+  `PAY DAY` used in a rematch, which is the honest reading of the row rather
+  than a hole in it — this fight pays nothing.
+
+  `tests/rematch_test.lua` holds the branching: both ways out of the line, a
+  frame carrying both buttons, `NO` at the prompt, the four kinds of NPC that
+  are handed straight back to the engine, the absent checkpoint origin, and
+  the purse on a win and on a blackout.
+
 ## [0.16.0] - 2026-08-30
 
 Nothing in this mod changed for 0.16.0; the channel ships as one release, so
