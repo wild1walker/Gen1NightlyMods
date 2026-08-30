@@ -6,6 +6,49 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.16.0] - 2026-08-30
+
+### Fixed
+
+- **`START` > `SAVE` came out split down the middle in DARK.** Everything
+  right of tile 9 was dark and everything left of it was light — across the
+  save panel, across the START menu behind it and across the dialogue at the
+  bottom, on a line that was not the edge of any of them.
+
+  The line *was* the edge of something: the START menu's box. `SAVE` leaves
+  that menu open behind the panel (`start_sub_menus.asm:641-647`), and a menu
+  wide enough for `POKéDEX` and the mod rows sits at tile 9, eleven wide and
+  the full eighteen tall. It has `tx`/`ty`/`tw`/`th`, so it got a panel — and a
+  panel does not draw anything, it hands the blit four colours **for a
+  rectangle**. Every pixel inside is remapped through them, including the
+  pixels of whatever was drawn on top. Neither box on top had a panel of its
+  own: the save panel is an ad-hoc table with a `draw` function and no
+  rectangle at all, and `src/render/TextBox.lua` keeps its box in
+  `boxTx`/`boxTy`/`boxTw`/`boxTh` rather than the four names this read.
+
+  Reading `boxTx` too would have fixed those two and not the next two. The
+  stack is the wrong place to ask: what is on the screen is not what the states
+  say about themselves, it is what they **drew**. So that is what is asked now.
+  Every box in this game is drawn by `Font.drawBox` — `Menu`, `TextBox`,
+  `ChoiceBox`, `ListMenu`, a battle's own boxes, an ad-hoc panel inside a
+  state's draw, a mod's window — so the theme wraps that one function and has
+  the whole screen, in painting order, whoever drew it. A box drawn over a
+  panel is a panel too.
+
+  The order is free and it is the half that makes this safe. `src/core/Game.lua`
+  draws every state *before* it collects the zone list and raises
+  `render.zones`, so the list is complete and bottom-box-first by the time it
+  is read — and the closure only ever runs forwards. A battle draws its own
+  boxes and then stacks a command menu on top; the battle's boxes are earlier
+  in the list, so the menu's panel cannot reach back and repaint them. Nothing
+  here can theme a screen that was not already being themed one box at a time.
+
+  `tests/savescreen_test.lua` stands the real screen up — the same five states
+  and the same four `Font.drawBox` calls — and holds the battle case, the
+  transitive one, and the recorder's own draining. Against the old panel list
+  it produces exactly three zones: the map, the START menu and the `YES`/`NO`,
+  which is the screenshot.
+
 ## [0.15.0] - 2026-08-30
 
 ### Fixed

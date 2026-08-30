@@ -248,6 +248,92 @@ end
 --     keeps its box there and computes it in `Menu.new`, and the suite's own
 --     windows are built to the same four fields.  Reading them off the object
 --     costs nothing and covers screens nobody has taught this file about.
+-- ------- the boxes the stack does not describe
+--
+-- A panel does not draw anything.  It hands the blit four colours FOR A
+-- RECTANGLE, and every pixel inside that rectangle is remapped through them
+-- -- including pixels that belong to something drawn ON TOP of the panel.
+--
+-- That is what the half-dark SAVE screen was.  START > SAVE leaves the START
+-- menu open behind the save panel (start_sub_menus.asm:641-647), and the
+-- menu is a `src/ui/Menu.lua` box eleven tiles wide by eighteen tall -- the
+-- full height of the screen, from tile 9 rightwards.  It has tx/ty/tw/th, so
+-- it got a panel.  The two boxes drawn over it did not: the save panel is an
+-- ad-hoc table pushed on the stack with a `draw` and nothing else
+-- (StartMenu.lua's `Font.drawBox(4, 0, 16, 10)`), and `src/render/TextBox.lua`
+-- keeps its box in boxTx/boxTy/boxTw/boxTh rather than tx/ty/tw/th.  So the
+-- menu's panel repainted the right-hand nine tiles of both of them and left
+-- the rest alone: one screen, split down the middle, dark on one side of a
+-- line that is not the edge of anything.
+--
+-- Reading boxTx as well would fix those two and not the next two.  The stack
+-- is the wrong place to ask: what is on the screen is not what the states say
+-- about themselves, it is what they DREW.
+--
+-- So ask that instead.  Every box in this game is drawn by `Font.drawBox` --
+-- Menu, TextBox, ChoiceBox, ListMenu, the battle's own boxes, an ad-hoc panel
+-- in a state's draw function, a mod's window -- so wrapping that one function
+-- records every box on the screen, in the order they were drawn, whoever drew
+-- them and whether or not they came from a state at all.
+--
+-- The order is free and it is the half that makes this safe: `src/core/
+-- Game.lua` draws every state BEFORE it collects the zone list and raises
+-- `render.zones`, so by the time this is asked the frame is complete and the
+-- list is in painting order, bottom box first.
+local boxes = {}
+local boxCount = 0
+-- A frame does not contain sixty boxes.  The cap is for the case where the
+-- theme has stood down and nothing is draining the list any more: better a
+-- stale sixty than a table that grows for the rest of the session.
+local BOX_CAP = 60
+
+local function recordBox(tx, ty, tw, th)
+  if type(tx) ~= "number" or type(ty) ~= "number" then return end
+  if type(tw) ~= "number" or type(th) ~= "number" then return end
+  if tw <= 0 or th <= 0 then return end
+  if boxCount >= BOX_CAP then return end
+  boxCount = boxCount + 1
+  boxes[boxCount] = { x = tx * 8, y = ty * 8, w = tw * 8, h = th * 8 }
+end
+
+-- The boxes drawn since the last call, and the list is emptied by asking.
+local function takeBoxes()
+  if boxCount == 0 then return nil end
+  local out = {}
+  for i = 1, boxCount do out[i] = boxes[i]; boxes[i] = nil end
+  boxCount = 0
+  return out
+end
+
+-- Wrapped once, and idempotently: `require` hands every mod the same table,
+-- so a second bundle carrying this file -- or a hot reload of this one --
+-- must not wrap the wrapper.  The marker is the same trick Gen1WildQOL's
+-- SELECT handler uses on OverworldController, and for the same reason.
+local FONT_MARK = "__gen1WildBoxRecorder"
+
+local function watchBoxes()
+  local ok, Font = pcall(require, "src.render.Font")
+  if not ok or type(Font) ~= "table" then return false end
+  if rawget(Font, FONT_MARK) then return true end
+  local base = Font.drawBox
+  if type(base) ~= "function" then return false end
+  Font.drawBox = function(tx, ty, tw, th, ...)
+    recordBox(tx, ty, tw, th)
+    return base(tx, ty, tw, th, ...)
+  end
+  local assigned = pcall(function() Font[FONT_MARK] = true end)
+  return assigned and true or false
+end
+
+local function overlaps(a, b)
+  return a.x < b.x + b.w and b.x < a.x + a.w
+     and a.y < b.y + b.h and b.y < a.y + a.h
+end
+
+local function sameRect(a, b)
+  return a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h
+end
+
 local function panelRect(state)
   local tx, ty, tw, th = state.tx, state.ty, state.tw, state.th
   if type(tx) ~= "number" or type(ty) ~= "number" then return nil end
@@ -368,25 +454,76 @@ function Theme.new(context)
   -- colour at best and a box over its own content at worst.  What is left
   -- above the owner is exactly the overlays -- the START menu on the map, the
   -- bag's windows, a field-move list, a battle's command box.
-  local function panelZones(game, ownerAt)
+  local function panelZones(game, ownerAt, drawn)
     local states = game and game.stack and game.stack.states
     if type(states) ~= "table" then return nil end
-    local out
+    local rects
     for index = (ownerAt or 0) + 1, #states do
       local state = states[index]
       if type(state) == "table" then
-        local rects = panelsOf(state)
-        if rects then
-          for _, rect in ipairs(rects) do
+        local found = panelsOf(state)
+        if found then
+          for _, rect in ipairs(found) do
             if type(rect) == "table" and type(rect.w) == "number"
                 and type(rect.h) == "number" and rect.w > 0 and rect.h > 0 then
-              out = out or {}
-              out[#out + 1] = { colors = DARK_PAGE, x = rect.x or 0,
-                                y = rect.y or 0, w = rect.w, h = rect.h }
+              rects = rects or {}
+              rects[#rects + 1] = { x = rect.x or 0, y = rect.y or 0,
+                                    w = rect.w, h = rect.h }
             end
           end
         end
       end
+    end
+    if not rects then return nil end
+
+    -- ------- and everything drawn over one of them
+    --
+    -- A panel remaps its whole rectangle, so a box drawn on top of a panel is
+    -- remapped by it whether or not anything asked for that.  There are only
+    -- two honest answers to that and one of them is not painting the panel at
+    -- all: either the box on top is themed too, or the box underneath must
+    -- not be.  This takes the first -- the box on top IS a panel, it just did
+    -- not come from a state that says so.
+    --
+    -- Only forwards, and that is the whole of the safety.  `drawn` is in
+    -- painting order, so a box that comes AFTER a panel is a box drawn OVER
+    -- it; one that comes before is underneath and was already covered.  A
+    -- battle draws its own boxes and then a menu is stacked on top of it: the
+    -- battle's boxes are earlier in the list than the menu's, so the menu's
+    -- panel never reaches back and repaints the battle.  Nothing here can
+    -- theme a screen that was not already being themed one box at a time.
+    --
+    -- Transitive, and free: the scan decides each box in order and only ever
+    -- looks at boxes it has already decided, so a dialogue over a panel over
+    -- the map brings its own YES/NO with it in the same pass.
+    if drawn then
+      local seeded, taken = {}, {}
+      for i, box in ipairs(drawn) do
+        for _, rect in ipairs(rects) do
+          -- The state said this box and then drew it; it is already a panel,
+          -- and it is where the closure starts.
+          if sameRect(box, rect) then seeded[i] = true; taken[i] = true break end
+        end
+      end
+      for j = 1, #drawn do
+        if not seeded[j] then
+          for i = 1, j - 1 do
+            if seeded[i] and overlaps(drawn[i], drawn[j]) then
+              seeded[j] = true
+              break
+            end
+          end
+        end
+      end
+      for j, box in ipairs(drawn) do
+        if seeded[j] and not taken[j] then rects[#rects + 1] = box end
+      end
+    end
+
+    local out = {}
+    for _, rect in ipairs(rects) do
+      out[#out + 1] = { colors = DARK_PAGE, x = rect.x, y = rect.y,
+                        w = rect.w, h = rect.h }
     end
     return out
   end
@@ -524,6 +661,10 @@ function Theme.new(context)
   -- every battle, and on those frames it must cost a table lookup and a walk
   -- down a stack that is usually two states deep.
   function self.apply(game, zones)
+    -- Drained on every frame, before the LIGHT return: the recorder is a
+    -- wrapper on an engine function and cannot be asked to stop, so the one
+    -- thing that must always happen is that somebody empties it.
+    local drawn = takeBoxes()
     if self.read() ~= "dark" then return zones end
 
     local state, ownerAt = pageState(game)
@@ -543,7 +684,7 @@ function Theme.new(context)
     -- zones that colour the map.  This is also the ONE path that can theme a
     -- frame that is not a page at all -- which is the whole point, because
     -- the START menu has never been one.
-    local panels = panelZones(game, ownerAt)
+    local panels = panelZones(game, ownerAt, drawn)
     if not panels then return out end
 
     local spread = {}
@@ -554,6 +695,13 @@ function Theme.new(context)
 
   function self.install()
     self.defineRow()
+    -- The box recorder, before the hook that reads it.  Absent on a build
+    -- whose Font is not where it has always been, which costs the panels
+    -- nothing they had before this: the stack's own tx/ty/tw/th still
+    -- answers, and the boxes it cannot describe stay as they were.
+    if not watchBoxes() then
+      mod.log:info("boxes are not being watched; panels fall back to the stack")
+    end
     -- Guarded, and reported once.
     --
     -- This runs on every frame of every screen, and it is the only thing in
@@ -586,5 +734,8 @@ Theme.isWhole = isWhole
 Theme.basePage = basePage
 Theme.luma = luma
 Theme.reversed = reversed
+Theme.overlaps = overlaps
+Theme.recordBox = recordBox
+Theme.takeBoxes = takeBoxes
 
 return Theme
