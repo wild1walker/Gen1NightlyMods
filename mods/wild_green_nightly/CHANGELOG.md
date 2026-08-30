@@ -6,6 +6,11 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.9.0] - 2026-08-30
+
+Nothing changed in this mod. It carries the channel's version so every archive
+on the `v0.9.0` release is one version, which is how the cart's pins resolve.
+
 ## [0.8.0] - 2026-08-30
 
 Nothing changed in this mod. It carries the channel's version so every archive

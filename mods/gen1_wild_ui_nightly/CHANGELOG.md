@@ -6,6 +6,39 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.9.0] - 2026-08-30
+
+### Fixed
+
+- **Item icons came out broken in `DARK`.** A POKé BALL was a red blob, a
+  GREAT BALL a scatter of blue and red. This was a regression 0.6.0 shipped
+  and it is worth being exact about why.
+
+  All 106 shipped icons draw their line work in **pure black on
+  transparency** and carry **no white at all**. The art was made to sit on the
+  white page: the page *is* the ball's lower half, and the black outline
+  around it is what makes the shape. 0.6.0 painted the cell the colour the
+  page was about to be — correct for a mon sprite, whose transparency really
+  is margin — so on a dark page the ball lost its paper and kept an outline
+  nobody could see against black.
+
+  On dark paper each icon is now drawn from a **twin built at load with its
+  pure-black pixels white**, and every other pixel left exactly as it is. A
+  ball keeps its red dome and reads as a white outline over the dark page,
+  which is what a line drawing inverts to and what the rest of the screen has
+  already done. Which paper it is on is asked of `theme.matte()` rather than
+  of the theme's name, so the question is the one that matters.
+
+  **A flood fill was tried first and does not work**, and that is recorded in
+  the code and in `tests/itemicons_test.lua` so nobody tries it again: fill the
+  transparent pixels the outline encloses and you find the outlines are **not
+  closed**. They never had to be, because inside and outside were the same
+  white page. A POKé BALL's lower edge is a few disconnected strokes and a fill
+  leaks straight through them.
+
+`tests/itemicons_test.lua` is new — 10 assertions over the real POKé BALL
+shape, traced off the shipped file, including the gaps that defeated the fill.
+
 ## [0.8.0] - 2026-08-30
 
 ### Removed

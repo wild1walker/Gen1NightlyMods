@@ -75,6 +75,18 @@ the art goes, then the matte, then the real draw on top of it. That costs a
 second draw of a static screen, and it is only ever paid when a theme is on
 **and** the mode is `ADVANCED` **and** the screen actually marked something.
 
+**Item icons swap their ink.** All 106 shipped item icons draw their line work
+in pure black on transparency and carry no white at all — the art was made to
+sit on the white page, and the page *is* a Poké Ball's lower half. Matting the
+cell dark takes that paper away and leaves a black outline nobody can see, so
+on dark paper each icon is drawn from a twin built at load with its pure-black
+pixels white. Everything else is left exactly as it is, so a ball keeps its red
+dome and reads as a white outline over the dark page.
+
+Not a flood fill of the enclosed transparency, which was tried first and does
+not work: the outlines are **not closed**. They never had to be, because inside
+and outside were the same white page.
+
 **Which display modes this works in.** `ADVANCED` is the one it is built for
 and tested against. `SGB`, `SGB INV` and `OG RED` work too — all four pass a
 zone's colours through to the blit. The flat modes (`OG`, `OG INV`, `CLASSIC`,
