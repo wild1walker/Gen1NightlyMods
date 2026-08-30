@@ -202,7 +202,10 @@ local function isGreys(colors)
   return true
 end
 
--- The whole-screen zone a page opens its list with, or nil.
+-- Where in the list the page is -- always 1, or nil when the list is not a
+-- page at all.  An index rather than the zone itself, because the transforms
+-- copy the list rather than write into it and have to find the page again in
+-- the copy.
 --
 -- It has to be the FIRST zone: the list is drawn in order and the base is what
 -- everything after it sits on, so a whole-screen zone further down is a panel
@@ -222,7 +225,7 @@ local function basePage(zones, owned)
   end
   if type(first.colors) ~= "table" then return nil end
   if not owned and not isGreys(first.colors) then return nil end
-  return first
+  return 1
 end
 
 function Theme.new(context)
@@ -341,22 +344,47 @@ function Theme.new(context)
   -- holds together at all.
   local DARK_PAGE = reversed(GREYS)
 
-  local function dark(zones, page, owned)
-    for _, zone in ipairs(zones) do
+  -- ------- a theme never writes into the list it was handed
+  --
+  -- The zone tables belong to the state that built them, and this hook has no
+  -- way to know whether that state built them fresh this frame or is handing
+  -- back a list it keeps.  Every screen in this suite builds fresh; a screen
+  -- somebody adds later might not, and a cached list written into is a screen
+  -- that flickers -- reversed on one frame, reversed back on the next, and
+  -- unfindable from the symptom.
+  --
+  -- So a themed frame is a NEW list of NEW zones.  It costs a handful of small
+  -- tables per frame and buys a transform that is a pure function of its
+  -- input, which is the only version of this that can be reasoned about.
+  local function restyled(zones, colourOf)
+    local out = {}
+    for index, zone in ipairs(zones) do
+      if type(zone) ~= "table" then
+        out[index] = zone
+      else
+        local copy = {}
+        for key, value in pairs(zone) do copy[key] = value end
+        copy.colors = colourOf(index, zone)
+        out[index] = copy
+      end
+    end
+    return out
+  end
+
+  local function dark(zones, pageAt, owned)
+    return restyled(zones, function(index, zone)
       -- `colors == false` is the true-colour opt-out and is a rectangle, not
       -- a palette: an animated mon sprite, an item icon.  It is art, and art
       -- is not inverted.
-      if type(zone) == "table" and type(zone.colors) == "table" then
-        zone.colors = reverse(zone.colors)
-      end
-    end
-    -- A page that opened on a colour rather than on the greys gets the plain
-    -- black one instead of that colour reversed.  DARK is "black and white,
-    -- swapped", and the reverse of the suite's own purple base is a washed
-    -- lilac page rather than a dark one -- the right answer for the panels
-    -- inside it and the wrong one for the paper under them.
-    if owned then page.colors = DARK_PAGE end
-    return zones
+      if type(zone.colors) ~= "table" then return zone.colors end
+      -- A page that opened on a colour rather than on the greys gets the plain
+      -- black one instead of that colour reversed.  DARK is "black and white,
+      -- swapped", and the reverse of the suite's own purple base is a washed
+      -- lilac page rather than a dark one -- the right answer for the panels
+      -- inside it and the wrong one for the paper under them.
+      if owned and index == pageAt then return DARK_PAGE end
+      return reverse(zone.colors)
+    end)
   end
 
   -- ---- COLORFUL
@@ -372,18 +400,21 @@ function Theme.new(context)
   -- already mean something -- a party icon is the species' own colour, an HP
   -- bar is green because it is nearly full -- and a theme that repainted
   -- those would be taking information away to add decoration.
-  local function colorful(zones, page, state)
+  local function colorful(zones, pageAt, state)
     local tint = tintFor(state)
-    page.colors = tint
+    local out = restyled(zones, function(index, zone)
+      if index == pageAt then return tint end
+      return zone.colors
+    end)
     if state and type(state.gen1wildThemeZones) == "function" then
       local ok, extra = pcall(state.gen1wildThemeZones, state, tint)
       if ok and type(extra) == "table" then
         for _, zone in ipairs(extra) do
-          if type(zone) == "table" then zones[#zones + 1] = zone end
+          if type(zone) == "table" then out[#out + 1] = zone end
         end
       end
     end
-    return zones
+    return out
   end
 
   -- The hook itself.  `next` first, so a mod downstream that builds zones of
@@ -396,10 +427,10 @@ function Theme.new(context)
     local owned = type(state) == "table"
       and type(state.gen1wildTheme) == "string"
       and Theme.TINTS[state.gen1wildTheme] ~= nil
-    local page = basePage(zones, owned)
-    if not page then return zones end
-    if theme == "dark" then return dark(zones, page, owned) end
-    if theme == "colorful" then return colorful(zones, page, state) end
+    local pageAt = basePage(zones, owned)
+    if not pageAt then return zones end
+    if theme == "dark" then return dark(zones, pageAt, owned) end
+    if theme == "colorful" then return colorful(zones, pageAt, state) end
     return zones
   end
 

@@ -1167,6 +1167,29 @@ do
 end
 
 do
+  io.write("a theme never writes into the list it was handed\n")
+  -- The zone tables belong to the state that built them.  Every screen in this
+  -- suite builds fresh, but a screen somebody adds later might hand back a
+  -- list it keeps -- and a cached list written into is a screen that flickers,
+  -- reversed on one frame and reversed back on the next, from a symptom nobody
+  -- could trace.  So the transform is a pure function of its input.
+  local mod = fakeMod()
+  local theme = themeOver(mod)
+  theme.write("dark")
+
+  local kept = menuZones()
+  local out = theme.apply({}, kept)
+  ok(out ~= kept, "the list that comes back is a new list")
+  ok(out[1] ~= kept[1], "...of new zones")
+  eq(hex(kept[1].colors[1]), "ffffff", "and the one handed in is untouched")
+
+  -- the same list twice, which is what a screen that caches would do
+  local again = theme.apply({}, kept)
+  eq(hex(again[1].colors[1]), "000000",
+    "so the same list themed twice is dark both times, not dark then light")
+end
+
+do
   io.write("COLORFUL tints the page by what the screen is\n")
   local mod = fakeMod()
   local theme = themeOver(mod)
