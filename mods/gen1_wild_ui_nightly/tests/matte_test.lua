@@ -1,0 +1,226 @@
+-- Headless coverage of the true-colour matte on screens the suite does not
+-- own -- the trainer card's portrait, the summary screen's Pokemon, the Hall
+-- of Fame PC, the diploma.
+--
+-- The bug: `PaletteFX.markTrueColor` splices a `colors = false` rect onto the
+-- END of the frame's zone list and re-blits that region RAW, so a coloured
+-- portrait keeps its colours.  Raw also keeps the WHITE the screen cleared its
+-- page to, which is a white box on a dark page -- and no zone this suite adds
+-- can reach inside a rect that re-blits over it.
+--
+-- The one fact that decides when any of this runs: `Renderer`'s withTrueColor
+-- opens with `if not PaletteFX.honorsTrueColor() then return zoneList end`,
+-- and for a Gen 1 game that is `mode == "redpp"` -- ADVANCED, and nothing
+-- else.  In SGB the marks are discarded and there is no box, so there is
+-- nothing to paint and nothing here should fire.
+--
+-- Run:  luajit tests/matte_test.lua
+
+package.path = "./?.lua;" .. package.path
+
+local passed, failed = 0, 0
+local function ok(condition, description)
+  if condition then
+    passed = passed + 1
+  else
+    failed = failed + 1
+    io.write("  FAIL  ", description, "\n")
+  end
+end
+local function eq(actual, expected, description)
+  local same = actual == expected
+  if not same then
+    description = ("%s (got %s, wanted %s)")
+      :format(description, tostring(actual), tostring(expected))
+  end
+  ok(same, description)
+end
+
+local function chunkOf(path)
+  local handle = assert(io.open(path, "r"), path .. " is missing")
+  local source = handle:read("*a")
+  handle:close()
+  return assert(load(source, "@" .. path))()
+end
+
+-- ------- the engine, as much of it as this touches
+
+local fills = {}          -- every rectangle painted, in order
+love = {
+  graphics = {
+    setColor = function(r, g, b) love.graphics.colour = { r, g, b } end,
+    rectangle = function(_, x, y, w, h)
+      local c = love.graphics.colour or {}
+      fills[#fills + 1] = { x = x, y = y, w = w, h = h,
+                            colour = { c[1], c[2], c[3] } }
+    end,
+  },
+}
+
+local PaletteFX          -- forward, so the closures below can see it
+PaletteFX = {
+  mode = "redpp",
+  marks = {},
+  honorsTrueColor = function() return PaletteFX.mode == "redpp" end,
+  markTrueColor = function(x, y, w, h)
+    PaletteFX.marks[#PaletteFX.marks + 1] = { x = x, y = y, w = w, h = h }
+  end,
+}
+package.preload["src.render.PaletteFX"] = function() return PaletteFX end
+
+local Matte = chunkOf("runtime/matte.lua")
+
+-- ------- the theme, as the bundle hands it over
+
+local themeValue = "dark"
+local theme = {
+  read = function() return themeValue end,
+  matte = function(hint)
+    if themeValue == "light" then return { 255, 255, 255 } end
+    if themeValue == "dark" then return { 0, 0, 0 } end
+    return { 0x9c, 0xd1, 0xe8 }        -- the card tint's paper
+  end,
+}
+
+local warned = {}
+local context = {
+  theme = theme,
+  mod = { log = { warn = function(_, text, ...) warned[#warned + 1] = text end } },
+}
+
+-- A screen that draws two things and marks one of them.
+local drawn
+local function screenDraw(self)
+  drawn = drawn + 1
+  love.graphics.setColor(1, 1, 1)
+  love.graphics.rectangle("fill", 0, 0, 160, 144)     -- its page
+  PaletteFX.markTrueColor(104, 4, 40, 40)             -- its portrait
+end
+
+local function reset()
+  fills, drawn, PaletteFX.marks, warned = {}, 0, {}, {}
+end
+
+local function wrapped(fn)
+  return Matte.new(context).wrap(fn or screenDraw, "card")
+end
+
+-- ---------------------------------------------------------------- the tests
+
+io.write("the matte paints under the art, and the art is drawn again on it\n")
+do
+  reset()
+  wrapped()({})
+
+  eq(drawn, 2, "the screen draws twice: once to learn where the art goes, "
+    .. "once for real on top of the matte")
+  eq(#PaletteFX.marks, 1,
+    "and marks its rectangle exactly once -- the recording pass stands in "
+    .. "for markTrueColor rather than doubling it")
+
+  -- page, matte, page again.  The matte is the middle one, and it is the
+  -- rectangle the screen marked rather than the whole page.
+  eq(#fills, 3, "two pages and one matte")
+  eq(fills[2].x, 104, "the matte is where the art is")
+  eq(fills[2].y, 4, "...both axes")
+  eq(fills[2].w, 40, "and the size the art is")
+  eq(fills[2].h, 40, "...both axes")
+  eq(fills[2].colour[1], 0, "under DARK it is black")
+  eq(fills[2].colour[3], 0, "...on every channel")
+end
+
+io.write("and only in ADVANCED, because only ADVANCED honours the marks\n")
+do
+  -- In SGB the renderer discards every true-colour rect, the art goes through
+  -- the shade pass with the rest of the screen, and there is no box to fix.
+  reset()
+  PaletteFX.mode = "gbc"
+  wrapped()({})
+  eq(drawn, 1, "an SGB boot draws once, the way it always did")
+  eq(#fills, 1, "and paints no matte")
+  eq(#PaletteFX.marks, 1, "the screen still marks; the renderer is what drops it")
+  PaletteFX.mode = "redpp"
+end
+
+io.write("nor under LIGHT, nor with no theme at all\n")
+do
+  reset()
+  themeValue = "light"
+  wrapped()({})
+  eq(drawn, 1, "LIGHT draws once")
+  eq(#fills, 1, "and paints nothing extra: the page is already white")
+  themeValue = "dark"
+
+  reset()
+  local bare = Matte.new({ theme = nil, mod = context.mod })
+  bare.wrap(screenDraw, "card")({})
+  eq(drawn, 1, "a build with no theme draws once")
+  eq(#fills, 1, "...and is untouched")
+end
+
+io.write("COLORFUL paints the screen's own paper\n")
+do
+  reset()
+  themeValue = "colorful"
+  wrapped()({})
+  -- LOVE takes colour in 0..1, so the wrapper divides by 255 on the way out
+  eq(fills[2].colour[1], 0x9c / 255, "the card tint's paper, not black")
+  eq(fills[2].colour[3], 0xe8 / 255, "...on every channel")
+  themeValue = "dark"
+end
+
+io.write("a screen that marks nothing is drawn once and left alone\n")
+do
+  reset()
+  local plain = function(self)
+    drawn = drawn + 1
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+  end
+  wrapped(plain)({})
+  eq(drawn, 1, "the recording pass IS the frame when it finds no art")
+  eq(#fills, 1, "so nothing is drawn twice and nothing is painted over")
+end
+
+io.write("a screen that raises is still a drawn screen\n")
+do
+  reset()
+  local hostile = function(self)
+    drawn = drawn + 1
+    if drawn == 1 then error("half way through") end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+  end
+  local out = wrapped(hostile)
+  ok(pcall(out, {}), "the wrapper does not take the frame down")
+  eq(drawn, 2, "it draws the screen again plainly instead of leaving it half done")
+  eq(#warned, 1, "and says so once")
+end
+
+io.write("marks are restored even when the recording pass raises\n")
+do
+  reset()
+  local real = PaletteFX.markTrueColor
+  local hostile = function() drawn = drawn + 1; error("no") end
+  pcall(wrapped(hostile), {})
+  eq(PaletteFX.markTrueColor, real,
+    "markTrueColor is the engine's own again, or every screen after this one "
+    .. "would silently stop marking")
+end
+
+io.write("the screens it patches are the ones that mark and are themed\n")
+do
+  -- A screen that marks nothing has nothing to matte; a screen the theme
+  -- leaves alone is still on white paper, where a white box is invisible.
+  local names = {}
+  for _, entry in ipairs(Matte.SCREENS) do names[entry[1]] = entry[2] end
+  eq(names["src.ui.TrainerCard"], "card", "the trainer card's portrait")
+  eq(names["src.ui.SummaryMenu"], "summary", "the summary screen's POKeMON")
+  eq(names["src.ui.LeaguePC"], "box", "the Hall of Fame PC")
+  eq(names["src.ui.Diploma"], "card", "the diploma")
+  eq(names["src.ui.DexEntryMenu"], "dex",
+    "and the engine's dex entry, for the build with POKEDEX switched off")
+end
+
+io.write(("\nmatte: %d passed, %d failed\n"):format(passed, failed))
+os.exit(failed == 0 and 0 or 1)

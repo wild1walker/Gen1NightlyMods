@@ -40,6 +40,7 @@ function Bundle.install(mod, spec, features)
   -- Optional for the same reason Settings is: a tree built before this file
   -- existed should lose the themes rather than the boot.
   local Theme = loadRuntime("theme")
+  local Matte = loadRuntime("matte")
   -- Optional, and deliberately so: a bundle installed outside a sealed cart
   -- needs none of it, and a tree built before this file existed should lose
   -- the remembering rather than the boot.
@@ -254,6 +255,24 @@ function Bundle.install(mod, spec, features)
       if installed then
         theme = built
         context.theme = built
+        -- and the one thing a zone cannot reach: the white page inside a
+        -- true-colour rectangle, on the screens this suite does not own.
+        -- After the theme, because it reads the theme; guarded separately,
+        -- because a themed build with no mattes is a build with white boxes
+        -- on four screens and a themed build with no theme is a build with
+        -- no themes at all.
+        if type(Matte) == "table" and type(Matte.new) == "function" then
+          local madeOk, mattes = pcall(Matte.new, context)
+          if madeOk and type(mattes) == "table" then
+            local mattedOk, problem = pcall(mattes.install)
+            if not mattedOk then
+              mod.log:warn("true-colour mattes not installed: %s",
+                           tostring(problem))
+            end
+          else
+            mod.log:warn("true-colour mattes not built: %s", tostring(mattes))
+          end
+        end
       else
         mod.log:warn("UI theme not installed: %s", tostring(problem))
       end

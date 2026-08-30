@@ -57,23 +57,31 @@ suite's own windows) gets a zone over exactly that rectangle, so a white menu
 goes black over a map that does not move. A screen with several boxes can say
 where they are with `state:gen1wildThemePanels()`.
 
-**True-colour art gets a matte.** `PaletteFX.markTrueColor` blits a rectangle
-raw so a coloured icon keeps its own colours — and raw means the white page
-under it stays white when everything around it goes black. Every screen in the
-suite that marks a rectangle now paints `theme.matte(hint)` into it first, so
-the box behind an icon goes with the page. Under `LIGHT` that colour is white,
-which is what those screens always drew.
+**True-colour art gets a matte**, which is an `ADVANCED` concern and only an
+`ADVANCED` one. `PaletteFX.markTrueColor` blits a rectangle raw so a coloured
+icon keeps its own colours — and raw means the white page under it stays white
+when everything around it goes black. But `Renderer`'s `withTrueColor` opens
+with `if not PaletteFX.honorsTrueColor() then return zoneList end`, and on a
+Gen 1 game that is `PaletteFX.mode == "redpp"` — `ADVANCED`, nothing else. In
+every other mode the marks are discarded, the art goes through the shade pass
+with the rest of the screen, and there is no box.
 
-Engine screens that draw true-colour art and that this suite does not replace —
-the trainer card's portrait and its badges — still show a light box. Fixing
-those means replacing those screens' draw, which has not been done yet.
+Screens this suite owns paint `theme.matte(hint)` into the rectangle before the
+art goes in. Screens it does not own — the trainer card's portrait, the summary
+screen's Pokémon, the Hall of Fame PC, the diploma — are handled by
+[`runtime/matte.lua`](runtime/matte.lua), which wraps the class's `draw` and
+runs it twice: once with `markTrueColor` swapped for a recorder to learn where
+the art goes, then the matte, then the real draw on top of it. That costs a
+second draw of a static screen, and it is only ever paid when a theme is on
+**and** the mode is `ADVANCED` **and** the screen actually marked something.
 
-One honest limit: this works by changing the colours a zone carries, so it
-works in the display modes that use them — `SGB`, `SGB INV`, `ADVANCED`,
-`OG RED`. The flat modes (`OG`, `OG INV`, `CLASSIC`, and a custom ramp) are the
-player asking for one palette over the whole game, and `PaletteFX` replaces
-every zone's colours to give it to them. A theme cannot outrank that and does
-not try — `OG INV` already is a dark mode for the whole screen.
+**Which display modes this works in.** `ADVANCED` is the one it is built for
+and tested against. `SGB`, `SGB INV` and `OG RED` work too — all four pass a
+zone's colours through to the blit. The flat modes (`OG`, `OG INV`, `CLASSIC`,
+and a custom ramp) do not, and cannot: they are the player asking for one
+palette over the whole game, and `PaletteFX.effectiveColors` replaces every
+zone's colours to give it to them. A theme cannot outrank that and does not try
+— `OG INV` already is a dark mode for the whole screen.
 
 `COLORFUL` is saturated on purpose. Each screen has a four-colour ramp — a
 light, clearly coloured **paper** that black type reads on at 9:1 or better, a

@@ -6,6 +6,57 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.7.0] - 2026-08-30
+
+### Fixed
+
+- **The rest of the white boxes — the ones on screens this suite does not
+  own.** 0.6.0 fixed the party menu, the box, the Pokédex list and the bag by
+  painting a matte into each true-colour rectangle before the art went in.
+  That left the trainer card's portrait, the summary screen's Pokémon, the
+  Hall of Fame PC and the diploma, because there is no line of ours in any of
+  them to put that paint on.
+
+  [`runtime/matte.lua`](runtime/matte.lua) handles those. It wraps the class's
+  `draw` and runs it **twice**: once with `PaletteFX.markTrueColor` swapped for
+  a recorder, which draws the frame and collects the rectangles instead of
+  marking them; then the matte, painted into each; then the real draw, which
+  puts the art back on top and marks the rectangles properly. Recording
+  *suppresses* the marks rather than doubling them, so the renderer still sees
+  each rectangle once.
+
+  Twice is the price of not knowing where the art goes until the screen has
+  drawn it. It is only ever paid when a theme is on **and** the mode is
+  `ADVANCED` **and** the screen actually marked something; a `LIGHT` boot, an
+  `SGB` boot, or a screen with no true-colour art on it never reaches the first
+  pass. It patches a method on an engine class, which is a heavier hand than
+  anything else in this bundle — that is stated at length at the top of the
+  file, along with why there is no lighter seam.
+
+  The suite's own dex **entry** screen was also missing its matte behind the
+  scaled species sprite. It has one now.
+
+### Changed
+
+- **`ADVANCED` is the mode this is built for and documented against**, and the
+  README says so instead of naming `SGB` first. That is not a preference, it is
+  where the work actually lives: `Renderer`'s `withTrueColor` begins `if not
+  PaletteFX.honorsTrueColor() then return zoneList end`, and on a Gen 1 game
+  `honorsTrueColor` is `PaletteFX.mode == "redpp"`. True-colour art — and
+  therefore every white box in this changelog and the last — exists in
+  `ADVANCED` and in no other mode.
+
+  Earlier advice here said to switch `COLORS` to `SGB` if a theme looked like
+  it had done nothing. That was wrong-headed: the flat modes (`OG`, `OG INV`,
+  `CLASSIC`) are the ones a theme cannot reach, and `ADVANCED` was never one of
+  them.
+
+`tests/matte_test.lua` is new: 29 assertions covering the two passes, the
+single mark, the rectangle and colour painted under each of the three themes,
+the three ways the wrapper declines (no theme, `LIGHT`, a mode that is not
+`ADVANCED`), a screen that marks nothing, a screen that raises part way
+through, and that `markTrueColor` is restored to the engine's own afterwards.
+
 ## [0.6.0] - 2026-08-30
 
 ### Fixed
