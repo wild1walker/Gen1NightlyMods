@@ -6,6 +6,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.23.0] - 2026-08-30
+
+### Fixed
+
+- **Dialogue over the map is themed with the `YES` / `NO` beside it.** In DARK,
+  `That will be ¥450. OK?` came up on white paper with a black `YES` / `NO`
+  sitting next to it. Two boxes on one screen, one of them themed.
+
+  A panel is read off the four numbers a state keeps its box in, and the engine
+  has **two spellings of those four numbers**. `src/ui/Menu.lua` computes
+  `tx`/`ty`/`tw`/`th` in `Menu.new` and `src/ui/ChoiceBox.lua` takes the same
+  names; `src/render/TextBox.lua` keeps its box as
+  `boxTx`/`boxTy`/`boxTw`/`boxTh`. Only the first was read.
+
+  The drawn-box closure could not cover for it here either, and the reason is
+  worth writing down: dialogue is drawn **first** and the `YES` / `NO` after it,
+  and the closure only ever looks backwards at boxes it has already accepted.
+  That direction is deliberate — it is what stops a menu stacked over a battle
+  from reaching back and repainting the battle's own boxes — so the fix is to
+  read the rect the state was describing all along, not to loosen the closure.
+
+  Both spellings now, `tx` first. That is every box in the engine that names
+  its rect on the instance: `Menu`, `ChoiceBox` and `TextBox` are the three,
+  and every other `Font.drawBox` in `src/ui` passes literals, which is the
+  ad-hoc case the closure was built for.
+
+  **It does not reach into a battle.** A battle draws its own dialogue and
+  command box directly (`BattleState.lua:6546-6547`) rather than pushing a
+  `TextBox` state, so there is no `TextBox` above it to find. The one battle
+  that does push one — the nickname prompt after a catch — already had its
+  `YES` / `NO` themed and its box not, which is the same split this fixes.
+
+  `tests/savescreen_test.lua` stands the prompt up over the map and holds both
+  boxes dark, plus a state carrying both spellings being read once. 34
+  assertions; the new ones fail against 0.22.0.
+
 ## [0.22.0] - 2026-08-30
 
 ### Fixed

@@ -365,12 +365,30 @@ local function sameRect(a, b)
   return a.x == b.x and a.y == b.y and a.w == b.w and a.h == b.h
 end
 
-local function panelRect(state)
-  local tx, ty, tw, th = state.tx, state.ty, state.tw, state.th
+local function tiles(tx, ty, tw, th)
   if type(tx) ~= "number" or type(ty) ~= "number" then return nil end
   if type(tw) ~= "number" or type(th) ~= "number" then return nil end
   if tw <= 0 or th <= 0 then return nil end
   return { x = tx * 8, y = ty * 8, w = tw * 8, h = th * 8 }
+end
+
+-- Two spellings of the same four numbers, because the engine has two.
+-- `src/ui/Menu.lua` computes tx/ty/tw/th in Menu.new and `src/ui/ChoiceBox.lua`
+-- takes the same names; `src/render/TextBox.lua` keeps its box in
+-- boxTx/boxTy/boxTw/boxTh (TextBox.lua:123-126).  Reading only the first set
+-- is why dialogue stayed white on a dark map while the YES/NO beside it went
+-- dark -- the ChoiceBox spells it one way and the box under it the other, and
+-- the box under it was the first thing drawn, so the drawn-box closure had
+-- nothing earlier to hang it on either.
+--
+-- This does not reach into a battle.  A battle draws its own dialogue and its
+-- own command box directly (BattleState.lua:6546-6547) rather than pushing a
+-- TextBox state, so there is no TextBox above it to find.  The one that is --
+-- the nickname prompt after a catch -- already had its YES/NO themed and its
+-- box not, which is the same split this fixes.
+local function panelRect(state)
+  return tiles(state.tx, state.ty, state.tw, state.th)
+      or tiles(state.boxTx, state.boxTy, state.boxTw, state.boxTh)
 end
 
 local function panelsOf(state)

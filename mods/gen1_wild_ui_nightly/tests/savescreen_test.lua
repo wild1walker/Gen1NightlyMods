@@ -344,5 +344,53 @@ do
   eq(out[2].w, 80, "...and its width")
 end
 
+-- ------------------------------------------ the box under the YES / NO
+
+do
+  io.write("dialogue over the map is themed with its YES / NO\n")
+  -- From a screenshot of the rematch prompt in DARK: "That will be Y450. OK?"
+  -- on white paper, with a black YES / NO sitting beside it.  Two boxes, one
+  -- themed.
+  --
+  -- src/ui/ChoiceBox.lua takes tx/ty/tw/th; src/render/TextBox.lua keeps the
+  -- same four as boxTx/boxTy/boxTw/boxTh (TextBox.lua:123-126).  Only the
+  -- first spelling was read -- and the drawn-box closure could not save it
+  -- either, because the dialogue is drawn FIRST and the closure only ever
+  -- looks backwards at boxes it has already accepted.
+  local theme = themeOver()
+  local world = { sgbPalettes = true }
+  local prompt = { boxTx = 0, boxTy = 12, boxTw = 20, boxTh = 6 }
+  local choice = { tx = 13, ty = 7, tw = 6, th = 4 }
+
+  draw(0, 12, 20, 6)          -- TextBox:draw
+  draw(13, 7, 6, 4)           -- ChoiceBox:draw
+
+  local out = theme.apply({ stack = { states = { world, prompt, choice } } },
+                          overworldZones())
+
+  eq(#out, 3, "the map's zone, and a panel for each box")
+  eq(hex(out[1].colors[1]), "ffefff", "the map is not touched")
+  local box = covers(out, 0, 96, 160, 48)
+  ok(box, "the dialogue is a panel now, spelled its own way")
+  eq(hex(box.colors[1]), "000000", "...and it is dark")
+  local yesno = covers(out, 104, 56, 48, 32)
+  ok(yesno, "and the YES / NO, which always was")
+end
+
+do
+  io.write("a state carrying both spellings is read once\n")
+  local theme = themeOver()
+  local world = { sgbPalettes = true }
+  -- tx/ty first: that is the pair src/ui/Menu.lua computes, and a state that
+  -- has both is a Menu with a box field that means something else.
+  local both = { tx = 9, ty = 0, tw = 11, th = 18,
+                 boxTx = 0, boxTy = 12, boxTw = 20, boxTh = 6 }
+
+  local out = theme.apply({ stack = { states = { world, both } } },
+                          overworldZones())
+  eq(#out, 2, "one panel, not two")
+  eq(out[2].x, 72, "and it is the tx/ty one")
+end
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
