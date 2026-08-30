@@ -513,7 +513,12 @@ function Theme.new(context)
   -- colour at best and a box over its own content at worst.  What is left
   -- above the owner is exactly the overlays -- the START menu on the map, the
   -- bag's windows, a field-move list, a battle's command box.
-  local function panelZones(game, ownerAt, drawn)
+  -- `bare` is a frame that arrived with no zone list at all -- see the note in
+  -- apply.  Nothing on such a frame is themed by anything, so there is no
+  -- half-and-half to protect against and no owner's palette to preserve:
+  -- every box drawn on it is ours to take, and the closure's seed is the
+  -- whole recorded list rather than the rects a state described.
+  local function panelZones(game, ownerAt, drawn, bare)
     local states = game and game.stack and game.stack.states
     if type(states) ~= "table" then return nil end
     local rects
@@ -532,6 +537,23 @@ function Theme.new(context)
           end
         end
       end
+    end
+    if bare and drawn then
+      rects = rects or {}
+      for _, box in ipairs(drawn) do
+        -- A box a state already described is the same rectangle twice; the
+        -- colours are identical either way, but one panel per box is what the
+        -- list should say.
+        local said = false
+        for _, rect in ipairs(rects) do
+          if sameRect(box, rect) then said = true break end
+        end
+        if not said then
+          rects[#rects + 1] = { x = box.x, y = box.y, w = box.w, h = box.h }
+        end
+      end
+      -- taken whole, so the closure below has nothing left to decide
+      drawn = nil
     end
     if not rects then return nil end
 
@@ -769,10 +791,11 @@ function Theme.new(context)
     -- zones that colour the map.  This is also the ONE path that can theme a
     -- frame that is not a page at all -- which is the whole point, because
     -- the START menu has never been one.
-    local panels = panelZones(game, ownerAt, drawn)
+    local bare = type(out) ~= "table" or not out[1]
+    local panels = panelZones(game, ownerAt, drawn, bare)
     if not panels then return out end
 
-    -- ------- a frame with no zones is a frame that wanted none
+    -- ------- a frame that arrived with no zones of its own
     --
     -- `Renderer:blitCanvas` opens with
     --
@@ -784,16 +807,32 @@ function Theme.new(context)
     -- exactly that: `BattleState:sgbPalettes` returns nil for every layout but
     -- the wide one (BattleState.lua:173-176).
     --
-    -- Appending a panel to that list turns the shader ON for the whole frame,
-    -- and every pixel no zone covers -- which is the entire battle -- goes
-    -- through the palette pass instead of being left alone.  That is the
-    -- battle scene going black and white the moment a box opens over it.
+    -- 0.26.0 stopped adding panels to such a frame, because appending one
+    -- turns the shader ON for the whole screen and every pixel no zone covers
+    -- -- which is the entire battle -- goes through the palette pass.  That
+    -- was the battle going black and white the moment a box opened over it,
+    -- and standing down was the right answer to have shipped that day.
     --
-    -- So panels are only ever added to a frame that already had zones.  The
-    -- cost is that a dialogue box over a battle stays light in DARK, and that
-    -- is the honest trade: there is no zone this suite can add to a frame with
-    -- no zone list without repainting everything behind it.
-    if type(out) ~= "table" or not out[1] then return out end
+    -- It is not the right answer, and the engine says so in its own comment
+    -- one screen further down the same function:
+    --
+    --     a colors == false zone is the trueColor opt-out: its rect draws
+    --     with no shader at all
+    --
+    -- So a whole-screen `colors = false` zone reproduces exactly what an empty
+    -- list did -- the frame blitted raw, in the colours it was drawn in -- and
+    -- leaves the panels after it free to theme their own rectangles.  The
+    -- battle keeps its backdrop and its POKeMON; the boxes on it go dark.
+    --
+    -- Every box on such a frame is taken, not just the ones a state described
+    -- (see panelZones' `bare`).  On a frame where nothing is themed there is
+    -- no half-and-half to avoid: it is every box or none, and the battle's
+    -- own command grid, its dialogue and its YES / NO are all the same UI.
+    if bare then
+      local spread = { { colors = false, x = 0, y = 0, w = 160, h = 144 } }
+      for _, zone in ipairs(panels) do spread[#spread + 1] = zone end
+      return spread
+    end
 
     local spread = {}
     for _, zone in ipairs(out or {}) do spread[#spread + 1] = zone end

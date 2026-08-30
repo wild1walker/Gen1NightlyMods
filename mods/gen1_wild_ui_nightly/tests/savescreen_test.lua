@@ -395,35 +395,65 @@ end
 -- --------------------------------------- a battle has no zone list at all
 
 do
-  io.write("a box over a battle does not repaint the battle\n")
-  -- From a screenshot of "Will WILD change POKeMON?" in DARK: the boxes were
-  -- themed and the ENTIRE battle behind them had gone black and white.
-  --
-  -- Renderer:blitCanvas opens with
+  io.write("a battle keeps its colours and its boxes go dark\n")
+  -- Two screenshots, one bug each.  "Will WILD change POKeMON?" in DARK came
+  -- up with the boxes themed and the ENTIRE battle behind them black and
+  -- white; standing down from that left the command grid white on a colour
+  -- battle.  Both are the same fact about the renderer:
   --
   --     local shader = zoneList and zoneList[1] and PaletteFX.shader() or nil
   --     if not shader then ... draw the canvas RAW ...
   --
-  -- so an empty list is not "colour nothing", it is "run no shader and blit
-  -- this frame in the colours it was drawn in".  BattleState:sgbPalettes
-  -- returns nil for every layout but the wide one, so a battle IS that -- and
-  -- appending one panel to it turns the shader on for the whole screen.
+  -- An empty list is not "colour nothing", it is "run no shader and blit this
+  -- frame as drawn" -- and BattleState:sgbPalettes returns nil for every
+  -- layout but the wide one.  Appending a panel turns the shader on for
+  -- everything; appending nothing leaves the boxes light.
+  --
+  -- The engine's own comment further down the same function is the way out:
+  -- "a colors == false zone is the trueColor opt-out: its rect draws with no
+  -- shader at all".  So the frame gets one of those, whole-screen, and the
+  -- panels go after it.
   local theme = themeOver()
   local battle = { sgbPalettes = true }
   local prompt = { boxTx = 0, boxTy = 12, boxTw = 20, boxTh = 6 }
   local choice = { tx = 0, ty = 7, tw = 6, th = 4 }
 
+  -- the battle's own command grid, drawn by its overlay rather than by any
+  -- state, and then the two boxes above it
+  draw(0, 12, 10, 3); draw(10, 12, 10, 3)
+  draw(0, 15, 10, 3); draw(10, 15, 10, 3)
   draw(0, 12, 20, 6)
   draw(0, 7, 6, 4)
 
   local out = theme.apply({ stack = { states = { battle, prompt, choice } } },
                           nil)
-  ok(out == nil, "a frame with no zones is handed back with no zones")
+  ok(type(out) == "table" and out[1], "the frame comes back with a list")
+  eq(out[1].colors, false, "which opens on the true-colour opt-out")
+  eq(out[1].x, 0, "over the whole screen")
+  eq(out[1].w, 160, "...both ways")
+  eq(out[1].h, 144, "...so the battle is blitted exactly as it was drawn")
 
-  -- and the same for a list that is there but empty
+  -- every box on it, because on a frame where nothing is themed it is every
+  -- box or none: the command grid, the dialogue and the YES / NO are one UI
+  eq(#out, 7, "one raw zone, and a panel for each of the six boxes")
+  ok(covers(out, 0, 96, 80, 24), "the grid's first cell")
+  ok(covers(out, 80, 120, 80, 24), "...and its last")
+  ok(covers(out, 0, 96, 160, 48), "the dialogue")
+  ok(covers(out, 0, 56, 48, 32), "and the YES / NO")
+  eq(hex(out[2].colors[1]), "000000", "each of them dark")
+end
+
+do
+  io.write("a bare frame with nothing drawn on it is left alone\n")
+  local theme = themeOver()
+  local battle = { sgbPalettes = true }
+  -- no boxes recorded, and no state above with a rectangle
+  local out = theme.apply({ stack = { states = { battle } } }, nil)
+  ok(out == nil, "no boxes, no zones, nothing added")
+
   local empty = {}
-  eq(theme.apply({ stack = { states = { battle, prompt, choice } } }, empty),
-     empty, "an empty list is the same answer")
+  eq(theme.apply({ stack = { states = { battle } } }, empty), empty,
+     "and an empty list is handed straight back")
 end
 
 do

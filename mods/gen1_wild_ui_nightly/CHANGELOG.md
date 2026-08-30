@@ -6,6 +6,52 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.27.0] - 2026-08-30
+
+### Fixed
+
+- **The battle UI is dark, and the battle keeps its colours.** 0.26.0 stopped
+  the battle scene going black and white behind a themed box, and the price it
+  paid was that no box over a battle was themed at all — the command grid,
+  the dialogue and the `YES` / `NO` all stayed white. That price did not have
+  to be paid.
+
+  Both halves are the same fact about the renderer:
+
+  ```lua
+  local shader = zoneList and zoneList[1] and PaletteFX.shader() or nil
+  if not shader then ... draw the canvas RAW ...
+  ```
+
+  An empty zone list is not "colour nothing", it is *"run no shader and blit
+  this frame as it was drawn"* — and `BattleState:sgbPalettes` returns `nil`
+  for every layout but the wide one. Appending a panel turns the shader on for
+  everything; appending nothing leaves the boxes light.
+
+  The way out is in the engine's own comment, one screen further down the same
+  function: *"a `colors == false` zone is the trueColor opt-out: its rect draws
+  with no shader at all."* So a frame that arrived with no zones gets a
+  whole-screen `colors = false` zone — which reproduces exactly what an empty
+  list did — and the panels go after it. The backdrop and the POKéMON are
+  blitted raw in their own colours; the boxes on top are themed.
+
+  **Every box on such a frame is taken**, not only the ones a state described.
+  On a frame where nothing is themed there is no half-and-half to avoid: it is
+  every box or none, and the battle's own command grid, its dialogue and its
+  `YES` / `NO` are all the same UI. A bare frame with no boxes drawn on it is
+  still handed straight back untouched.
+
+  Nothing in `Gen1BattleUI` changed. Its boxes are `Font.drawBox` like every
+  other box in the game — white paper, black glyphs — and the panel maps them
+  the same way it maps a menu's. That matters because the border glyphs are
+  black bitmaps on transparency: `Font.drawBox`'s own comment says they "come
+  out black whatever the color is", so no amount of `setColor` in our own
+  drawing code could have inverted them. Only a palette can.
+
+  `tests/savescreen_test.lua` is 49 assertions, standing up a battle with its
+  command grid, its dialogue and its `YES` / `NO`, and holding the raw zone
+  first, one panel per box, and no duplicate for a box a state also described.
+
 ## [0.26.0] - 2026-08-30
 
 ### Fixed
