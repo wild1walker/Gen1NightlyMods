@@ -5,6 +5,26 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.3] - 2026-08-31
+
+### Changed
+
+- **The probe walks the draw list as well as measuring it.** `E11 N10 S1 D0`
+  said the list holds eleven, ten of them NPCs, that one sprite drew and that
+  **no NPC draw happened at all**. One sprite and no NPC draws is the player —
+  the player is not an NPC — so the loop drew entity 1 and never reached
+  entity 2.
+
+  `E` is `#`, and `#` on a table with a hole is allowed to return any border:
+  with a nil at index 2 and values at 3..11, both 1 and 11 are correct answers
+  and Lua's binary search usually gives the larger. The draw loop is `ipairs`,
+  which stops dead at the first nil. So `E` and the loop can disagree, and the
+  reading is consistent with a hole one entry into the list.
+
+  `I` counts how far `ipairs` actually gets. `E11 I1` proves the hole and
+  turns this into a hunt for whoever punches it; `E11 I11` says the list is
+  whole and the branch that skipped the loop is the bug instead.
+
 ## [0.31.2] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

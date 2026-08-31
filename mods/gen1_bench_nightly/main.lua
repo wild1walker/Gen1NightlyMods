@@ -261,6 +261,20 @@ return function(mod)
     local ow = game and game.overworld
     local entities = (type(ow) == "table" and type(ow.entities) == "table")
       and #ow.entities or -1
+    -- ------- and how far a WALK down that list gets
+    --
+    -- E is `#`, which on a table with a hole in it is allowed to return any
+    -- border -- with a nil at 2 and values at 3..11 both 1 and 11 are correct
+    -- answers, and Lua's binary search usually gives the larger.  The draw
+    -- loop is `ipairs`, which stops dead at the first nil.
+    --
+    -- So I is the number that matters: E11 I1 is a list with a hole one entry
+    -- in, and a draw loop that quits after the player.  E11 I11 says the list
+    -- is whole and the branch that skipped the loop is the bug instead.
+    local walked = 0
+    if type(ow) == "table" and type(ow.entities) == "table" then
+      for _ in ipairs(ow.entities) do walked = walked + 1 end
+    end
     local npcs = (type(ow) == "table" and type(ow.npcs) == "table")
       and #ow.npcs or -1
     local states = game and game.stack and game.stack.states
@@ -289,15 +303,16 @@ return function(mod)
     -- bench shows them as an ordinary row afterwards. Walk into a battle,
     -- open the bench, read LAST BATTLE.
     if inTransition == 1 and not context.inTransition then
-      context.lastBattle = ("E%d N%d S%d D%d"):format(entities, npcs,
-                                                     context.drawn or 0,
-                                                     context.npcDrawn or 0)
+      context.lastBattle = ("E%d I%d N%d S%d D%d"):format(entities, walked,
+                                                        npcs,
+                                                        context.drawn or 0,
+                                                        context.npcDrawn or 0)
     end
     context.inTransition = inTransition == 1
 
-    local line = ("E%d N%d S%d D%d T%d  B%d P%d Z%d")
-      :format(entities, npcs, context.drawn or 0, context.npcDrawn or 0,
-              inTransition, boxes, panels, zoneCount)
+    local line = ("E%d I%d N%d S%d D%d T%d  B%d P%d Z%d")
+      :format(entities, walked, npcs, context.drawn or 0,
+              context.npcDrawn or 0, inTransition, boxes, panels, zoneCount)
     context.drawn = 0
     context.npcDrawn = 0
     -- Screen space, top left, over everything: this is a tool status line and
@@ -305,7 +320,7 @@ return function(mod)
     local x = (type(viewport) == "table" and tonumber(viewport.x) or 0) + 4
     local y = (type(viewport) == "table" and tonumber(viewport.y) or 0) + 4
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", x - 2, y - 2, 290, 18)
+    love.graphics.rectangle("fill", x - 2, y - 2, 330, 18)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(line, x, y)
     return result
