@@ -525,28 +525,59 @@ end
 -- gives the bars the colour the field already has where it meets them: sky at
 -- the top, ground at the bottom, and no seam at all, which is what a backdrop
 -- painted to the edge of its frame is asking for.
--- The eight one-pixel slices a picture is bled with, cut once and kept for as
--- long as the picture is.  Weak keys, so a backdrop that is dropped takes its
--- quads with it.
+-- ------- how a bar is filled
+--
+-- It was the picture's one-pixel edge, stretched outward: the left column
+-- into the left bar, the top row into the top bar, a corner pixel into each
+-- corner.  That is exact where the bars are thin -- the colour at the seam is
+-- the colour the field ends on, so there is no line -- and it falls apart
+-- where they are not.  On a landscape phone the bars are wider than the
+-- surface between them, and a backdrop with sky, hill and grass in it becomes
+-- a field of horizontal stripes: one band per source row, six screen pixels
+-- tall, for two thirds of the window.  A player called it broken and was
+-- right.
+--
+-- So the bars show the SAME PICTURE, scaled to cover the window, and each bar
+-- shows the part of it that falls where that bar is.  What that buys:
+--
+--   * the bars carry real detail rather than a smear of one column;
+--   * the cover scale is max(ww/iw, wh/ih) and the surface's is vpw/iw, so as
+--     the bars shrink the two converge and the seam closes by itself.  Thin
+--     bars look exactly as continuous as the stretch did; wide ones degrade
+--     into a zoomed backdrop instead of stripes.
+--
+-- Cover means cover, so every bar's source rectangle is inside the picture
+-- and there is nothing to clamp.  Quads rather than a scissor because a
+-- scissor is in physical pixels and this pass is not the only thing that
+-- decides the transform -- a quad is exact whatever the display is doing.
+--
+-- Cut once per (picture, window) rather than once per frame: the eight of
+-- them only change when the window does.
 local quadCache = setmetatable({}, { __mode = "k" })
 
-local function edgeQuads(img, iw, ih)
+-- Where the picture lands when it is scaled to cover (ww, wh).
+local function coverFit(iw, ih, ww, wh)
+  if not (iw > 0 and ih > 0 and ww > 0 and wh > 0) then return nil end
+  local scale = math.max(ww / iw, wh / ih)
+  return scale, (ww - iw * scale) * 0.5, (wh - ih * scale) * 0.5
+end
+
+local function coverQuads(img, iw, ih, view, rects)
+  local scale, dx, dy = coverFit(iw, ih, view.ww or 0, view.wh or 0)
+  if not scale then return nil end
+  local key = ("%d:%d:%d:%d:%d:%d")
+    :format(view.ww or 0, view.wh or 0, view.ox or 0, view.oy or 0,
+            view.vpw or 0, view.vph or 0)
   local cached = quadCache[img]
-  if cached then return cached end
-  local newQuad = love.graphics and love.graphics.newQuad
-  if type(newQuad) ~= "function" then return nil end
-  cached = {
-    top = newQuad(0, 0, iw, 1, iw, ih),
-    bottom = newQuad(0, ih - 1, iw, 1, iw, ih),
-    left = newQuad(0, 0, 1, ih, iw, ih),
-    right = newQuad(iw - 1, 0, 1, ih, iw, ih),
-    tl = newQuad(0, 0, 1, 1, iw, ih),
-    tr = newQuad(iw - 1, 0, 1, 1, iw, ih),
-    bl = newQuad(0, ih - 1, 1, 1, iw, ih),
-    br = newQuad(iw - 1, ih - 1, 1, 1, iw, ih),
-  }
+  if cached and cached.key == key then return cached, scale, dx, dy end
+  cached = { key = key, quads = {} }
+  for i, r in ipairs(rects) do
+    cached.quads[i] = love.graphics.newQuad(
+      (r.x - dx) / scale, (r.y - dy) / scale,
+      r.w / scale, r.h / scale, iw, ih)
+  end
   quadCache[img] = cached
-  return cached
+  return cached, scale, dx, dy
 end
 
 -- FAITHFUL RATIO's mobile lock, asked the way the renderer asks it.
@@ -618,31 +649,21 @@ local function bleedInto(view)
 
   local iw, ih = img:getDimensions()
   if iw <= 0 or ih <= 0 then return end
-  local quads = edgeQuads(img, iw, ih)
-  if not quads then return end
+  local cut, scale = coverQuads(img, iw, ih, view, rects)
+  if not cut then return end
 
   local g = love.graphics
   g.setColor(1, 1, 1, 1)
-  -- A side is stretched along its own axis and scaled 1:1 across it, so the
-  -- picture continues at the size it is drawn at rather than being squashed;
-  -- a corner is one pixel stretched both ways.  Eight draws at most, and the
-  -- quads are cut once per picture rather than once per frame.
-  local sx, sy = (view.vpw or 0) / iw, (view.vph or 0) / ih
-  for _, r in ipairs(rects) do
-    local quad = quads[r.slice]
-    if quad then
-      if r.slice == "top" or r.slice == "bottom" then
-        g.draw(img, quad, r.x, r.y, 0, sx, r.h)
-      elseif r.slice == "left" or r.slice == "right" then
-        g.draw(img, quad, r.x, r.y, 0, r.w, sy)
-      else
-        g.draw(img, quad, r.x, r.y, 0, r.w, r.h)
-      end
-    end
+  -- Eight draws at most, each the part of the covering picture that falls
+  -- where that bar is, at the cover's own scale.
+  for i, r in ipairs(rects) do
+    local quad = cut.quads[i]
+    if quad then g.draw(img, quad, r.x, r.y, 0, scale, scale) end
   end
 end
 
 mod.exports.bleedRects = bleedRects
+mod.exports.bleedCover = coverFit
 
 -- ------------------------------------------------------- the paper behind
 

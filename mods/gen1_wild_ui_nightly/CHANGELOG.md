@@ -6,6 +6,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.30.2] - 2026-08-31
+
+### Fixed
+
+- **EDGE TO EDGE stopped smearing.** The bars around a battle were filled with
+  the backdrop's one-pixel edge, stretched outward — the left column into the
+  left bar, the top row into the top bar, a corner pixel into each corner.
+
+  That is exact where the bars are thin: the colour at the seam is the colour
+  the field ends on, so there is no line. It falls apart where they are not.
+  On a landscape phone the bars are wider than the surface between them, and a
+  backdrop with sky, hill and grass in it becomes a field of horizontal
+  stripes — one band per source row, six screen pixels tall, across two thirds
+  of the window.
+
+  The bars now show the **same picture, scaled to cover the window**, each one
+  showing the part of it that falls where that bar is. Two things follow, and
+  the second is why this is the right answer rather than merely a different
+  one:
+
+  - the bars carry real detail instead of a smear of one column;
+  - the cover scale is `max(ww/iw, wh/ih)` and the surface's is `vpw/iw`, so
+    **as the bars shrink the two converge and the seam closes by itself**. A
+    thin-bar window looks exactly as continuous as it used to; a wide one
+    degrades into a zoomed backdrop rather than stripes.
+
+  Cover means cover, so every bar's source rectangle is inside the picture and
+  there is nothing to clamp. Quads rather than a scissor, because a scissor is
+  in physical pixels and this pass is not the only thing deciding the
+  transform. Cut once per picture and window rather than once per frame.
+
 ## [0.30.1] - 2026-08-31
 
 ### Fixed

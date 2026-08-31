@@ -91,6 +91,8 @@ load_("modules/Gen1Arena/main.lua", mod)
 
 local bleedRects = mod.exports.bleedRects
 ok(type(bleedRects) == "function", "bleedRects is exposed")
+local bleedCover = mod.exports.bleedCover
+ok(type(bleedCover) == "function", "and the cover fit with it")
 ok(mod.hooked["render.letterbox"] ~= nil,
   "and the mod takes the seam the engine documents for void art")
 
@@ -187,6 +189,59 @@ do
     ok(r.w > 0 and r.h > 0, r.slice .. " has a positive size or is not there")
   end
   eq(#rects, 0, "which here means no bars at all")
+end
+
+-- --------------------------------------------------- what fills a bar
+
+-- It was the picture's one-pixel edge stretched outward, which is exact where
+-- the bars are thin and a field of horizontal stripes where they are not: on
+-- a landscape phone the bars are wider than the surface between them, and one
+-- source row becomes a six-pixel band across two thirds of the window.
+--
+-- Now the bars show the same picture, scaled to COVER the window, each one
+-- showing the part that falls where it is.  The property that makes this the
+-- right answer rather than merely a different one is below: the cover scale
+-- and the surface scale converge as the bars shrink, so the seam closes by
+-- itself and a thin-bar window looks exactly as continuous as it used to.
+
+io.write("the cover always reaches every corner\n")
+do
+  local scale, dx, dy = bleedCover(160, 144, 800, 400)
+  ok(160 * scale >= 800 - 0.001, "wide enough")
+  ok(144 * scale >= 400 - 0.001, "and tall enough")
+  ok(dx <= 0.001 and dy <= 0.001, "so the overhang is outside, not inside")
+  eq(dx * 2 + 160 * scale, 800, "and centred on the axis that overhangs")
+
+  local tall = select(1, bleedCover(160, 144, 300, 900))
+  ok(144 * tall >= 900 - 0.001, "a tall window covers on the other axis")
+  ok(160 * tall >= 300 - 0.001, "...and still spans the short one")
+end
+
+io.write("and closes on the surface's own scale as the bars shrink\n")
+do
+  -- The surface is drawn at vpw/iw.  A window barely wider than the surface
+  -- gives a cover scale within a whisker of it, which is why the seam is not
+  -- visible until the bars are wide enough for the picture to be worth
+  -- looking at anyway.
+  local iw, ih = 160, 144
+  local vpw, vph = 640, 576                 -- the surface at 4x
+  local surface = vpw / iw
+
+  local snug = select(1, bleedCover(iw, ih, vpw + 8, vph + 8))
+  ok(math.abs(snug - surface) < 0.02 * surface,
+    "eight pixels of bar is a two percent scale step, which is no seam")
+
+  local wide = select(1, bleedCover(iw, ih, vpw * 2, vph))
+  ok(wide > surface, "a window twice as wide zooms in rather than stretching")
+  ok(wide <= surface * 2 + 0.001, "and no further than covering asks for")
+end
+
+io.write("a degenerate window is not a window\n")
+do
+  eq(bleedCover(0, 144, 800, 400), nil, "no picture")
+  eq(bleedCover(160, 0, 800, 400), nil, "...on either axis")
+  eq(bleedCover(160, 144, 0, 400), nil, "no window")
+  eq(bleedCover(160, 144, 800, 0), nil, "...on either axis")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
