@@ -6,6 +6,57 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.13] - 2026-08-31
+
+### Changed
+
+- **The copyright row is dark with light letters again, and this time raw and
+  shaded agree about it.** That strip was the only part of the title ground
+  left light on the canvas, and the theme turned it over on top of that. It
+  read right until the true-colour rect over the mon reached it: the engine
+  rounds a `colors == false` scissor **outward**, that rect re-blits the
+  canvas **raw**, and raw down there was the white paper — a white bar across
+  the words.
+
+  The row is painted black with the rest of the ground now and the copyright
+  art is **turned over** so its letters are light on it. `RomExtractor` writes
+  both files with `raw2bpp` and no transparency (`title/copyright.png` at
+  152x8, `title/gamefreak_inc.png` at 72x8), so they are fully opaque
+  four-shade greys — white paper, dark letters — and inverting every pixel
+  gives light letters on black paper, which is the page, so it vanishes into
+  it. The strip keeps the identity palette, so what the shader writes is what
+  the canvas already holds and the spill has nothing left to show.
+
+  All of that line or none of it: the whole thing is baked before any of it is
+  installed, and the row goes black only if every file came back. Half a line
+  of light letters beside half a line of dark ones is worse than the light row.
+
+- **The POKeMON logo has a pad.** Its bake was keying the paper the border
+  could reach and leaving enclosed pixels alone — which on this logo keeps
+  nothing, because every one of its 4381 near-white pixels is reachable from
+  the edge. The item icons do not key paper, they **grow** it: dilate the line
+  work by a pixel, flood the outside of the grown shape, and paint whatever
+  the flood could not reach opaque white. The wordmark comes out with a
+  one-pixel white edge hugging its shape, 417 pixels of it.
+
+  The ribbon deliberately does not get one — its letters are a pixel apart, so
+  a pad round each would meet and become the white plate behind WILD GREEN
+  VERSION this work started from.
+
+### Fixed
+
+- **Nothing in this bundle reads a picture off the GPU any more.** Every bake
+  loads a **file** through `Assets.imageData`, which touches no pipeline state
+  at all. `tests/titleart_test.lua` raises on `newCanvas` and `setCanvas`, so a
+  bake that reaches for one fails the suite rather than quietly changing what
+  this does to somebody's frame.
+
+  That is also why the figure, the mon and the POKe BALL still have no pad:
+  those are the three another mod swaps mid-draw, and a path cannot see what
+  was swapped in. Reading them back is what wrecked 0.31.10 and 0.31.11.
+
+  `tests/titleart_test.lua` is 13, `tests/matte_test.lua` 50.
+
 ## [0.31.12] - 2026-08-31
 
 ### Fixed

@@ -221,6 +221,8 @@ do
 
   eq(drawn, 1, "drawn ONCE -- this is the page, not a matte, so there is "
     .. "nothing to learn from a first pass")
+  -- No love.image here, so no bake took: the copyright art could not be
+  -- turned over, and a row whose letters are still dark is not painted black.
   eq(#fills, 2, "the one full-screen fill is served as two")
   eq(fills[1].colour[1], 0, "the page is black")
   eq(fills[1].h, 136, "...down to the copyright row and no further")

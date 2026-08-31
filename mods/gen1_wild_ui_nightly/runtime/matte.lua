@@ -226,7 +226,7 @@ function Matte.new(context)
 
   -- Serve the screen's opening full-screen fill as a black page with a white
   -- copyright row, once, and then get out of the way.
-  local function withBlackPage(base, state, ...)
+  local function withBlackPage(base, state, dark, ...)
     local lg = love.graphics
     local real = lg.rectangle
     local painted = false
@@ -236,11 +236,14 @@ function Matte.new(context)
         painted = true
         lg.rectangle = real
         lg.setColor(0, 0, 0, 1)
-        real("fill", 0, 0, 160, Matte.GROUND_H)
-        lg.setColor(1, 1, 1, 1)
-        real("fill", 0, Matte.GROUND_H, 160, 144 - Matte.GROUND_H)
+        real("fill", 0, 0, 160, dark and 144 or Matte.GROUND_H)
+        if not dark then
+          lg.setColor(1, 1, 1, 1)
+          real("fill", 0, Matte.GROUND_H, 160, 144 - Matte.GROUND_H)
+        end
         -- (1,1,1,1) is what the screen left set before its fill and what the
         -- logo draw on the next line expects to find.
+        lg.setColor(1, 1, 1, 1)
         return
       end
       return real(mode, x, y, w, h, ...)
@@ -258,15 +261,32 @@ function Matte.new(context)
   -- inside its letters are the same shade.  A palette cannot tell them apart.
   --
   -- The art can.  This is the item icons' trick, which the player asked for by
-  -- name: key the paper that is CONNECTED TO THE BORDER out to transparency
-  -- and leave every enclosed pixel alone.  The field goes, so the page shows
-  -- through it; the highlight inside a letter is not reachable from the edge
-  -- and stays exactly the white it was drawn.
+  -- name: `Gen1ModernBag/icons.lua` dilates the line work by a pixel, floods
+  -- the outside of the grown shape, and paints whatever the flood could not
+  -- reach opaque white.  The art keeps paper of its own SHAPE -- a sticker
+  -- rather than a box -- and on this logo that comes out as a one-pixel white
+  -- edge round the wordmark, 417 pixels of it on a 128x56 sheet.
   --
   -- Then colour 0 can be white again, which is why the theme asks whether
   -- this took (`__gen1WildKeyedArt`) rather than assuming it: a build where
   -- the art cannot be read keeps the pin and keeps its flat logo, which is
   -- worse-looking and still correct.
+  --
+  -- ------- and why every one of these is loaded from a PATH
+  --
+  -- 0.31.10 read the pictures back off the GPU instead, so that art another
+  -- mod had swapped in could be treated too.  Something in that -- the canvas
+  -- bind, the blend mode, the transform, I never established which -- left
+  -- the pipeline in a state the rest of the frame did not survive: POKeMON
+  -- several times their size, colour zones in the wrong places, hairlines
+  -- through everything.  Two releases of it.
+  --
+  -- Every bake here reads a FILE, through `Assets.imageData`, which touches
+  -- no GPU state at all.  It is why the figure and the mon get no pad: those
+  -- two are swapped by other mods mid-draw and a path cannot see what they
+  -- swapped in.  A worse-looking title that is drawn correctly beats a better
+  -- one that is not.
+  local PAD = 1
   local keyed = {}
 
   local function pathOf(entry, fallback)
@@ -280,79 +300,183 @@ function Matte.new(context)
     return a > 0 and r > 0.83 and g > 0.83 and b > 0.83
   end
 
+  -- Grow the line work, flood the outside of the grown shape, keep what the
+  -- flood could not reach.  One pixel of growth and not two, for the icons'
+  -- reason: two swells a shape until it fills the space it was cut out of,
+  -- which is the box this is here to stop being.
+  local function sticker(id)
+    local w, h = id:getDimensions()
+    if w <= 0 or h <= 0 then return false end
+
+    local ink = {}
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local _, _, _, a = id:getPixel(x, y)
+        if a > 0 and not paper(id, x, y) then ink[y * w + x] = true end
+      end
+    end
+    if not next(ink) then return false end
+
+    local grown = {}
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        if ink[y * w + x] then
+          for dy = -PAD, PAD do
+            for dx = -PAD, PAD do
+              local nx, ny = x + dx, y + dy
+              if nx >= 0 and ny >= 0 and nx < w and ny < h then
+                grown[ny * w + nx] = true
+              end
+            end
+          end
+        end
+      end
+    end
+
+    local queue, head, outside = {}, 1, {}
+    local function push(x, y)
+      if x < 0 or y < 0 or x >= w or y >= h then return end
+      local key = y * w + x
+      if outside[key] or grown[key] then return end
+      outside[key] = true
+      queue[#queue + 1] = key
+    end
+    for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
+    for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+    while head <= #queue do
+      local key = queue[head]; head = head + 1
+      local x, y = key % w, math.floor(key / w)
+      push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1)
+    end
+
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local key = y * w + x
+        if not ink[key] then
+          if outside[key] then
+            id:setPixel(x, y, 0, 0, 0, 0)
+          else
+            id:setPixel(x, y, 1, 1, 1, 1)
+          end
+        end
+      end
+    end
+    return true
+  end
+
+  -- Every near-white pixel, counters included.  The ribbon is eight pixels of
+  -- letters with a pixel between them: pad every letter and the pads meet,
+  -- and what comes out is a white plate with words on it, which is the white
+  -- box behind WILD GREEN VERSION this whole line of work started from.  And
+  -- keying only what the border could reach left the white shut inside an `e`
+  -- or an `o` behind, as a scatter of specks through the words.
+  local function keyAll(id)
+    local w, h = id:getDimensions()
+    local any = false
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        if paper(id, x, y) then id:setPixel(x, y, 0, 0, 0, 0); any = true end
+      end
+    end
+    return any
+  end
+
+  -- The copyright line, turned over so it reads on a black row.
+  --
+  -- `RomExtractor` writes both its files with `raw2bpp` and no transparency
+  -- (`title/copyright.png` 152x8, `title/gamefreak_inc.png` 72x8), so they
+  -- are fully opaque four-shade greys: white paper, dark letters.  Turning
+  -- every pixel over gives light letters on black paper, and black paper is
+  -- the page, so it disappears into it.
+  local function invert(id)
+    local w, h = id:getDimensions()
+    local any = false
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local r, g, b, a = id:getPixel(x, y)
+        if a > 0 then id:setPixel(x, y, 1 - r, 1 - g, 1 - b, a); any = true end
+      end
+    end
+    return any
+  end
+
   -- A copy, always: Assets.imageData caches, and keying the cached data would
   -- hole the same art everywhere else it is drawn.
-  -- `all` keys EVERY near-white pixel rather than only the ones reachable
-  -- from the border.
-  --
-  -- The two images want different answers.  The logo's enclosed white is a
-  -- highlight inside a letter and has to survive, so it floods from the edge.
-  -- The ribbon has no highlights -- it is green letters with a black outline
-  -- on a white field -- and the white shut inside an `e` or an `o` is paper
-  -- that the flood cannot reach.  Leaving those turned them into a scatter of
-  -- white specks through the words the moment colour 0 stopped being pinned.
-  local function keyedImage(path, all)
+  local function keyedImage(path, bake)
     if keyed[path] ~= nil then return keyed[path] or nil end
     keyed[path] = false
-    local ok = pcall(function()
+    pcall(function()
       local Assets = require("src.render.Assets")
       local src = Assets.imageData(path)
       local w, h = src:getDimensions()
       local id = love.image.newImageData(w, h)
       id:paste(src, 0, 0, 0, 0, w, h)
-
-      if all then
-        for y = 0, h - 1 do
-          for x = 0, w - 1 do
-            if paper(id, x, y) then id:setPixel(x, y, 0, 0, 0, 0) end
-          end
-        end
-        keyed[path] = love.graphics.newImage(id)
-        return
+      if bake(id) then
+        local out = love.graphics.newImage(id)
+        pcall(out.setFilter, out, "nearest", "nearest")
+        keyed[path] = out
       end
-
-      -- Flood from every border pixel; only paper is walkable, so an
-      -- enclosed highlight is never reached.
-      local queue, head, seen = {}, 1, {}
-      local function push(x, y)
-        if x < 0 or y < 0 or x >= w or y >= h then return end
-        local key = y * w + x
-        if seen[key] or not paper(id, x, y) then return end
-        seen[key] = true
-        queue[#queue + 1] = key
-      end
-      for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
-      for y = 0, h - 1 do push(0, y); push(w - 1, y) end
-      while head <= #queue do
-        local key = queue[head]; head = head + 1
-        local x, y = key % w, math.floor(key / w)
-        id:setPixel(x, y, 0, 0, 0, 0)
-        push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1)
-      end
-      keyed[path] = love.graphics.newImage(id)
     end)
-    if not ok then keyed[path] = false end
     return keyed[path] or nil
   end
 
-  -- The two the title prints on its own paper.  The mon and the figure are
-  -- marked true colour and never went through a palette at all.
+  -- The four the title prints on its own paper.  The mon and the figure are
+  -- marked true colour and never went through a palette at all -- and they
+  -- are also the two another mod swaps, which is why neither is here.
+  --
+  -- The second return says whether the COPYRIGHT pair came through, which is
+  -- what decides whether that row can be painted black: light letters or a
+  -- light row, never dark letters on a dark one.
   local function keyTitleArt(state)
-    if not (love.image and love.image.newImageData) then return nil end
+    if not (love.image and love.image.newImageData) then return nil, false end
     local title = type(state.title) == "table" and state.title or {}
     local put = {}
-    local function swap(field, path, all)
-      if not state[field] or not path then return end
-      local image = keyedImage(path, all)
-      if not image then return end
+    local function swap(field, path, bake)
+      if not state[field] or not path then return false end
+      local image = keyedImage(path, bake)
+      if not image then return false end
       put[field] = state[field]
       state[field] = image
+      return true
     end
-    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"))
+    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"), sticker)
     swap("version", pathOf(title.versionRibbon or title.version,
-                           "assets/generated/title/red_version.png"), true)
-    if not next(put) then return nil end
-    return put
+                           "assets/generated/title/red_version.png"), keyAll)
+
+    -- ------- the copyright, all of it or none of it
+    --
+    -- One line drawn from two files and, on Yellow, three.  Turned over it
+    -- reads light, and the row it sits on is painted black to suit -- so a
+    -- file that will not turn cannot simply be skipped: its half of the line
+    -- would be dark letters on a black row, and the half that did turn would
+    -- be light letters on a light one if the row stayed as it was.
+    --
+    -- So the whole line is baked BEFORE any of it is installed, and the row
+    -- goes black only if every file came back.
+    local line = {
+      { "copyImg", pathOf(title.copyright,
+                          "assets/generated/title/copyright.png") },
+      { "gfInc", pathOf(title.gamefreakInc,
+                        "assets/generated/title/gamefreak_inc.png") },
+      { "nineImg", pathOf(title.nine, "assets/generated/title/nine.png") },
+    }
+    local dark, ready = true, {}
+    for _, entry in ipairs(line) do
+      local field, path = entry[1], entry[2]
+      if state[field] then
+        local image = path and keyedImage(path, invert) or nil
+        if image then ready[field] = image else dark = false end
+      end
+    end
+    if dark then
+      for field, image in pairs(ready) do
+        put[field] = state[field]
+        state[field] = image
+      end
+    end
+
+    if not next(put) then return nil, false end
+    return put, dark
   end
 
   function self.wrapTitle(base)
@@ -364,7 +488,7 @@ function Matte.new(context)
       if type(state) ~= "table" or state.menuOpen or not darkGround() then
         return base(state, ...)
       end
-      local put = keyTitleArt(state)
+      local put, dark = keyTitleArt(state)
       state.__gen1WildKeyedArt = put and true or nil
       -- The ring round the art stops above the copyright: that row is the one
       -- strip this ground leaves light, and the mon's box ends on exactly the
@@ -374,7 +498,7 @@ function Matte.new(context)
       if type(theme) == "table" and type(theme.clipArt) == "function" then
         pcall(theme.clipArt, Matte.GROUND_H)
       end
-      local ok, problem, painted = withBlackPage(base, state, ...)
+      local ok, problem, painted = withBlackPage(base, state, dark, ...)
       if put then
         for field, image in pairs(put) do state[field] = image end
       end
