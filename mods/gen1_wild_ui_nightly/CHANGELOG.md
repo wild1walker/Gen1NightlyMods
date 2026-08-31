@@ -6,6 +6,41 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.2] - 2026-08-31
+
+### Fixed
+
+- **The hairline came back along the bottom edge of the title sprites**, and
+  it was mine. 0.30.4's skirt has two halves — the black paint round the art,
+  and the zone that maps black to black — and they were living in different
+  places. Both bundles carry `theme.lua`; the wrapper marks `PaletteFX` so the
+  second copy does not wrap the wrapper, so the copy that *paints* is whichever
+  loaded first while the copy that *emits the zone* is whichever won the
+  theme's claim. When those differ, the paint lands and the zone never does:
+  black skirt under a palette that maps black to the page's **ink**.
+
+  Invisible almost everywhere, because a dark page's ink is where the art
+  already sits. It showed in exactly one place — the title screen's copyright
+  row, the one strip deliberately left light — as a white line under the mon
+  and the figure. The rects live on the shared table the wrapper already marks
+  now, so either copy reads what either copy wrote.
+
+- **The POKeMON logo has its white back.** Pinning colour 0 to black took the
+  field off the logo and the ribbon, which is what a black ground needs, and
+  took the white out of the **art** with it: the paper the logo is printed on
+  and the highlights inside its letters are the same shade, and no palette can
+  tell them apart.
+
+  The art can. This is the item icons' trick: key the paper that is
+  **connected to the border** out to transparency and leave every enclosed
+  pixel alone. The field goes, so the black page shows through it; a highlight
+  inside a letter is not reachable from the edge and stays exactly the white
+  it was drawn. Colour 0 is then left alone.
+
+  The theme asks whether that took rather than assuming it — a build that
+  cannot read the art keeps the pin and keeps its flat logo, which is
+  worse-looking and still correct rather than a white box.
+
 ## [0.31.1] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

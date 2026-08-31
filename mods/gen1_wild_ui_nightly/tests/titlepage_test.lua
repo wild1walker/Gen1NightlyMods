@@ -51,6 +51,10 @@ end
 
 package.loaded["src.mods.ManagerState"] = { openOptions = function() end }
 
+-- The art rects live on the shared PaletteFX table so both bundles' copies of
+-- theme.lua read the same list (see ART_LIST); a stub is all that needs.
+package.loaded["src.render.PaletteFX"] = {}
+
 -- The two engine classes this file needs to be able to name.  Resolved by
 -- require inside the theme, so standing them in here is enough to be matched
 -- by getmetatable, which is how Theme.PAGES works on a real boot.
@@ -218,6 +222,27 @@ do
   eq(out[4].colors[1][1], 0, "its page is black")
   eq(out[4].colors[4][1], 255, "and its ink is white, which is why the row "
     .. "was left white to be reversed rather than painted with the rest")
+end
+
+do
+  io.write("but once the art's paper is keyed out, its white comes back\n")
+  -- Pinning colour 0 takes the field off the logo AND the highlight out of
+  -- its letters -- the same shade, and a palette cannot tell them apart.
+  -- matte.lua keys the border-connected paper to transparency instead, which
+  -- the ART can tell apart, and reports that it did.  Then colour 0 is the
+  -- highlight and pinning it is what made the logo flat.
+  local theme = themeOver()
+  local map = setmetatable({ sgbPalettes = true, __gen1WildDarkGround = true,
+                             __gen1WildKeyedArt = true }, TitleState)
+  local PAPER = { 255, 255, 255 }
+  local zones = { { colors = { PAPER, { 255, 200, 100 }, { 200, 100, 50 },
+                               { 0, 0, 0 } },
+                    x = 0, y = 0, w = 160, h = 144 } }
+  local out = theme.apply({ stack = { states = { map } } }, zones)
+  eq(out[1].colors[1], PAPER, "colour 0 is left alone: that is the highlight")
+  eq(out[1].colors[4][1], 0, "colour 3 is still pinned: that is the ground")
+  eq(out[2].y, 136, "and the copyright row still gets its own reversed strip")
+
 end
 
 do

@@ -250,6 +250,92 @@ function Matte.new(context)
     return ok, problem, painted
   end
 
+  -- ------- and the logo's own white
+  --
+  -- Pinning colour 0 to black takes the paper out of the logo and the ribbon,
+  -- which is what a black ground needs -- and it takes the WHITE OUT OF THE
+  -- ART with it, because the field the logo is printed on and the highlights
+  -- inside its letters are the same shade.  A palette cannot tell them apart.
+  --
+  -- The art can.  This is the item icons' trick, which the player asked for by
+  -- name: key the paper that is CONNECTED TO THE BORDER out to transparency
+  -- and leave every enclosed pixel alone.  The field goes, so the page shows
+  -- through it; the highlight inside a letter is not reachable from the edge
+  -- and stays exactly the white it was drawn.
+  --
+  -- Then colour 0 can be white again, which is why the theme asks whether
+  -- this took (`__gen1WildKeyedArt`) rather than assuming it: a build where
+  -- the art cannot be read keeps the pin and keeps its flat logo, which is
+  -- worse-looking and still correct.
+  local keyed = {}
+
+  local function pathOf(entry, fallback)
+    if type(entry) == "table" then entry = entry.path end
+    if type(entry) == "string" then return entry end
+    return fallback
+  end
+
+  local function paper(id, x, y)
+    local r, g, b, a = id:getPixel(x, y)
+    return a > 0 and r > 0.83 and g > 0.83 and b > 0.83
+  end
+
+  -- A copy, always: Assets.imageData caches, and keying the cached data would
+  -- hole the same art everywhere else it is drawn.
+  local function keyedImage(path)
+    if keyed[path] ~= nil then return keyed[path] or nil end
+    keyed[path] = false
+    local ok = pcall(function()
+      local Assets = require("src.render.Assets")
+      local src = Assets.imageData(path)
+      local w, h = src:getDimensions()
+      local id = love.image.newImageData(w, h)
+      id:paste(src, 0, 0, 0, 0, w, h)
+
+      -- Flood from every border pixel; only paper is walkable, so an
+      -- enclosed highlight is never reached.
+      local queue, head, seen = {}, 1, {}
+      local function push(x, y)
+        if x < 0 or y < 0 or x >= w or y >= h then return end
+        local key = y * w + x
+        if seen[key] or not paper(id, x, y) then return end
+        seen[key] = true
+        queue[#queue + 1] = key
+      end
+      for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
+      for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+      while head <= #queue do
+        local key = queue[head]; head = head + 1
+        local x, y = key % w, math.floor(key / w)
+        id:setPixel(x, y, 0, 0, 0, 0)
+        push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1)
+      end
+      keyed[path] = love.graphics.newImage(id)
+    end)
+    if not ok then keyed[path] = false end
+    return keyed[path] or nil
+  end
+
+  -- The two the title prints on its own paper.  The mon and the figure are
+  -- marked true colour and never went through a palette at all.
+  local function keyTitleArt(state)
+    if not (love.image and love.image.newImageData) then return nil end
+    local title = type(state.title) == "table" and state.title or {}
+    local put = {}
+    local function swap(field, path)
+      if not state[field] or not path then return end
+      local image = keyedImage(path)
+      if not image then return end
+      put[field] = state[field]
+      state[field] = image
+    end
+    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"))
+    swap("version", pathOf(title.versionRibbon or title.version,
+                           "assets/generated/title/red_version.png"))
+    if not next(put) then return nil end
+    return put
+  end
+
   function self.wrapTitle(base)
     return function(state, ...)
       if type(state) == "table" then state.__gen1WildDarkGround = nil end
@@ -259,7 +345,12 @@ function Matte.new(context)
       if type(state) ~= "table" or state.menuOpen or not darkGround() then
         return base(state, ...)
       end
+      local put = keyTitleArt(state)
+      state.__gen1WildKeyedArt = put and true or nil
       local ok, problem, painted = withBlackPage(base, state, ...)
+      if put then
+        for field, image in pairs(put) do state[field] = image end
+      end
       if not ok then
         -- the screen raised part way through with the shim in place: it is
         -- already back, so let the frame be drawn plainly and the screen's own

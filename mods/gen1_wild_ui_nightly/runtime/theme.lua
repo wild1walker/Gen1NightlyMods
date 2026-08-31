@@ -456,14 +456,42 @@ end
 -- characters, and in ADVANCED the world canvas blits raw with no shader over
 -- it at all -- there is no seam there to hide, and a black skirt would be a
 -- black outline drawn round a character on a lit map.
+-- ------- and why the list lives on PaletteFX rather than in this file
+--
+-- Both bundles carry this file.  `watchArt` wraps `markTrueColor` once and
+-- marks the table so the second copy does not wrap the wrapper -- which means
+-- the copy that PAINTS the skirt is whichever loaded first, while the copy
+-- that emits the zone is whichever won the theme's `render.zones` claim.
+-- Those are not always the same copy, and when they differ the skirt is
+-- painted by one and the zone is emitted by neither: black paint under a
+-- palette that maps black to the page's INK.
+--
+-- On most of the screen that is invisible, because a dark page's ink is where
+-- the art already sits.  It shows in exactly one place -- the title screen's
+-- copyright row, the one strip deliberately left light -- as a white hairline
+-- along the bottom edge of the figure and the mon, which is what a player
+-- saw.  So the rects live on the shared table the wrapper already marks, and
+-- either copy reads what either copy wrote.
 local ART_CAP = 40
-local artRects, artCount = {}, 0
+local ART_LIST = "__gen1WildArtRects"
+
+local function artList()
+  local ok, PaletteFX = pcall(require, "src.render.PaletteFX")
+  if not ok or type(PaletteFX) ~= "table" then return nil end
+  local list = rawget(PaletteFX, ART_LIST)
+  if type(list) ~= "table" then
+    list = {}
+    local stored = pcall(function() PaletteFX[ART_LIST] = list end)
+    if not stored then return nil end
+  end
+  return list
+end
 
 local function takeArt()
-  if artCount == 0 then return nil end
+  local list = artList()
+  if not list or not list[1] then return nil end
   local out = {}
-  for i = 1, artCount do out[i] = artRects[i]; artRects[i] = nil end
-  artCount = 0
+  for i = 1, #list do out[i] = list[i]; list[i] = nil end
   return out
 end
 
@@ -478,14 +506,14 @@ local function watchArt(skirt)
   PaletteFX.markTrueColor = function(x, y, w, h)
     if type(x) == "number" and type(y) == "number"
         and type(w) == "number" and type(h) == "number"
-        and w > 0 and h > 0 and artCount < ART_CAP
+        and w > 0 and h > 0
         -- the world pass blits raw and has no seam to hide
         and not (type(PaletteFX.spriteRedrawPassActive) == "function"
                  and PaletteFX.spriteRedrawPassActive()) then
       local colour = skirt()
-      if colour then
-        artCount = artCount + 1
-        artRects[artCount] = { x = x, y = y, w = w, h = h }
+      local list = colour and artList() or nil
+      if list and #list < ART_CAP then
+        list[#list + 1] = { x = x, y = y, w = w, h = h }
         love.graphics.setColor(colour[1] / 255, colour[2] / 255,
                                colour[3] / 255, 1)
         -- four bars rather than a bigger filled rect: the art has already
@@ -934,11 +962,16 @@ function Theme.new(context)
     return out
   end
 
-  local function groundZones(zones)
+  -- `keyed` is matte.lua reporting that it took the logo's and the ribbon's
+  -- own paper out to transparency.  When it has, colour 0 is the ART's white
+  -- -- the highlight inside a letter -- and pinning it would take that white
+  -- with it, which is what left the logo flat.  When it has not, the paper is
+  -- still there and the pin is what keeps it off the page.
+  local function groundZones(zones, keyed)
     local out = restyled(zones, function(_, zone)
       local colors = zone.colors
       if type(colors) ~= "table" then return colors end
-      return { BLACK, colors[2], colors[3], BLACK }
+      return { keyed and colors[1] or BLACK, colors[2], colors[3], BLACK }
     end)
     out[#out + 1] = { colors = REVERSED_GREYS,
                       x = 0, y = COPYRIGHT_ROW * 8, w = 160, h = 8 }
@@ -1022,8 +1055,9 @@ function Theme.new(context)
     -- The title screen with its ground already painted black.  Answered
     -- before pageState, because with the menu CLOSED it is not a page at all
     -- and would otherwise fall through untouched.
-    if type(zones) == "table" and zones[1] and darkGroundState(game) then
-      return withArt(groundZones(zones), art)
+    local ground = darkGroundState(game)
+    if type(zones) == "table" and zones[1] and ground then
+      return withArt(groundZones(zones, ground.__gen1WildKeyedArt), art)
     end
 
     local state, ownerAt = pageState(game)
@@ -1165,9 +1199,9 @@ Theme.recordBox = recordBox
 -- The rect half of the skirt, without the paint: tests/titlepage_test.lua
 -- drives the zone this produces, and painting needs a window.
 function Theme.recordArt(x, y, w, h)
-  if artCount >= ART_CAP then return end
-  artCount = artCount + 1
-  artRects[artCount] = { x = x, y = y, w = w, h = h }
+  local list = artList()
+  if not list or #list >= ART_CAP then return end
+  list[#list + 1] = { x = x, y = y, w = w, h = h }
 end
 Theme.takeBoxes = takeBoxes
 
