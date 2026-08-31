@@ -238,5 +238,66 @@ do
   eq(#rows, 3, "but the shape of the place is still the shape of the place")
 end
 
+-- ------------------------------------------------- more below, or not
+
+do
+  io.write("the list says when there is more of it below\n")
+  -- Six rows fill the box exactly, so a seventh species is off the bottom
+  -- with nothing on screen to say so -- which is what a player reported
+  -- after counting six and assuming that was all of ROUTE 7.
+  local codes = {}
+  local realCode = mod.ui.Font.drawCode
+  mod.ui.Font.drawCode = function(code, x, y)
+    codes[#codes + 1] = { code, x, y }
+  end
+  package.loaded["src.ui.Theme"] = { cursor = 0xED, moreArrow = 0xEE }
+  love = { graphics = {
+    setColor = function() end, rectangle = function() end,
+    circle = function() end,
+  } }
+
+  local function rowsOf(n)
+    local out = {}
+    for i = 1, n do
+      out[i] = { name = "MON" .. i, species = "MON" .. i,
+                 seen = true, owned = false, share = 1, tier = "COMMON" }
+    end
+    return out
+  end
+
+  local function arrowsIn(screen)
+    codes = {}
+    screen:draw()
+    local found = nil
+    for _, c in ipairs(codes) do
+      if c[1] == 0xEE then found = c end
+    end
+    return found
+  end
+
+  local six = Inspect.screen({}, "ROUTE 7", rowsOf(6))
+  ok(arrowsIn(six) == nil, "six rows are the whole list, so no arrow")
+
+  local seven = Inspect.screen({}, "ROUTE 7", rowsOf(7))
+  local arrow = arrowsIn(seven)
+  ok(arrow ~= nil, "a seventh row is off the bottom, and the list says so")
+  if arrow then
+    eq(arrow[2], Inspect.MORE_X, "at the box's last interior column")
+    eq(arrow[3], Inspect.MORE_Y, "and up into the bottom border, the way a "
+      .. "twenty-tile box's continuation arrow is drawn")
+    ok(arrow[2] >= 144, "clear of the last row's ball, which ends at 143")
+    ok(arrow[2] + 8 <= 152, "and inside the right border, which starts at 152")
+  end
+
+  -- and it goes once the bottom is reached, which is the whole point of it
+  seven.index = 7
+  seven.top = 2
+  ok(arrowsIn(seven) == nil, "scrolled to the last row, there is no more below")
+
+  mod.ui.Font.drawCode = realCode
+  package.loaded["src.ui.Theme"] = nil
+  love = nil
+end
+
 io.write(("\ninspect: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

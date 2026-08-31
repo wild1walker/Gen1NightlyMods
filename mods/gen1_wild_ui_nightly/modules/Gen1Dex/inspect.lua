@@ -233,6 +233,20 @@ return function(mod, C)
   local BALL_X, BALL_R = 140, 3.5
   local NAME_X = 16
 
+  -- ------- more below
+  --
+  -- Six rows fill this box's interior exactly, so unlike the item list and
+  -- the option screen there is no spare line under the last one to put the
+  -- marker on.  It goes where the engine puts a continuation arrow in a
+  -- twenty-tile box instead -- x 144, four pixels up into the bottom border
+  -- (BattleState.lua:6505) -- which is clear of the last row's ball at
+  -- 136..143 and of the right border at 152.
+  --
+  -- Down only, and not blinking.  Vanilla has no "more above" glyph, and the
+  -- lists that carry this one (ListMenu, OptionRows, ManagerState) all draw
+  -- it still; a blinking arrow is the TEXT box's, and this is a menu.
+  local MORE_X, MORE_Y = 144, 132
+
 
   local function drawBall(y)
     local by = y + 4
@@ -334,6 +348,10 @@ return function(mod, C)
           if entry.owned then drawBall(y) end
         end
       end
+      if self.top + ROWS - 1 < #self.rows then
+        Font.drawCode(require("src.ui.Theme").moreArrow or 0xEE,
+                      MORE_X, MORE_Y)
+      end
       love.graphics.setColor(1, 1, 1, 1)
     end
 
@@ -347,6 +365,8 @@ return function(mod, C)
   Inspect.ROW_H = ROW_H
   Inspect.LIST_TOP = (LIST_TY + 1) * 8          -- first interior pixel
   Inspect.LIST_BOTTOM = LIST_BOTTOM
+  Inspect.MORE_X = MORE_X
+  Inspect.MORE_Y = MORE_Y
 
   -- ------- the press
 

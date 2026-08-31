@@ -6,6 +6,27 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.9] - 2026-08-31
+
+### Fixed
+
+- **INSPECT never said there was more of the list below.** Six rows fill the
+  box's interior exactly, so a location with a seventh species showed six and
+  nothing else — a player counted them and took that for the whole of ROUTE 7.
+
+  The marker is the engine's own `Theme.moreArrow` (`$EE`), drawn while
+  `top + 6` is still short of the end. It cannot go on the line under the last
+  row the way the item list's and the option screen's do, because there is no
+  such line here; it goes where the engine puts a continuation arrow in a
+  twenty-tile box instead — x 144, four pixels up into the bottom border — 
+  which is clear of the last row's caught ball (136..143) and of the right
+  border (152 on). Down only and not blinking: vanilla has no "more above"
+  glyph, and a blinking arrow belongs to a text box, not a menu.
+
+  `tests/inspect_test.lua` is 59 (was 52), holding the arrow's absence on a
+  list that fits, its presence on one that does not, its two coordinates, and
+  its going again once the last row is on screen.
+
 ## [0.31.8] - 2026-08-31
 
 ### Fixed
