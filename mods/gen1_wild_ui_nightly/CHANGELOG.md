@@ -6,6 +6,23 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.4] - 2026-08-31
+
+### Fixed
+
+- **The INSPECT list's last row was drawn on the box's border.** `Font.drawBox`
+  spends its first and last tile row on the frame, so the interior is y 48 to
+  135. Six rows at a sixteen-pixel step fit that exactly — but they started at
+  56, which put the sixth at 136. That is the border, and the sixth name came
+  out sliced in half.
+
+  They start at 48 now, which is the first interior line, and the six fit with
+  nothing left over. The geometry is named rather than written into the draw,
+  and `tests/inspect_test.lua` asserts both halves of it: the last row ends
+  inside the interior, and one more row would not — so the box is neither
+  overflowing nor being wasted. That is arithmetic, and it should never have
+  needed a screenshot to answer.
+
 ## [0.31.3] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

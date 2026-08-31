@@ -203,6 +203,25 @@ do
   ok(#wt <= 18, "and the tier line stays inside the box")
 end
 
+io.write("every row the list shows fits inside the box that holds them\n")
+do
+  -- Font.drawBox spends its first and last tile row on the border, so the
+  -- interior is y 48..135.  Six rows at a sixteen-pixel step fit that exactly
+  -- when they start at 48; starting at 56 put the sixth at 136, which IS the
+  -- border, and cut the last name in half on screen.
+  --
+  -- Arithmetic, so it should not need a screenshot to answer.
+  local top = Inspect.ROW_Y0
+  local last = Inspect.ROW_Y0 + (Inspect.ROWS - 1) * Inspect.ROW_STEP
+  eq(top, Inspect.LIST_TOP, "the first row starts on the first interior line")
+  ok(last + Inspect.ROW_H - 1 <= Inspect.LIST_BOTTOM,
+    ("the last of %d rows ends at %d, inside the interior's %d")
+      :format(Inspect.ROWS, last + Inspect.ROW_H - 1, Inspect.LIST_BOTTOM))
+  ok(last + Inspect.ROW_H - 1 + Inspect.ROW_STEP > Inspect.LIST_BOTTOM,
+    "and one more row would not fit, so the box is not being wasted")
+  eq(Inspect.ROW_STEP, 16, "a glyph and a glyph of air, like the game's lists")
+end
+
 io.write("a place with nothing in it says so rather than raising\n")
 do
   eq(#Inspect.roster(data, save, { "ROUTE_8_GATE" }), 0, "a gate is empty")

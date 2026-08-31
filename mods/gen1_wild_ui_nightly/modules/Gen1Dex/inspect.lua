@@ -210,7 +210,22 @@ return function(mod, C)
 
   -- ------- the screen
 
+  -- ------- the list box, in the pixels it actually has
+  --
+  -- `Font.drawBox(0, 5, 20, 13)` spends its first and last tile row on the
+  -- border, so the interior is rows 6..16 -- y 48 to 135 inclusive.  Six text
+  -- rows at a sixteen-pixel step fit that exactly when they START at 48;
+  -- starting at 56 puts the sixth at 136, which is the border, which is what
+  -- a player saw cutting VULPIX in half.
+  --
+  -- Named rather than written into the draw twice, and asserted in
+  -- tests/inspect_test.lua, because "does the last row fit" is arithmetic and
+  -- should not need a screenshot to answer.
+  local LIST_TY, LIST_TH = 5, 13
+  local ROW_Y0, ROW_STEP = 48, 16
   local ROWS = 6                 -- text rows the list box holds
+  local ROW_H = 8                -- one glyph
+  local LIST_BOTTOM = (LIST_TY + LIST_TH - 1) * 8 - 1   -- last interior pixel
   -- Inside the box, not on it.  The dex list can sit its ball at 150 because
   -- its own frame ends further right; this box is the full twenty tiles, so
   -- its right border owns 152 onward and a ball of radius three and a half at
@@ -302,16 +317,16 @@ return function(mod, C)
       Font.draw(clip(name), 8, 16)
       Font.draw(clip(tail), 8, 24)
 
-      Font.drawBox(0, 5, 20, 13)
+      Font.drawBox(0, LIST_TY, 20, LIST_TH)
       if #self.rows == 0 then
-        Font.draw("NOTHING LIVES HERE", NAME_X, 56)
+        Font.draw("NOTHING LIVES HERE", NAME_X, ROW_Y0)
         love.graphics.setColor(1, 1, 1, 1)
         return
       end
       for i = 0, ROWS - 1 do
         local entry = self.rows[self.top + i]
         if entry then
-          local y = 56 + i * 16
+          local y = ROW_Y0 + i * ROW_STEP
           if self.top + i == self.index then
             Font.drawCode(require("src.ui.Theme").cursor or 0xED, 8, y)
           end
@@ -325,6 +340,13 @@ return function(mod, C)
     clamp()
     return self
   end
+
+  Inspect.ROWS = ROWS
+  Inspect.ROW_Y0 = ROW_Y0
+  Inspect.ROW_STEP = ROW_STEP
+  Inspect.ROW_H = ROW_H
+  Inspect.LIST_TOP = (LIST_TY + 1) * 8          -- first interior pixel
+  Inspect.LIST_BOTTOM = LIST_BOTTOM
 
   -- ------- the press
 
