@@ -371,7 +371,8 @@ return function(mod, C, Inspect)
 
   -- The header.  Two cases, and vanilla measures neither of them.
   --
-  --   <NAME>'s NEST      left alone when it fits, shortened when it does not
+  --   <NAME>'s NEST      left alone when it fits AND names something you have
+  --                      met; ours otherwise
   --   <NAME> UNKNOWN     always ours
   --
   -- The nest line is the engine's and mostly fits, so it is repainted only
@@ -382,21 +383,43 @@ return function(mod, C, Inspect)
   -- truncated, because the screen the player is standing on is already called
   -- AREA and the word was doing no work: what the line has to carry is WHICH
   -- POKéMON and that nothing is known about it.
+  --
+  -- Returning nil means "the engine's line is already the line we would draw,
+  -- so leave it".  That was true of the nest line for as long as the only
+  -- question was whether it fitted -- and stopped being true the moment the
+  -- name could be masked.  TownMap.lua:440 reads the species table raw:
+  --
+  --     local def = self.game.data.pokemon[self.nestSpecies]
+  --     local name = def and def.name or self.nestSpecies
+  --     Font.draw(name .. "'s NEST", 8, 0)
+  --
+  -- so handing that line back printed "PIDGEY's NEST" over a map opened from
+  -- the AREA ON UNSEEN row for a PIDGEY the dex has never met -- which is the
+  -- COMMON case, because looking up where something lives before you have met
+  -- it is what that row is for.  The no-nests line was masked and the nest
+  -- line was not, and the nest line is the one most species have.
   local function headerFor(screen, species)
     -- Masked, because this screen is reachable for a POKeMON the dex has
     -- never met -- the AREA ON UNSEEN row, and an evolution the entry screen
     -- is showing -- and the header was printing the one name the rest of the
     -- screen is careful not to.
     local name = C.seenName(screen.game.save, screen.game.data, species)
+    local masked = name == C.UNSEEN
     if #screen.nests > 0 then
       local nest = name .. "'s NEST"
-      if fits(nest, HEADER_COLS) then return nil end
+      -- Only a line we would have drawn identically is worth not drawing.
+      if not masked and fits(nest, HEADER_COLS) then return nil end
       return shorten(nest, HEADER_COLS)
     end
     local unknown = name .. " UNKNOWN"
     if fits(unknown, HEADER_COLS) then return unknown end
     return shorten(name, HEADER_COLS)
   end
+
+  -- Published so a test can ask what this screen would put in its header
+  -- without standing up a map to draw it on: the decision is the part that
+  -- was wrong, and the pixels are the engine's.
+  A.header = headerFor
 
   -- TownMap's own markerXY (src/ui/TownMap.lua:129).  The Kanto art is inset
   -- two tiles across and one down inside the screen, so a location's entry
@@ -625,7 +648,23 @@ return function(mod, C, Inspect)
       if not (species and type(screen) == "table") then return screen end
       -- read per open rather than once at load, so turning AREA HINTS off in
       -- the manager shows up the next time the screen is opened
-      if not C.option("area_hints", true) then return screen end
+      if not C.option("area_hints", true) then
+        -- ...but the MASK is not part of the hint.  AREA HINTS is about the
+        -- strip under the map, and a player who turned the strip off did not
+        -- ask to be told the name of a POKeMON they have not met -- so the
+        -- header is still repainted here, and only when there is something to
+        -- repaint: an unmasked name that fits is the engine's own line and is
+        -- left exactly as it was, which is the whole of this branch today.
+        local plain = headerFor(screen, species)
+        if plain then
+          local baseOnly = screen.draw or TownMap.draw
+          screen.draw = function(self)
+            baseOnly(self)
+            drawHeader(plain)
+          end
+        end
+        return screen
+      end
       local ok, answer = pcall(A.caption, game, species)
       if not ok then
         mod.log:warn("the AREA caption did not build for %s: %s",

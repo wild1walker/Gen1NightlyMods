@@ -6,6 +6,23 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.27] - 2026-08-31
+
+- The AREA map's header no longer names a POKéMON you have never met. The
+  header has two lines and only one of them was masked: with no nests it says
+  `<NAME> UNKNOWN` and that line has been ours since 0.30.1, but with nests it
+  says `<NAME>'s NEST` and that line was handed back to the engine whenever it
+  fitted -- and `TownMap.lua:440` builds it off the species table raw. So an
+  AREA screen opened on an undiscovered PIDGEY said `PIDGEY's NEST` across the
+  top of the map. It says `?????'s NEST` now. That was the common case, not
+  the corner: looking up where something lives before you have met it is what
+  the AREA ON UNSEEN row is for, so the masked case and the usual case are the
+  same case.
+- The header is masked with AREA HINTS switched off as well. That toggle is
+  about the strip under the map; a player who turned the strip off did not ask
+  to be told the name. With nothing to repaint -- a name you have met, on a
+  line that fits -- the engine's own header is still left exactly as it was.
+
 ## [0.31.26] - 2026-08-31
 
 - A on the AREA map opens the map's menu -- INSPECT, and FLY when the cursor

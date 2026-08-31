@@ -49,7 +49,11 @@ local Font = {
     for i = 1, #t do o[i] = { from = i, to = i } end
     return o
   end,
-  spansFitting = function(spans) return #spans end,
+  -- a real measure, because the header's whole job is deciding whether a
+  -- line fits: eight pixels a glyph, and no more of them than the budget
+  spansFitting = function(spans, pixels)
+    return math.min(#spans, math.floor((pixels or 0) / 8))
+  end,
 }
 
 package.preload["src.render.Font"] = function() return Font end
@@ -143,6 +147,50 @@ do
     "one you have not met is masked, exactly as the header masks it")
   eq(lines and lines[2], "AT LV16",
     "the shape of the answer is still owed: something evolves into this at 16")
+end
+
+-- --------------------------------------------- and the header, which also lied
+
+io.write("the nest header masks a POKeMON you have not met\n")
+do
+  -- The header has two lines to choose between, and only one of them was
+  -- masked.  With no nests it says "<NAME> UNKNOWN" and that line is always
+  -- ours; with nests it says "<NAME>'s NEST" and that line was handed back to
+  -- the engine whenever it fitted -- and TownMap.lua:440 builds it off the
+  -- species table raw.  Nil means "the engine's line is the line we would
+  -- draw", which stopped being true the moment the name could be masked.
+  --
+  -- And it is the nest line that most species have: looking up where
+  -- something lives BEFORE you have met it is what the AREA ON UNSEEN row is
+  -- for, so the masked case and the common case are the same case.
+  local Area = chunkOf("modules/Gen1Dex/area.lua")(mod, C)
+  local nestData = { pokemon = { PIDGEY = { name = "PIDGEY", dex = 16 } } }
+  local function header(seen, nests, species, data)
+    local screen = {
+      game = { data = data or nestData,
+               save = { pokedex = { seen = seen, owned = {} } } },
+      nests = nests,
+    }
+    return Area.header(screen, species or "PIDGEY")
+  end
+
+  eq(header({}, { {} }), "?????'s NEST",
+    "a PIDGEY you have never met does not get named over its own nests")
+  eq(header({ PIDGEY = true }, { {} }), nil,
+    "and one you have met is the engine's own line, left alone the way it was")
+
+  eq(header({}, {}), "????? UNKNOWN",
+    "the line with no nests under it was masked already, and still is")
+  eq(header({ PIDGEY = true }, {}), "PIDGEY UNKNOWN",
+    "which is not a mask, it is the screen saying it has no answer")
+
+  -- The measure is still the measure: 19 columns, and a name long enough to
+  -- overflow is shortened whether or not it is masked.  No Gen 1 name is,
+  -- but a mod's species can be, and that is what this line is for.
+  local longData = { pokemon = { VERYLONGNAMEDMON = { name = "VERYLONGNAMEDMON" } } }
+  eq(header({ VERYLONGNAMEDMON = true }, { {} }, "VERYLONGNAMEDMON", longData),
+    "VERYLONGNAMEDMON's ",
+    "twenty-three glyphs is not nineteen, so the line becomes ours and is cut")
 end
 
 io.write(("\ndex mask: %d passed, %d failed\n"):format(passed, failed))
