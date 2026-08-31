@@ -55,6 +55,17 @@ package.loaded["src.mods.ManagerState"] = { openOptions = function() end }
 -- theme.lua read the same list (see ART_LIST); a stub is all that needs.
 package.loaded["src.render.PaletteFX"] = {}
 
+-- Enough of love.graphics to watch the skirt paint itself.
+local fills = {}
+love = {
+  graphics = {
+    setColor = function() end,
+    rectangle = function(_, x, y, w, h)
+      fills[#fills + 1] = { x = x, y = y, w = w, h = h }
+    end,
+  },
+}
+
 -- The two engine classes this file needs to be able to name.  Resolved by
 -- require inside the theme, so standing them in here is enough to be matched
 -- by getmetatable, which is how Theme.PAGES works on a real boot.
@@ -359,6 +370,47 @@ do
   local out = theme.apply({ stack = { states = { hall } } },
                           { zone(MEWMON, 0, 0, 19, 17) })
   eq(#out, 1, "and the mark it swallowed does not turn up a frame later")
+end
+
+-- ------------------------------- the ring, and what it must not cut
+
+do
+  io.write("the skirt goes round the outside of the art, not through it\n")
+  -- One piece of art is not always one rectangle.  TitleState splits the
+  -- mon's mark around the player standing in front of it -- a strip above, a
+  -- strip below, a strip each side -- and a strip can be two pixels tall.  A
+  -- one-pixel ring on both sides of a two-pixel strip is not a hairline
+  -- guard, it is a black bar through the middle of a POKeMON.
+  local theme = themeOver()
+  theme.install()
+  theme.write("dark")
+
+  -- two rects sharing an edge at x = 40, the way a split mark does
+  fills = {}
+  Theme.recordArt(24, 32, 16, 16)
+  Theme.recordArt(40, 32, 16, 16)
+  theme.paintSkirts()
+
+  local function painted(px, py)
+    for _, f in ipairs(fills) do
+      if px >= f.x and px < f.x + f.w and py >= f.y and py < f.y + f.h then
+        return true
+      end
+    end
+    return false
+  end
+
+  ok(painted(23, 40), "the outside of the union is skirted on the left")
+  ok(painted(56, 40), "...and on the right")
+  ok(painted(32, 31), "...and above")
+  ok(painted(32, 48), "...and below")
+  ok(not painted(39, 40), "but NOT on the shared edge, which is inside its "
+    .. "neighbour and would be a black bar through the art")
+  ok(not painted(40, 40), "...from either side of it")
+  ok(not painted(32, 40), "and never inside a rect at all")
+
+  -- drained, so the next frame starts clean
+  theme.apply({ stack = { states = {} } }, {})
 end
 
 -- ---------------------------------------------- pictures stay pictures

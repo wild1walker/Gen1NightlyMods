@@ -6,6 +6,27 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.7] - 2026-08-31
+
+### Fixed
+
+- **The skirt was cutting through the title art.** A black box appeared round
+  the player and the ball, eating the POKeMON behind them — the guard against
+  the hairline doing far more damage than the hairline ever did.
+
+  One piece of art is not always one rectangle. `TitleState`'s
+  `markVisibleTrueColor` splits the mon's mark around the player standing in
+  front of it — a strip above, a strip below, a strip each side — because the
+  player's own art must not be re-blitted with the mon's. A strip can be two
+  pixels tall, and a one-pixel ring on both sides of a two-pixel strip is not
+  a hairline guard, it is a black bar through the middle of a POKeMON.
+
+  Each bar of the ring is now drawn minus every **other** marked rect on the
+  frame. Adjacent rects touch without overlapping, so a ring pixel on a shared
+  edge lies inside its neighbour and is skipped; what survives is the outside
+  of the union — which is the only boundary the engine's outward scissor
+  rounding can spill across in the first place.
+
 ## [0.31.6] - 2026-08-31
 
 ### Fixed

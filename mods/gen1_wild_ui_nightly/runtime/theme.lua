@@ -495,14 +495,64 @@ local function takeArt()
   return out
 end
 
--- Four bars rather than one filled rect: the art is already down inside that
--- rectangle and must not be painted over.
-local function paintSkirt(colour, x, y, w, h)
+-- ------- the ring, minus wherever other art already is
+--
+-- Four bars rather than one filled rect, because the art is already down
+-- inside the rectangle and must not be painted over.
+--
+-- And each bar minus every OTHER marked rect on the frame, because one piece
+-- of art is not always one rectangle.  `TitleState.markVisibleTrueColor`
+-- splits the mon's mark around the player standing in front of it -- a strip
+-- above, a strip below, a strip each side -- and a strip can be two pixels
+-- tall.  A one-pixel ring on both sides of a two-pixel strip is not a
+-- hairline guard, it is a black bar through the middle of a POKeMON, which is
+-- what a player saw.
+--
+-- Adjacent rects touch without overlapping, so a ring pixel on a shared edge
+-- lies inside its neighbour and is skipped.  What survives is the outside of
+-- the UNION, which is the only boundary the engine's outward scissor rounding
+-- can spill across in the first place.
+local function insideAny(px, py, rects, skip)
+  for _, r in ipairs(rects) do
+    if r ~= skip and px >= r.x and px < r.x + r.w
+        and py >= r.y and py < r.y + r.h then
+      return true
+    end
+  end
+  return false
+end
+
+-- One one-pixel bar, drawn as the runs of it that no other rect covers.
+local function paintBar(x, y, length, horizontal, rects, skip)
+  local run = nil
+  local function flush(stop)
+    if not run then return end
+    if horizontal then
+      love.graphics.rectangle("fill", run, y, stop - run, 1)
+    else
+      love.graphics.rectangle("fill", x, run, 1, stop - run)
+    end
+    run = nil
+  end
+  for step = 0, length - 1 do
+    local px = horizontal and (x + step) or x
+    local py = horizontal and y or (y + step)
+    if insideAny(px, py, rects, skip) then
+      flush(horizontal and px or py)
+    elseif not run then
+      run = horizontal and px or py
+    end
+  end
+  flush(horizontal and (x + length) or (y + length))
+end
+
+local function paintSkirt(colour, rect, rects)
+  local x, y, w, h = rect.x, rect.y, rect.w, rect.h
   love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
-  love.graphics.rectangle("fill", x - 1, y - 1, w + 2, 1)
-  love.graphics.rectangle("fill", x - 1, y + h, w + 2, 1)
-  love.graphics.rectangle("fill", x - 1, y, 1, h)
-  love.graphics.rectangle("fill", x + w, y, 1, h)
+  paintBar(x - 1, y - 1, w + 2, true, rects, rect)
+  paintBar(x - 1, y + h, w + 2, true, rects, rect)
+  paintBar(x - 1, y, h, false, rects, rect)
+  paintBar(x + w, y, h, false, rects, rect)
   love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -524,8 +574,9 @@ local function watchArt(skirt)
       local colour = skirt()
       local list = colour and artList() or nil
       if list and #list < ART_CAP then
-        list[#list + 1] = { x = x, y = y, w = w, h = h }
-        paintSkirt(colour, x, y, w, h)
+        local rect = { x = x, y = y, w = w, h = h }
+        list[#list + 1] = rect
+        paintSkirt(colour, rect, list)
       end
     end
     return base(x, y, w, h)
@@ -1057,9 +1108,8 @@ function Theme.new(context)
   function self.paintSkirts()
     local colour = self.skirt and self.skirt() or nil
     if not colour then return end
-    for _, rect in ipairs(artList() or {}) do
-      paintSkirt(colour, rect.x, rect.y, rect.w, rect.h)
-    end
+    local list = artList() or {}
+    for _, rect in ipairs(list) do paintSkirt(colour, rect, list) end
   end
 
   function self.probe()
