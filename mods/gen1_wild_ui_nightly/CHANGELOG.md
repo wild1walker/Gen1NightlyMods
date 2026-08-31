@@ -6,6 +6,29 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.17] - 2026-08-31
+
+### Fixed
+
+- **The POKe BALL's pad went straight back over the hand.** 0.31.16 baked both
+  variants correctly and then never picked the trimmed one, because it worked
+  out where the ball comes to rest from the quad -- the cell at `(0, qy)`
+  belongs at `80 + qy`, so 96 -- and it is not 96. The engine parks the ball
+  at `BALL_REST = 100` and bounces it through
+  `{97, 95, 94, 93, 92, 93, 94, 95, 97, 100}`. The comparison never matched,
+  so every frame drew the falling ring.
+
+  The resting place is **learned** now rather than derived: the lowest the
+  ball is ever drawn is where it sits, and the state opens at rest
+  (`self.ballY = BALL_REST` at construction), so the first frame already has
+  it. At rest or below, the hand is under the ball and the pad is trimmed;
+  above it, the bounce has lifted the ball clear and the full ring is drawn.
+  Nothing here has to be kept in step with the engine's own numbers, and a
+  build that animates the ball differently is measured rather than assumed.
+
+  `tests/titleart_test.lua` is 33, driving the same ball at rest and at the
+  top of its bounce.
+
 ## [0.31.16] - 2026-08-31
 
 ### Fixed

@@ -416,7 +416,9 @@ do
     ballQuad = ballQuad,
     playerQuads = { { ballQuad, 0, 0 } },
   }
-  local ballY = 40
+  -- the engine parks the ball at BALL_REST = 100 and bounces it through
+  -- { 97, 95, 94, 93, 92, 93, 94, 95, 97, 100 } -- the state opens at rest
+  local ballY = 100
   local function ballDraw(st)
     love.graphics.rectangle("fill", 0, 0, 160, 144)
     love.graphics.draw(st.player, st.ballQuad, 82, ballY)
@@ -426,40 +428,21 @@ do
     love.graphics.draw = function(image, a, b, c)
       painted[#painted + 1] = { image, a, b, c }
     end
+    state.ballY = ballY
     Matte.new(context).wrapTitle(ballDraw)(state)
     love.graphics.draw = realDraw
   end
 
-  -- ------- falling: the full ring
-  --
-  -- `title.asm` throws the ball in from above, and for that whole fall there
-  -- is nothing behind it -- so an underside with no paper on it is the ball's
-  -- bottom edge meeting the black ground, which is the flash a player saw.
-  frame()
-  local ball = state.__gen1WildBall
-  ok(ball ~= nil, "a padded ball is cut from the sheet")
-  eq(ball.homeY, 80, "and its resting place is read off the quad: the cell at "
-    .. "(0, qy) in the sheet belongs at 80 + qy on screen")
-  eq(picture(ball.falling, 6, 6), table.concat({
-    ".WWWW.",
-    "WW##WW",
-    "W####W",
-    "W####W",
-    "WW##WW",
-    ".WWWW.",
-  }, "\n"), "white all the way round it while it is in the air")
-  eq(#painted, 1, "the ball is drawn once")
-  eq(painted[1][1], ball.falling, "and mid-fall it is the fully padded copy")
-  eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")
-  eq(painted[1][3], 39, "...and a pixel above it, so it lands where it did")
-
-  -- ------- landed: nothing underneath
+  -- ------- at rest: nothing underneath
   --
   -- The ball is drawn AFTER the trainer's slices, so it is on top of him, and
   -- where he is holding it his hand is directly under it.
-  ballY = ball.homeY
   frame()
-  ball = state.__gen1WildBall
+  local ball = state.__gen1WildBall
+  ok(ball ~= nil, "a padded ball is cut from the sheet")
+  eq(ball.homeY, 100, "and its resting place is LEARNED -- the lowest the "
+    .. "ball is ever drawn -- rather than derived from the quad, which gave "
+    .. "96 and never matched anything")
   eq(picture(ball.seated, 6, 6), table.concat({
     ".WWWW.",
     "WW##WW",
@@ -470,7 +453,30 @@ do
   }, "\n"), "trimmed per column, below the lowest pixel of art in each -- "
     .. "the two outer columns keep theirs, because beside the ball is not "
     .. "under it")
+  eq(#painted, 1, "the ball is drawn once")
   eq(painted[1][1], ball.seated, "and in the hand it is the trimmed copy")
+  eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")
+  eq(painted[1][3], 99, "...and a pixel above it, so it lands where it did")
+
+  -- ------- bounced off the hand: the full ring
+  --
+  -- The bounce lifts it as far as 92, eight pixels clear, and there is only
+  -- page behind it there -- so an underside with no paper on it is the ball's
+  -- bottom edge meeting the black ground, which is the flash a player saw.
+  ballY = 92
+  frame()
+  ball = state.__gen1WildBall
+  eq(picture(ball.falling, 6, 6), table.concat({
+    ".WWWW.",
+    "WW##WW",
+    "W####W",
+    "W####W",
+    "WW##WW",
+    ".WWWW.",
+  }, "\n"), "white all the way round it while it is off the hand")
+  eq(painted[1][1], ball.falling, "and that is the copy drawn mid-bounce")
+  eq(ball.homeY, 100, "the resting place it learned is not forgotten when "
+    .. "the ball leaves it")
 end
 
 -- ------------------------------------------------------------- the mon

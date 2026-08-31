@@ -266,7 +266,9 @@ function Matte.new(context)
         end
         if ball and a == ballQuad
             and type(b) == "number" and type(c) == "number" then
-          local image = (ball.homeY and c == ball.homeY)
+          -- at rest or below it, the hand is under the ball; above it, the
+          -- bounce has lifted the ball off the hand and there is only page
+          local image = (ball.homeY and c >= ball.homeY)
             and ball.seated or ball.falling
           return realDraw(image, b - 1, c - 1)
         end
@@ -643,16 +645,27 @@ function Matte.new(context)
         if sameSize(baked, state.player) then
           put.player = state.player
           state.player = baked
-          -- Where the ball comes to rest: the draw lays the figure's slices
-          -- down at `80 + part[3]`, so the cell at (0, qy) in the sheet
-          -- belongs at 80 + qy on screen.  Read off the quad rather than
-          -- written down, so a sprite pack that moves it still lands.
-          local quad = state.ballQuad
-          local homeY
-          if quad and type(quad.getViewport) == "function" then
-            local okQ, _, qy = pcall(quad.getViewport, quad)
-            if okQ and type(qy) == "number" then homeY = 80 + qy end
+          -- ------- where the ball comes to rest
+          --
+          -- Learned, not derived.  0.31.16 read it off the quad -- the cell
+          -- at (0, qy) belongs at 80 + qy, so 96 -- and it is not 96: the
+          -- engine parks the ball at `BALL_REST = 100` and bounces it through
+          -- `{97, 95, 94, 93, 92, 93, 94, 95, 97, 100}`.  So the comparison
+          -- never matched, the ball always drew the falling ring, and the pad
+          -- went back over the hand.
+          --
+          -- The lowest the ball is EVER drawn is where it sits, and the state
+          -- opens at rest (`self.ballY = BALL_REST` at construction), so the
+          -- first frame already has it.  Nothing to keep in step with the
+          -- engine's own numbers, and a build that animates it differently is
+          -- measured rather than assumed.
+          local rest = state.__gen1WildBallRest
+          if type(state.ballY) == "number" then
+            rest = math.max(rest or state.ballY, state.ballY)
+            state.__gen1WildBallRest = rest
           end
+          local quad = state.ballQuad
+          local homeY = rest
           local falling = ballImage(path, quad, false)
           local seated = ballImage(path, quad, true)
           if falling or seated then
