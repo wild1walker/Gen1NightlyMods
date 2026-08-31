@@ -6,6 +6,34 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.33] - 2026-08-31
+
+- The pale box with the black ring, round the character on the way into a
+  battle. `ADVANCED` + `DARK`, and only while the wipe runs.
+
+  Four releases went after this and all four went after the wrong mark. The one
+  that draws it is the engine's own: `SpriteRenderer:draw` reports a trueColor
+  rect for every sprite whose art is full colour -- the whole 16-wide cell,
+  transparent pixels and all -- in whichever pass happens to be current. On the
+  map that is the world pass and the rect is doing its job.
+
+  The battle transition is a state on the stack, so it draws under the **UI**
+  pass, and what it draws is the whole overworld, sprites included, onto the UI
+  canvas. Every character on screen reports its cell into the UI list from
+  inside the wipe, and two things then happen to a rectangle that were never
+  meant for a sprite: the renderer splices it onto the UI zone list and
+  re-blits the cell raw, so the map showing through the sprite's transparent
+  pixels keeps its DMG shades while the map around it is colourised -- the pale
+  square -- and this theme paints its one-pixel ring round the edge of it --
+  the black outline.
+
+  No gate inside a mod on that mod's own call could ever have reached it. It is
+  gated here instead, where every mark passes through: a sprite cell reported
+  outside the world pass is dropped before the engine sees it. The sprite goes
+  through the palette pass for the second the wipe lasts, like the map it is
+  standing on; nothing changes on the map itself, where the pass *is* the world
+  pass and the mark goes through untouched.
+
 ## [0.31.32] - 2026-08-31
 
 - No changes; released alongside the QOL mod.

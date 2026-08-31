@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.31.33] - 2026-08-31
+
+- No changes; released alongside the UI mod.
+
 ## [0.31.32] - 2026-08-31
 
 - The black box round the overworld character on the way into a battle. A
