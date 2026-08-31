@@ -7,6 +7,18 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.31.32] - 2026-08-31
+
+- The black box round the overworld character on the way into a battle. A
+  full-colour sprite marks itself out of the colorize pass -- a sentence about
+  the WORLD canvas, where it is drawn. The same draw runs with the **UI** pass
+  current during a battle transition, and the UI theme rings every UI-pass
+  rectangle with a one-pixel black skirt, so the mark came out as a ring round
+  the character's head with the sprite's own white raw inside it. It marks
+  only in the world pass now.
+
+  Carried from Gen1Follower 1.6.2.
+
 ## [0.31.31] - 2026-08-31
 
 - No changes; released alongside the UI mod.
