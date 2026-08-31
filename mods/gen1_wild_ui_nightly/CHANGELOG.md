@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.11] - 2026-08-31
+
+### Fixed
+
+- **The title screen was wrecked, and both halves of it were 0.31.10's.**
+
+  **The mon.** 0.31.10 stickered whatever `TitleState:currentSprite` handed
+  back. With Crystal Animated Sprites installed that is not one picture of one
+  POKeMON — it is the animation **sheet**, and the mod that owns it draws a
+  frame out of it. A same-size copy hands back the whole sheet, and the title
+  drew it whole: `x = 40 + (56 - w) / 2` and `y = 136 - h` computed off a
+  sheet's dimensions put a CHARMANDER over half the screen, on top of the logo
+  and the ribbon, with its other frames beside it.
+
+  There is no version of that this bundle is entitled to get right. The mon
+  belongs to whoever is animating it; `currentSprite` is not wrapped at all
+  any more, and the mon keeps its own art. It loses the pad with it.
+
+  **The copyright.** 0.31.10 turned every opaque pixel of the copyright art
+  over. That is right for art drawn dark on nothing and wrong for art drawn
+  light on a dark plate, which came out as white blocks with the letters
+  punched out — GAME FREAK inc. did exactly that while the date beside it, a
+  different file stored the other way, came out fine.
+
+  The paper is identified now instead of assumed: a plate is opaque
+  everywhere, so one transparent pixel anywhere means there is no paper and
+  every opaque pixel is line work. On a plate the paper outnumbers the letters,
+  so the majority shade is keyed out and the rest goes white. Four ways of
+  storing the same two-tone line of text, one thing on screen.
+
+  The black ground, the identity palette on the copyright row, the logo's pad,
+  the ribbon's keyed paper, the figure's outline and the POKe BALL's are all
+  as 0.31.10 left them — the figure came through that release correct.
+
 ## [0.31.10] - 2026-08-31
 
 ### Fixed

@@ -308,41 +308,23 @@ end
 
 -- ------------------------------------------------------------- the mon
 
-io.write("the mon is stickered through the call that hands it over\n")
+io.write("the mon is left alone, because it is not one picture\n")
 do
-  -- It is the one piece of title art with no field to swap: cached per
-  -- species inside the state and reached only through `currentSprite`.
-  local monArt = art_from { "....", ".##.", ".##.", "...." }
-  local logo = art_from { "w#w" }
-
-  local base = function() return monArt, true end
-  local state = { logo = logo }
-  local wrapped = Matte.new(context)
-  -- installTitle is what wraps it on a real build; here the wrapper is
-  -- applied to the same function by hand so the state can be a plain table
-  local TitleState = { draw = titleDraw, currentSprite = base }
-  package.preload["src.ui.TitleState"] = function() return TitleState end
-  wrapped.installTitle()
-  state.currentSprite = TitleState.currentSprite
-  local out = run(state)
-  ok(out.mon ~= nil, "a mon comes back")
-  eq(picture(out.mon, { x = 0, y = 0, w = 4, h = 4 }), table.concat({
-    "WWWW",
-    "W##W",
-    "W##W",
-    "WWWW",
-  }, "\n"), "outlined the same way the figure is")
-end
-
-io.write("and only while this screen is the dark one\n")
-do
-  local plain = art_from { "##" }
+  -- 0.31.10 stickered whatever `currentSprite` handed back.  With Crystal
+  -- Animated Sprites installed that is not one picture of one POKeMON, it is
+  -- the animation SHEET, and the mod that owns it draws a frame out of it.
+  -- A same-size copy hands back the whole sheet, and the title drew it whole
+  -- -- `x = 40 + (56 - w) / 2`, `y = 136 - h` off a sheet's dimensions -- so
+  -- a CHARMANDER covered half the screen, the logo and the ribbon included,
+  -- with its other frames beside it.
+  local sheet = art_from { "##..##", "##..##" }
   local TitleState = { draw = titleDraw,
-                       currentSprite = function() return plain, true end }
+                       currentSprite = function() return sheet, true end }
   package.preload["src.ui.TitleState"] = function() return TitleState end
+  local before = TitleState.currentSprite
   Matte.new(context).installTitle()
-  eq(TitleState.currentSprite({}), plain,
-    "a state with no dark ground gets its own sprite back untouched")
+  eq(TitleState.currentSprite, before,
+    "the call is not wrapped at all: the mon belongs to whoever animates it")
 end
 
 -- ------------------------------------------- whose picture gets the pad
@@ -419,24 +401,35 @@ end
 
 -- ------------------------------------------------- the copyright's letters
 
-io.write("the copyright is turned over to read on a black row\n")
+io.write("the copyright is made light, whichever way its art is stored\n")
 do
   -- The ground is black all the way down now, that row included, because raw
   -- and shaded have to be the same pixels there: the true-colour rect over
   -- the mon spills into that row and re-blits the canvas RAW, and 0.31.8's
-  -- white paper came back through it as a bar across the words.  Dark letters
-  -- on a black row are not letters, so every opaque pixel of the art turns
-  -- over -- the line work comes out light and the paper it sat on comes out
-  -- black, which is the page, so it disappears into it.
-  local copy = art_from { "#w#" }
-  local inc = art_from { "#" }
-  local out = run { copyImg = copy, gfInc = inc }
+  -- white paper came back through it as a bar across the words.
+  --
+  -- 0.31.10 turned every opaque pixel over, which is right for art drawn dark
+  -- on nothing and wrong for art drawn light on a dark plate: GAME FREAK inc.
+  -- came out as white blocks with the letters punched out of them while the
+  -- date beside it, a different file stored the other way, came out fine.
+  local onNothing = art_from { "#.#" }          -- dark line work, no paper
+  local onPaper = art_from { "w#w" }            -- dark line work on white
+  local out = run { copyImg = onNothing, gfInc = onPaper }
 
-  ok(out.copyImg ~= copy, "the screen draws with the turned-over copy")
-  eq(shade(out.copyImg, 0, 0), "W", "the letters come out light")
-  eq(shade(out.copyImg, 1, 0), "#", "and the paper under them goes black")
-  eq(shade(out.gfInc, 0, 0), "W", "GAME FREAK inc. with them, as one line")
-  eq(select(4, copy.data:getPixel(0, 0)), 1,
+  eq(shade(out.copyImg, 0, 0), "W", "line work on nothing all goes light")
+  eq(shade(out.copyImg, 1, 0), ".", "and what was not there stays not there")
+  eq(shade(out.gfInc, 1, 0), "W", "line work on paper goes light too")
+  eq(shade(out.gfInc, 0, 0), ".", "and the paper it sat on is keyed out, so "
+    .. "the page shows through instead of a white block")
+
+  -- and the other way round: light letters on a dark plate, which is how the
+  -- one that broke was stored
+  local onPlate = art_from { "#w#" }
+  local out2 = run { copyImg = onPlate, gfInc = onNothing }
+  eq(shade(out2.copyImg, 1, 0), "W", "light letters stay light")
+  eq(shade(out2.copyImg, 0, 0), ".", "and the dark plate under them goes")
+
+  eq(select(4, onPaper.data:getPixel(0, 0)), 1,
     "and the art the state came in with is not the art that was changed")
 end
 

@@ -232,7 +232,7 @@ function Matte.new(context)
   -- true-colour rect over the mon spilled a row of raw white across it, which
   -- is the bar a player reported.  Raw and shaded have to be the same pixels
   -- down there, so the paper is black and the letters are inverted to suit
-  -- (`invertInk` below).
+  -- (`lightInk` below).
   --
   -- And the ink of anything the screen draws with `setColor(0, 0, 0)` goes
   -- white with them.  That is the copyright's text fallback and the logo's,
@@ -580,28 +580,65 @@ function Matte.new(context)
     return out
   end
 
-  -- ------- the copyright, inverted
+  -- ------- the copyright, made light
   --
-  -- Its art is line work on paper, printed dark, and the row it lands on is
-  -- now black like the rest of the ground.  Every opaque pixel turns over, so
-  -- dark letters come out light and the paper they were on comes out black --
-  -- which is the page, so it disappears into it.
+  -- Its row is black like the rest of the ground now, so its letters have to
+  -- be light or they are not letters.
   --
-  -- Both halves of the pair, and the Yellow "9" between them when there is
-  -- one, because they are drawn as one line.
-  local function invertInk(id)
+  -- 0.31.10 turned every opaque pixel over, which is right for art drawn dark
+  -- on nothing and wrong for art drawn light on a dark plate: that one came
+  -- out as white blocks with the letters punched out of them, which is what
+  -- happened to GAME FREAK inc. while the date beside it -- a different file,
+  -- stored the other way -- came out fine.
+  --
+  -- So the paper is identified rather than assumed.  The corner says whether
+  -- there is one: transparent there and every opaque pixel is line work, so
+  -- it all goes white; opaque there and that shade is the plate, so pixels
+  -- like it are keyed out and the rest go white.  Four ways of storing the
+  -- same two-tone line of text, one thing on screen.
+  local function lightInk(id)
     local w, h = id:getDimensions()
-    local any = false
+    if w <= 0 or h <= 0 then return false end
+
+    -- A plate is opaque EVERYWHERE -- that is what makes it a plate.  One
+    -- transparent pixel anywhere and there is no paper here, only line work,
+    -- and all of it is ink.  (Sampling a corner instead is what the first
+    -- attempt at this did, and the corner of a line of text is as likely to
+    -- be a letter as anything else.)
+    local light, dark, holes = 0, 0, false
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local r, g, b, a = id:getPixel(x, y)
+        if a <= 0 then
+          holes = true
+        elseif (r + g + b) / 3 > 0.5 then
+          light = light + 1
+        else
+          dark = dark + 1
+        end
+      end
+    end
+    if light + dark == 0 then return false end
+
+    -- On a plate the paper outnumbers the letters, so the majority is the
+    -- paper and it is keyed out; the letters go white.  With no plate every
+    -- opaque pixel is a letter and goes white whatever shade it was drawn.
+    local paperIsLight = nil
+    if not holes then paperIsLight = light > dark end
     for y = 0, h - 1 do
       for x = 0, w - 1 do
         local r, g, b, a = id:getPixel(x, y)
         if a > 0 then
-          id:setPixel(x, y, 1 - r, 1 - g, 1 - b, a)
-          any = true
+          if paperIsLight ~= nil
+              and (((r + g + b) / 3 > 0.5) == paperIsLight) then
+            id:setPixel(x, y, 0, 0, 0, 0)
+          else
+            id:setPixel(x, y, 1, 1, 1, a)
+          end
         end
       end
     end
-    return any
+    return true
   end
 
   -- The art the title draws on its own page.  Every one of them is read back
@@ -622,9 +659,9 @@ function Matte.new(context)
     swap("logo", function(id) return sticker(id, true, nil) end)
     swap("version", keyPaper)
     -- the copyright's three, so its letters read on a black row
-    swap("copyImg", invertInk)
-    swap("nineImg", invertInk)
-    swap("gfInc", invertInk)
+    swap("copyImg", lightInk)
+    swap("nineImg", lightInk)
+    swap("gfInc", lightInk)
 
     -- The figure, on transparency: a one-pixel white outline round the
     -- trainer.  Not in OG RED, where the draw rebuilds the image from
@@ -647,29 +684,18 @@ function Matte.new(context)
     return put
   end
 
-  -- The mon is the one piece of title art with no field to swap: it is cached
-  -- per species inside the state and reached through `currentSprite`.  So the
-  -- wrapper stickers what that call hands back -- which is the picture a
-  -- sprite pack installed, not a path this bundle guessed at.
+  -- ------- and the mon, which is NOT ours to substitute
   --
-  -- Only while this screen is the dark one.  With the theme LIGHT the state
-  -- never gets its flag and the mon is handed back exactly as it came.
-  local function wrapCurrentSprite(base)
-    return function(state, ...)
-      local image, trueColor = base(state, ...)
-      if not image or not (type(state) == "table" and state.__gen1WildKeyedArt) then
-        return image, trueColor
-      end
-      if not (love.image and love.image.newImageData) then
-        return image, trueColor
-      end
-      local baked = bakedOf(image, function(id)
-        return sticker(id, false, nil)
-      end)
-      return baked or image, trueColor
-    end
-  end
-
+  -- 0.31.10 stickered whatever `currentSprite` handed back.  With Crystal
+  -- Animated Sprites installed that is not one picture of one POKeMON, it is
+  -- the animation SHEET, and the mod that owns it draws a frame out of it.
+  -- Handing back a same-size copy hands back the whole sheet -- which the
+  -- title then drew whole, at `x = 40 + (56 - w) / 2` and `y = 136 - h` off a
+  -- sheet's dimensions: a CHARMANDER over half the screen with the other
+  -- frames beside it, on top of the logo and the ribbon.
+  --
+  -- There is no version of this that is this bundle's to get right.  The mon
+  -- belongs to whoever is animating it, and it keeps its own art.
   function self.wrapTitle(base)
     return function(state, ...)
       if type(state) == "table" then state.__gen1WildDarkGround = nil end
@@ -719,9 +745,6 @@ function Matte.new(context)
         and not patched[class] then
       patched[class] = true
       class.draw = self.wrapTitle(class.draw)
-      if type(class.currentSprite) == "function" then
-        class.currentSprite = wrapCurrentSprite(class.currentSprite)
-      end
     end
   end
 
