@@ -103,6 +103,9 @@ return function(mod)
     -- available, so nothing is ever swallowed.
     { key = "area_fly", type = "toggle", label = "FLY FROM AREA",
       default = true },
+    -- Off takes the FLY row off that map's menu and nothing else: INSPECT is
+    -- still there, and MAP INSPECT below still governs the menu itself.
+    -- Neither toggle can switch the other off.
     -- The nickname prompt after a catch keeps the screen it interrupted --
     -- the dex entry for a species the dex has never held, the battle it was
     -- caught on for anything else -- rather than the white field AskName
@@ -113,11 +116,17 @@ return function(mod)
     { key = "nickname_backdrop", type = "toggle", label = "NAME IN PLACE",
       default = true },
     -- A on a town-map location opens a small menu -- INSPECT, and FLY as well
-    -- when the map was opened by the field move -- instead of the press doing
-    -- one fixed thing.  INSPECT lists what lives there, richest share first,
-    -- off the live encounter tables, with the dex's own caught ball and the
-    -- dex's own silence about anything you have not seen.  Off leaves A
-    -- exactly as it was, which for the BAG's map is nothing at all.
+    -- when there is somewhere under the cursor to fly to -- instead of the
+    -- press doing one fixed thing.  INSPECT lists what lives there, richest
+    -- share first, off the live encounter tables, with the dex's own caught
+    -- ball and the dex's own silence about anything you have not seen.
+    --
+    -- All three maps, the AREA screen included: it is the same picture with a
+    -- species pinned to it, the cursor is on a town while you read it, and
+    -- going out to the BAG for the same map to ask what lives there was the
+    -- screen being pedantic about which door you came in by.  Off leaves A
+    -- exactly as it was -- nothing at all on the BAG's map, the flight on the
+    -- other two.
     { key = "map_inspect", type = "toggle", label = "MAP INSPECT",
       default = true },
   })
@@ -175,7 +184,9 @@ return function(mod)
 
   local Area
   if type(makeArea) == "function" then
-    local ok, built = pcall(makeArea, mod, C)
+    -- Inspect goes in because A over the AREA map opens ITS menu; nil is
+    -- allowed and means the map keeps the press it had before.
+    local ok, built = pcall(makeArea, mod, C, Inspect)
     if ok and type(built) == "table" then
       Area = built
       local installed, err = pcall(Area.install)

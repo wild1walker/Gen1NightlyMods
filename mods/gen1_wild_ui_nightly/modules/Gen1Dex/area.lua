@@ -69,7 +69,11 @@
 -- called, and the caption is installed as instance fields over the screen it
 -- built, so the engine's own draw and update run untouched underneath.
 
-return function(mod, C)
+-- `Inspect` is the sibling module, already built by main.lua when this one
+-- is: A over the map opens ITS menu rather than a second one of our own.
+-- Optional -- it is allowed to have failed to build, and this screen still
+-- works without it, with A doing what it did before the menu existed.
+return function(mod, C, Inspect)
   local A = {}
 
   local Font = mod.ui.Font
@@ -771,26 +775,24 @@ return function(mod, C)
         if play then play() end
       end
 
-      -- A over a town you can fly to, with the hint down, IS a flight.  With
-      -- the hint up A means "I have read this" and takes the strip down; the
-      -- press after that is this one.
+      -- Where A can fly to from where the cursor is standing, and the
+      -- overworld it would be flying from -- or nil, which is not a failure.
       --
-      -- Every condition is a reason to fall through rather than to fail: no
-      -- FLY in the party, indoors, the cursor on somewhere unflyable, no
-      -- overworld under the screen -- any of them and A closes the screen the
-      -- way it always did.  Nothing here reports an error, because none of
-      -- them is one.
-      local function flyFromHere(self)
-        if not C.option("area_fly", true) then return false end
+      -- Every condition is a reason to have no flight rather than to report
+      -- one: no FLY in the party, indoors, the cursor on somewhere unflyable,
+      -- no overworld under the screen.  Any of them and the FLY row is simply
+      -- not on the menu, the way it is not on the map opened from the BAG.
+      local function flyTargetHere(self)
+        if not C.option("area_fly", true) then return nil end
         local g = self.game or game
         local ow = overworldUnder(g)
-        if not ow then return false end
+        if not ow then return nil end
         if type(ow.partyKnows) ~= "function"
             or type(ow.flyTo) ~= "function" then
-          return false
+          return nil
         end
         local okKnows, knows = pcall(ow.partyKnows, ow, "FLY")
-        if not (okKnows and knows) then return false end
+        if not (okKnows and knows) then return nil end
         -- outdoors only, the same gate the field-move menu uses
         local okMap, Map = pcall(require, "src.world.Map")
         local okDefaults, FieldDefaults = pcall(require, "src.core.FieldDefaults")
@@ -798,25 +800,29 @@ return function(mod, C)
             and ow.map and ow.map.def then
           local okOut, outside = pcall(Map.isOutside, ow.map.def,
             FieldDefaults.field(g.data, "outsideTilesets"))
-          if not (okOut and outside) then return false end
+          if not (okOut and outside) then return nil end
         end
         local targets = flyTargets(g)
-        if not targets then return false end
+        if not targets then return nil end
         local here = self.locs and self.locs[self.sel]
-        if not here then return false end
+        if not here then return nil end
         -- byMap points every map at its town's square, so the cursor's loc is
         -- matched by identity rather than by name: two towns may share a name
         -- in a translated build, and no two share a square.
         local byMap = self.byMap or {}
-        local mapId
         for id, loc in pairs(byMap) do
-          if loc == here and targets[id] then mapId = id break end
+          if loc == here and targets[id] then return id, ow end
         end
-        if not mapId then return false end
+        return nil
+      end
 
-        -- Down to the overworld, then fly.  Popping rather than asking the
-        -- dex to close itself: the screens above are this screen and whatever
-        -- opened it, and the flight is leaving all of them behind.
+      -- Down to the overworld, then fly.  Popping rather than asking the dex
+      -- to close itself: the screens above are the menu, this screen and
+      -- whatever opened it, and the flight is leaving all of them behind.
+      local function flyNow(self, mapId, ow)
+        local g = self.game or game
+        ow = ow or overworldUnder(g)
+        if not ow then return false end
         local stack = g.stack
         local guard = 0
         while stack:top() and stack:top() ~= ow and guard < 16 do
@@ -824,13 +830,55 @@ return function(mod, C)
           guard = guard + 1
         end
         if stack:top() ~= ow then return false end
-        pressSound()
         local okFly = pcall(ow.flyTo, ow, mapId)
         if not okFly then
           mod.log:warn("FLY from the AREA map did not take off for %s",
             tostring(mapId))
         end
         return true
+      end
+
+      -- ------- what A does over the map
+      --
+      -- It opens the map's menu -- INSPECT, and FLY when the cursor is over
+      -- somewhere you can fly to -- which is what A does on the map from the
+      -- BAG and the map FLY opens.  It used to close the screen, and a press
+      -- that closes a map you are reading is the one thing A should not mean
+      -- on it: B has closed it all along and still does, from the menu as
+      -- well, so nothing is taken away to pay for this.
+      --
+      -- INSPECT is the reason this is a menu at all.  The AREA screen already
+      -- says where one POKeMON lives; the cursor is sitting on a town while
+      -- it does, and "what else lives here" is the question a player has with
+      -- the map already open.  Going out to the BAG for the same picture to
+      -- ask it was the screen being pedantic about which door you came in by.
+      --
+      -- With MAP INSPECT off there is no menu to open, and A is the direct
+      -- flight it was before -- so that toggle takes away the menu and not
+      -- the flight, and FLY FROM AREA still takes away the flight and not the
+      -- menu.  Neither can turn the other off.
+      local function pressA(self)
+        local mapId, ow = flyTargetHere(self)
+        if C.option("map_inspect", true)
+            and type(Inspect) == "table"
+            and type(Inspect.offer) == "function" then
+          local extra
+          if mapId then
+            extra = { { label = "FLY", onSelect = function()
+              flyNow(self, mapId, ow)
+            end } }
+          end
+          local ok, opened = pcall(Inspect.offer, self, extra)
+          if not ok then
+            mod.log:warn("the AREA map menu stood down: %s", tostring(opened))
+          elseif opened then
+            return true
+          end
+        end
+        -- No menu: the press is the flight it was, sound and all.
+        if not mapId then return false end
+        pressSound()
+        return flyNow(self, mapId, ow)
       end
 
       screen.update = function(self, dt)
@@ -869,8 +917,9 @@ return function(mod, C)
             self:moveList(input:wasPressed("down") and 1 or -1)
           end
           return baseUpdate(self, dt)
-        elseif input:wasPressed("a") and flyFromHere(self) then
-          -- flown; the screen is gone and the overworld is doing the rest
+        elseif input:wasPressed("a") and pressA(self) then
+          -- the menu is up, or the flight is taken and the overworld is doing
+          -- the rest.  Neither is a press to hand on.
           return
         elseif input:wasPressed("start") then
           -- and START brings it back, because dismissing a hint you have not

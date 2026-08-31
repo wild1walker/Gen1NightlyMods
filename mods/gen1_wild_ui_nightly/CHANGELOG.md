@@ -6,6 +6,23 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.26] - 2026-08-31
+
+- A on the AREA map opens the map's menu -- INSPECT, and FLY when the cursor
+  is over somewhere you can fly to -- instead of closing the screen. The map
+  you open from the BAG has answered A that way since MAP INSPECT shipped;
+  the AREA screen is the same picture with a species pinned to it, the cursor
+  is sitting on a town while you read it, and going out to the BAG for the
+  same map to ask what lives there was the screen being pedantic about which
+  door you came in by. B still closes it, from the menu as well, which is
+  what it always did.
+- The two toggles that govern that press are independent now. With MAP
+  INSPECT off there is no menu and A is the direct flight it was before;
+  with FLY FROM AREA off the menu opens without its FLY row; with both off A
+  closes the map the way vanilla did. Neither can switch the other off.
+- A on a town-map location with nothing under the cursor hands the press back
+  instead of swallowing it.
+
 ## [0.31.25] - 2026-08-31
 
 - The AREA screen's evolution hint no longer names a POKéMON you have never

@@ -382,19 +382,24 @@ return function(mod, C)
     return mod.options:get("map_inspect") ~= false
   end
 
-  local function openMenu(state)
+  -- The menu itself, split from the press that opens it so the AREA screen can
+  -- open THIS one rather than grow a second one beside it.  That screen is a
+  -- town map with a species pinned to it, and a player looking at Kanto with
+  -- the cursor on a town wants the same two answers there as anywhere else --
+  -- what lives here, and take me there.  Its FLY is passed in as `extra`
+  -- rather than derived here because it is a different flight: this map only
+  -- flies when the FIELD MOVE opened it and the engine narrowed `locs` for
+  -- it, and the AREA screen has to ask the party and the map it is standing
+  -- on instead.  One menu, two callers, and no second copy to drift.
+  --
+  -- Returns false when there is nothing under the cursor to ask about, so a
+  -- caller can fall through to whatever A meant before.
+  function Inspect.offer(state, extra)
     local game = state.game
     local loc = state.locs and state.locs[state.sel]
-    if not loc then return end
+    if not (game and loc) then return false end
     local items = {}
-
-    if state.fly and state.flyMapIds and state.flyMapIds[state.sel] then
-      local mapId = state.flyMapIds[state.sel]
-      items[#items + 1] = { label = "FLY", onSelect = function()
-        game.stack:pop()                  -- the map, as LoadTownMap_Fly does
-        if state.onFly then state.onFly(mapId) end
-      end }
-    end
+    for _, item in ipairs(extra or {}) do items[#items + 1] = item end
 
     items[#items + 1] = { label = "INSPECT", onSelect = function()
       local mapIds = Inspect.mapsFor(state.byMap, loc)
@@ -405,6 +410,19 @@ return function(mod, C)
     require("src.core.Sound").play(game.data, "Press_AB")
     game.stack:push(mod.ui.Menu.new(game, items,
       { tx = 10, ty = 0, cancelable = true }))
+    return true
+  end
+
+  local function openMenu(state)
+    local extra
+    if state.fly and state.flyMapIds and state.flyMapIds[state.sel] then
+      local game, mapId = state.game, state.flyMapIds[state.sel]
+      extra = { { label = "FLY", onSelect = function()
+        game.stack:pop()                  -- the map, as LoadTownMap_Fly does
+        if state.onFly then state.onFly(mapId) end
+      end } }
+    end
+    return Inspect.offer(state, extra)
   end
 
   function Inspect.install()
@@ -416,11 +434,14 @@ return function(mod, C)
       local input = state.game and state.game.input
       if input and input.wasPressed and input:wasPressed("a")
           and offerable(state) then
-        local ok, problem = pcall(openMenu, state)
+        local ok, opened = pcall(openMenu, state)
         if not ok then
-          mod.log:warn("map inspect stood down: %s", tostring(problem))
+          mod.log:warn("map inspect stood down: %s", tostring(opened))
           return base(state, ...)
         end
+        -- Nothing under the cursor is not a menu, and it is not a swallowed
+        -- press either: A goes back to meaning what it meant.
+        if not opened then return base(state, ...) end
         return
       end
       return base(state, ...)
