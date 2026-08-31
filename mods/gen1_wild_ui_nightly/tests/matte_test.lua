@@ -288,6 +288,39 @@ do
   eq(#warned, 1, "and it says so once")
 end
 
+io.write("the skirts are laid down again once the screen has finished\n")
+do
+  -- Wild Green marks the title figure BEFORE calling the draw, because that
+  -- draw reads self.player at its top -- and the draw opens with a
+  -- full-screen fill, which wipes the skirt the mark just painted.  The
+  -- figure kept its hairline while the mon, marked from inside the draw, did
+  -- not.  Laying the rings down again after the screen has finished is safe:
+  -- a ring is outside the art's own rectangle by construction.
+  reset()
+  local repainted = 0
+  local withSkirts = {
+    theme = theme,
+    mod = context.mod,
+  }
+  withSkirts.theme = setmetatable(
+    { paintSkirts = function() repainted = repainted + 1 end },
+    { __index = theme })
+  local title = {}
+  Matte.new(withSkirts).wrapTitle(titleDraw)(title)
+  eq(repainted, 1, "once, after the page and the art are down")
+
+  reset()
+  repainted = 0
+  local hostile = function(self)
+    drawn = drawn + 1
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+    error("half way through")
+  end
+  pcall(Matte.new(withSkirts).wrapTitle(hostile), {})
+  eq(repainted, 0, "and not over a frame that raised part way through")
+end
+
 io.write("the screens it patches are the ones that mark and are themed\n")
 do
   -- A screen that marks nothing has nothing to matte; a screen the theme

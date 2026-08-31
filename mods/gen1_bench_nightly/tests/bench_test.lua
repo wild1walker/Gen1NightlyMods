@@ -287,11 +287,12 @@ do
   local last = rows.last_battle
   ok(last ~= nil, "the bench has a last-battle row")
   eq(last.value(), Rows.DASH, "which says nothing until a battle has started")
-  context.lastBattle = "E11 I1 N10 S1 D0"
-  eq(last.value(), "E11 I1 N10 S1 D0",
+  context.lastBattle = "E11 I11 N10 S1 D0 W1"
+  eq(last.value(), "E11 I11 N10 S1 D0 W1",
     "and then reports exactly what was captured -- S against D is the whole "
-    .. "question: E is # and I is how far ipairs gets, so E11 I1 is a list "
-    .. "with a hole one entry in and a draw loop that quits after the player")
+    .. "question: I11 says the list is whole and D0 says the entity loop "
+    .. "never ran, which leaves the one branch that skips it -- a mod owning "
+    .. "the world pass, which W reports")
   ok(last.step == nil, "it is a readout, not a setting")
 end
 

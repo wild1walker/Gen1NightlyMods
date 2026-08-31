@@ -6,6 +6,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.6] - 2026-08-31
+
+### Fixed
+
+- **The hairline under the title figure, properly this time.** 0.31.2 put the
+  skirt and its zone in the same place; this is the other half. Wild Green
+  marks the figure **before** calling `TitleState:draw`, because that draw
+  reads `self.player` at its top and the mark has to name a rectangle the art
+  is about to land in — and the draw **opens with a full-screen fill**, which
+  wipes the skirt that mark just painted a line later.
+
+  That is why the figure kept its line and the mon, whose mark is emitted from
+  inside the draw, did not. The rings are laid down again once the screen has
+  finished, which is safe by construction: a ring is entirely outside the
+  rectangle its art occupies, so a second coat cannot touch the art.
+
+- **The version ribbon came out speckled with white.** Keying only the paper
+  *reachable from the border* is right for the logo, whose enclosed white is a
+  highlight inside a letter. The ribbon has no highlights — it is green
+  letters with a black outline on a white field — so the white shut inside an
+  `e` or an `o` is paper the flood cannot reach, and it turned into a scatter
+  of specks the moment colour 0 stopped being pinned. The ribbon keys every
+  near-white pixel now; the logo still floods from the edge.
+
 ## [0.31.5] - 2026-08-31
 
 ### Fixed

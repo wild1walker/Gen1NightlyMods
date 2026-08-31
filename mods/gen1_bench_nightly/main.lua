@@ -277,6 +277,28 @@ return function(mod)
     end
     local npcs = (type(ow) == "table" and type(ow.npcs) == "table")
       and #ow.npcs or -1
+    -- ------- and whether a mod owns the world pass
+    --
+    -- With the list whole (I == E) and no NPC draw at all, the entity loop
+    -- did not run -- and there is exactly one branch of OverworldState:
+    -- drawWorld that skips it: `if override then -- the pipeline owns the
+    -- whole frame; nothing else draws into the world`.  The tilt path still
+    -- calls NPC.draw through its billboards, so it cannot be that one.
+    --
+    -- W says whether a registered world pipeline is eligible this frame.  W1
+    -- with D0 means a pipeline is rendering the world and is not drawing the
+    -- NPCs; W0 means the branch is not the explanation and the reading needs
+    -- another look.
+    local pipeline = 0
+    do
+      local okP, Pipelines = pcall(require, "src.render.Pipelines")
+      if okP and type(Pipelines) == "table"
+          and type(Pipelines.worldPipeline) == "function" then
+        local okW, id = pcall(Pipelines.worldPipeline)
+        if okW and id then pipeline = 1 end
+      end
+    end
+
     local states = game and game.stack and game.stack.states
     local top = type(states) == "table" and states[#states] or nil
     local inTransition = (transitionClass and top
@@ -303,16 +325,16 @@ return function(mod)
     -- bench shows them as an ordinary row afterwards. Walk into a battle,
     -- open the bench, read LAST BATTLE.
     if inTransition == 1 and not context.inTransition then
-      context.lastBattle = ("E%d I%d N%d S%d D%d"):format(entities, walked,
-                                                        npcs,
-                                                        context.drawn or 0,
-                                                        context.npcDrawn or 0)
+      context.lastBattle = ("E%d I%d N%d S%d D%d W%d")
+        :format(entities, walked, npcs, context.drawn or 0,
+                context.npcDrawn or 0, pipeline)
     end
     context.inTransition = inTransition == 1
 
-    local line = ("E%d I%d N%d S%d D%d T%d  B%d P%d Z%d")
+    local line = ("E%d I%d N%d S%d D%d W%d T%d  B%d P%d Z%d")
       :format(entities, walked, npcs, context.drawn or 0,
-              context.npcDrawn or 0, inTransition, boxes, panels, zoneCount)
+              context.npcDrawn or 0, pipeline, inTransition,
+              boxes, panels, zoneCount)
     context.drawn = 0
     context.npcDrawn = 0
     -- Screen space, top left, over everything: this is a tool status line and
@@ -320,7 +342,7 @@ return function(mod)
     local x = (type(viewport) == "table" and tonumber(viewport.x) or 0) + 4
     local y = (type(viewport) == "table" and tonumber(viewport.y) or 0) + 4
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", x - 2, y - 2, 330, 18)
+    love.graphics.rectangle("fill", x - 2, y - 2, 370, 18)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(line, x, y)
     return result

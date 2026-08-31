@@ -399,7 +399,7 @@ local function lastBattleRow(context)
   return {
     id = "last_battle",
     label = "LAST BATTLE",
-    help = "E COUNT  I WALKED  N NPCS  S SPRITE  D NPC.",
+    help = "I WALKED  S SPRITE  D NPC  W PIPELINE OWNS WORLD.",
     value = function() return context.lastBattle or DASH end,
   }
 end

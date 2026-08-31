@@ -495,6 +495,17 @@ local function takeArt()
   return out
 end
 
+-- Four bars rather than one filled rect: the art is already down inside that
+-- rectangle and must not be painted over.
+local function paintSkirt(colour, x, y, w, h)
+  love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
+  love.graphics.rectangle("fill", x - 1, y - 1, w + 2, 1)
+  love.graphics.rectangle("fill", x - 1, y + h, w + 2, 1)
+  love.graphics.rectangle("fill", x - 1, y, 1, h)
+  love.graphics.rectangle("fill", x + w, y, 1, h)
+  love.graphics.setColor(1, 1, 1, 1)
+end
+
 local MARK_MARK = "__gen1WildArtSkirt"
 
 local function watchArt(skirt)
@@ -514,15 +525,7 @@ local function watchArt(skirt)
       local list = colour and artList() or nil
       if list and #list < ART_CAP then
         list[#list + 1] = { x = x, y = y, w = w, h = h }
-        love.graphics.setColor(colour[1] / 255, colour[2] / 255,
-                               colour[3] / 255, 1)
-        -- four bars rather than a bigger filled rect: the art has already
-        -- been drawn and must not be painted over
-        love.graphics.rectangle("fill", x - 1, y - 1, w + 2, 1)
-        love.graphics.rectangle("fill", x - 1, y + h, w + 2, 1)
-        love.graphics.rectangle("fill", x - 1, y, 1, h)
-        love.graphics.rectangle("fill", x + w, y, 1, h)
-        love.graphics.setColor(1, 1, 1, 1)
+        paintSkirt(colour, x, y, w, h)
       end
     end
     return base(x, y, w, h)
@@ -1037,6 +1040,28 @@ function Theme.new(context)
   -- has to be plumbed from a different mod before the numbers start.
   local seen = { boxes = 0, panels = 0, zones = 0 }
 
+  -- ------- for the one wrapper that marks BEFORE it draws
+  --
+  -- Wild Green marks the title figure and then calls `TitleState:draw`,
+  -- because that same call reads `self.player` at its top and the mark has to
+  -- name a rectangle the art is about to land in.  `TitleState:draw` OPENS
+  -- with a full-screen fill -- so the skirt that mark painted is wiped a line
+  -- later, and the figure kept its hairline along the bottom edge while the
+  -- mon, whose mark is emitted from inside that draw, did not.
+  --
+  -- Painting the ring again after the screen has finished is safe by
+  -- construction: the ring is entirely outside the rectangle the art occupies,
+  -- so a second coat cannot touch the art, and black over black costs a frame
+  -- nothing. The rects are still in the list because `takeArt` does not run
+  -- until `render.zones`, which is after every state has drawn.
+  function self.paintSkirts()
+    local colour = self.skirt and self.skirt() or nil
+    if not colour then return end
+    for _, rect in ipairs(artList() or {}) do
+      paintSkirt(colour, rect.x, rect.y, rect.w, rect.h)
+    end
+  end
+
   function self.probe()
     return seen.boxes, seen.panels, seen.zones
   end
@@ -1146,7 +1171,7 @@ function Theme.new(context)
     -- next frame like everything else -- and answering nil is what turns the
     -- whole thing off under LIGHT, or in a mode that discards the marks and
     -- would read a black skirt as a hole in the page.
-    if not watchArt(function()
+    self.skirt = function()
       if self.read() ~= "dark" then return nil end
       local okFX, PaletteFX = pcall(require, "src.render.PaletteFX")
       if not okFX or type(PaletteFX) ~= "table" then return nil end
@@ -1157,7 +1182,8 @@ function Theme.new(context)
       local colour = self.matte()
       if type(colour) ~= "table" or #colour < 3 then return nil end
       return colour
-    end) then
+    end
+    if not watchArt(self.skirt) then
       mod.log:info("true-colour marks are not being watched; art keeps its "
         .. "hairline on a fractional-DPI display")
     end

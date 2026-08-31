@@ -282,7 +282,16 @@ function Matte.new(context)
 
   -- A copy, always: Assets.imageData caches, and keying the cached data would
   -- hole the same art everywhere else it is drawn.
-  local function keyedImage(path)
+  -- `all` keys EVERY near-white pixel rather than only the ones reachable
+  -- from the border.
+  --
+  -- The two images want different answers.  The logo's enclosed white is a
+  -- highlight inside a letter and has to survive, so it floods from the edge.
+  -- The ribbon has no highlights -- it is green letters with a black outline
+  -- on a white field -- and the white shut inside an `e` or an `o` is paper
+  -- that the flood cannot reach.  Leaving those turned them into a scatter of
+  -- white specks through the words the moment colour 0 stopped being pinned.
+  local function keyedImage(path, all)
     if keyed[path] ~= nil then return keyed[path] or nil end
     keyed[path] = false
     local ok = pcall(function()
@@ -291,6 +300,16 @@ function Matte.new(context)
       local w, h = src:getDimensions()
       local id = love.image.newImageData(w, h)
       id:paste(src, 0, 0, 0, 0, w, h)
+
+      if all then
+        for y = 0, h - 1 do
+          for x = 0, w - 1 do
+            if paper(id, x, y) then id:setPixel(x, y, 0, 0, 0, 0) end
+          end
+        end
+        keyed[path] = love.graphics.newImage(id)
+        return
+      end
 
       -- Flood from every border pixel; only paper is walkable, so an
       -- enclosed highlight is never reached.
@@ -322,16 +341,16 @@ function Matte.new(context)
     if not (love.image and love.image.newImageData) then return nil end
     local title = type(state.title) == "table" and state.title or {}
     local put = {}
-    local function swap(field, path)
+    local function swap(field, path, all)
       if not state[field] or not path then return end
-      local image = keyedImage(path)
+      local image = keyedImage(path, all)
       if not image then return end
       put[field] = state[field]
       state[field] = image
     end
     swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"))
     swap("version", pathOf(title.versionRibbon or title.version,
-                           "assets/generated/title/red_version.png"))
+                           "assets/generated/title/red_version.png"), true)
     if not next(put) then return nil end
     return put
   end
@@ -350,6 +369,16 @@ function Matte.new(context)
       local ok, problem, painted = withBlackPage(base, state, ...)
       if put then
         for field, image in pairs(put) do state[field] = image end
+      end
+      -- Wild Green marks the figure BEFORE this draw runs, because the draw
+      -- reads `self.player` at its top -- and the draw's opening full-screen
+      -- fill wipes the skirt that mark painted.  Laying the rings down again
+      -- now costs nothing (they are outside the art by construction) and is
+      -- the difference between the figure keeping its hairline and not.
+      local theme = context.theme
+      if ok and type(theme) == "table"
+          and type(theme.paintSkirts) == "function" then
+        pcall(theme.paintSkirts)
       end
       if not ok then
         -- the screen raised part way through with the shim in place: it is

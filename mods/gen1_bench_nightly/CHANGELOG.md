@@ -5,6 +5,25 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.6] - 2026-08-31
+
+### Changed
+
+- **The probe reports whether a mod owns the world pass.** `E11 I11 N10 S1
+  D0` says the draw list is whole — `ipairs` walks all eleven — and that the
+  entity loop nonetheless never ran, because not one NPC draw happened.
+
+  There is exactly one branch of `drawWorld` that skips that loop: `if
+  override then -- the pipeline owns the whole frame; nothing else draws into
+  the world`. The tilt path still calls `NPC.draw` through its billboards, so
+  it cannot be that one, and a hole in the list is ruled out by `I11`.
+
+  `W` says whether a registered world pipeline is eligible this frame. `W1`
+  with `D0` means a pipeline is rendering the world and is not drawing the
+  NPCs — a mod outside this channel, since none of these four registers one.
+  `W0` means that branch is not the explanation and the reading needs another
+  look.
+
 ## [0.31.5] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every
