@@ -6,6 +6,22 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.30] - 2026-08-31
+
+- The XP bar no longer shows through the level-up pop-up. `battle.overlay`
+  fires whenever the battle *draws*, and the battle keeps drawing while another
+  state is on top of it -- that is how the level-up stat window appears over the
+  fight rather than over nothing. The wide layout's bar marks its fill
+  `trueColor`, and a `trueColor` rectangle is spliced onto the pass's zone list
+  and re-blits its region **raw** once the pass is composed; a battle draws in
+  the same `ui` pass as everything pushed over it, so that two-pixel strip came
+  back on top of the window that had just covered it.
+
+  The bar asks the stack whether anything is standing on the battle, and stands
+  down if so. A stack it cannot read leaves the bar drawn.
+
+  Carried from Gen1BattleUI 1.6.1, which is where the file lives now.
+
 ## [0.31.29] - 2026-08-31
 
 - No changes; released alongside the QOL mod.
