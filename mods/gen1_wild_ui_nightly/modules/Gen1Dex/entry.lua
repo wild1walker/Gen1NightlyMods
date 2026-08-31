@@ -281,7 +281,7 @@ return function(mod, DexData, C)
     self.sprite = ok and image or nil
     self.spriteTrueColor = (ok and trueColor) and true or false
 
-    self.stats = DexData.stats(game.data, self.def)
+    self.stats = DexData.stats(game.data, self.def, game.save)
     self.owned = self.forceOwned
       or (game.save.pokedex and game.save.pokedex.owned[species]) or false
     self.desc = DexData.description(game.data, self.def, self.owned)

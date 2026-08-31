@@ -178,16 +178,29 @@ do
   local byId = {}
   for _, row in ipairs(rows) do byId[row.species] = row end
 
-  local name, detail = Inspect.detail(byId.RATTATA)
+  -- Three pieces, not one string: the header is eighteen glyphs wide and
+  -- "Lv11 VERY RARE GRASS" is twenty, which is how it came to be drawn
+  -- through the box's own right border.
+  local name, band, tail = Inspect.detail(byId.RATTATA)
   eq(name, "?????", "the header says nothing the list would not")
-  ok(detail:find("GRASS", 1, true) ~= nil, "but it does say how")
-  ok(detail:find("Lv", 1, true) ~= nil, "and roughly what level")
+  ok(tail:find("GRASS", 1, true) ~= nil, "but it does say how")
+  ok(band:find("Lv", 1, true) ~= nil, "and roughly what level")
+  ok(#name + 1 + #band <= 18, "the name line fits its box")
+  ok(#tail <= 18, "and so does the tier line")
 
   local ownedName = Inspect.detail(byId.PIDGEY)
   eq(ownedName, "PIDGEY", "a seen species is named in the header")
 
   local blank = Inspect.detail(nil)
   eq(blank, "?????", "and an empty list has nothing to say either")
+
+  -- The worst case the header can be handed: a ten-glyph name, a two-ended
+  -- level band, the longest tier and the longest method.
+  local worst = { name = "NIDORAN\194\185", lo = 22, hi = 25,
+                  tier = "VERY RARE", methods = { "SUPER ROD" } }
+  local wn, wb, wt = Inspect.detail(worst)
+  ok(#wb <= 7, "a two-ended band is seven glyphs at most")
+  ok(#wt <= 18, "and the tier line stays inside the box")
 end
 
 io.write("a place with nothing in it says so rather than raising\n")

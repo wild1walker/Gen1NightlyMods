@@ -49,12 +49,16 @@ return function(mod, C)
   -- falls back to so the two screens never disagree about a share.
   local BUCKETS = { 51, 102, 141, 166, 191, 216, 229, 242, 253, 256 }
 
+  -- Short on purpose: the header is eighteen glyphs wide and the longest
+  -- line it has to carry is a tier and a method.  "VERY RARE SUPER ROD" is
+  -- nineteen, so every rod is a ROD -- which one is a detail the header was
+  -- never the place for.
   local METHODS = {
     grass = "GRASS",
     water = "SURF",
-    old_rod = "OLD ROD",
-    good_rod = "GOOD ROD",
-    super_rod = "SUPER ROD",
+    old_rod = "ROD",
+    good_rod = "ROD",
+    super_rod = "ROD",
   }
 
   -- The same cuts area.lua names its tiers with.
@@ -66,6 +70,16 @@ return function(mod, C)
   end
 
   local UNKNOWN = "?????"
+
+  -- The header box's interior, in tile glyphs.  The tile font is one glyph to
+  -- eight pixels and cannot be anything else, so a clip is a character count.
+  local HEAD_GLYPHS = 18
+
+  local function clip(text)
+    text = tostring(text or "")
+    if #text <= HEAD_GLYPHS then return text end
+    return text:sub(1, HEAD_GLYPHS)
+  end
 
   -- ------- the data
 
@@ -163,21 +177,33 @@ return function(mod, C)
     return order
   end
 
-  -- The header's second and third lines for the highlighted row.  Masked the
-  -- same way the list is: a name here would undo the list's whole point.
+  -- The header's second and third lines for the highlighted row, as three
+  -- pieces the screen puts together -- masked the same way the list is,
+  -- because a name here would undo the list's whole point.
+  --
+  -- Split rather than one string because the header is EIGHTEEN GLYPHS wide
+  -- and one string was twenty: "Lv11 VERY RARE GRASS" ran into the box's own
+  -- right border, which is what a player saw.  The name carries the level
+  -- band (ten glyphs plus a space plus seven is exactly eighteen at worst)
+  -- and the tier carries the method.
   function Inspect.detail(row)
-    if type(row) ~= "table" then return UNKNOWN, "" end
+    if type(row) ~= "table" then return UNKNOWN, "", "" end
     local band = ""
     if row.lo and row.hi then
       band = row.lo == row.hi and ("Lv%d"):format(row.lo)
         or ("Lv%d-%d"):format(row.lo, row.hi)
     end
+    local tail = row.tier or ""
     local how = row.methods and row.methods[1] or ""
-    local line = band
-    if row.tier then line = (line ~= "" and (line .. " ") or "") .. row.tier end
-    if how ~= "" then line = (line ~= "" and (line .. " ") or "") .. how end
-    return row.name or UNKNOWN, line
+    if how ~= "" then tail = (tail ~= "" and (tail .. " ") or "") .. how end
+    -- Clipped here rather than only at the draw, so the guarantee lives in
+    -- the function a test can drive.  The vocabulary above already fits --
+    -- "VERY RARE GRASS" is fifteen -- but a mod is free to register an
+    -- encounter group with a longer name than any of ours.
+    return row.name or UNKNOWN, band, clip(tail)
   end
+
+  Inspect.HEAD_GLYPHS = HEAD_GLYPHS
 
   Inspect.UNKNOWN = UNKNOWN
   Inspect.tierFor = tierFor
@@ -185,8 +211,13 @@ return function(mod, C)
   -- ------- the screen
 
   local ROWS = 6                 -- text rows the list box holds
-  local BALL_X, BALL_R = 150, 3.5
+  -- Inside the box, not on it.  The dex list can sit its ball at 150 because
+  -- its own frame ends further right; this box is the full twenty tiles, so
+  -- its right border owns 152 onward and a ball of radius three and a half at
+  -- 150 was drawn through it.
+  local BALL_X, BALL_R = 140, 3.5
   local NAME_X = 16
+
 
   local function drawBall(y)
     local by = y + 4
@@ -231,9 +262,26 @@ return function(mod, C)
     function self:update()
       local input = self.game.input
       if not input then return end
-      if input:wasPressed("b") or input:wasPressed("a") then
+      if input:wasPressed("b") then
         require("src.core.Sound").play(self.game.data, "Press_AB")
         self.game.stack:pop()
+        return
+      end
+      -- A on a row asks the other question: not "what lives here" but "where
+      -- else does THIS live".  That is the dex's own AREA screen, opened the
+      -- way the dex entry opens it, so the two are one map rather than two.
+      --
+      -- Only for a species you have seen.  The list will happily tell you
+      -- something rare lives in this grass; pinning its nests across Kanto
+      -- for a POKeMON you have never met is the spoiler the question marks
+      -- exist to avoid, so an unseen row simply does not answer.
+      if input:wasPressed("a") then
+        local row = self.rows[self.index]
+        require("src.core.Sound").play(self.game.data, "Press_AB")
+        if row and row.seen and row.species and mod.ui and mod.ui.push then
+          pcall(mod.ui.push, self.game, "TownMap",
+                { nestSpecies = row.species })
+        end
         return
       end
       if input:wasPressed("up") then self.index = self.index - 1; clamp()
@@ -247,11 +295,12 @@ return function(mod, C)
       love.graphics.setColor(0, 0, 0, 1)
 
       Font.drawBox(0, 0, 20, 5)
-      Font.draw(self.place, 8, 8)
+      Font.draw(clip(self.place), 8, 8)
       local row = self.rows[self.index]
-      local name, detail = Inspect.detail(row)
-      Font.draw(name, 8, 16)
-      Font.draw(detail, 8, 24)
+      local name, band, tail = Inspect.detail(row)
+      if band ~= "" then name = name .. " " .. band end
+      Font.draw(clip(name), 8, 16)
+      Font.draw(clip(tail), 8, 24)
 
       Font.drawBox(0, 5, 20, 13)
       if #self.rows == 0 then

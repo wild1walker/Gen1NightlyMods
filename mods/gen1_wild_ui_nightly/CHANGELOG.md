@@ -6,6 +6,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.0] - 2026-08-31
+
+### Added
+
+- **A on an INSPECT row opens that POKeMON's AREA map.** The list answers
+  "what lives here"; A asks the other half — "where else does this live" —
+  and it opens the dex's own AREA screen rather than a second map of its own,
+  so the two are one screen reached two ways.
+
+  Only for a species you have seen. The list will tell you something rare
+  lives in this grass; pinning its nests across Kanto for a POKeMON you have
+  never met is the spoiler the question marks exist to avoid, so an unseen row
+  does not answer.
+
+- **The dex stops naming evolutions you have not met.** A caught BULBASAUR
+  printed `EVOLVES / LEVEL 16 / IVYSAUR`, which hands over the next two names
+  of every line in the game the moment you catch the first. An unseen target
+  is masked now, the same way the INSPECT list masks one, and the row still
+  says how and when — `EVOLVES / LEVEL 16 / ?????`.
+
+### Fixed
+
+- **The INSPECT header ran through its own frame.** `Lv11 VERY RARE GRASS` is
+  twenty glyphs and the box holds eighteen, so it was drawn over the border.
+  The name carries the level band and the tier carries the method now — two
+  lines that fit by construction, with the ten-glyph name and a two-ended band
+  coming to exactly eighteen at worst. Every rod is a `ROD`; which one is a
+  detail the header was never the place for. The bound is enforced where the
+  strings are built rather than only where they are drawn, so a mod that
+  registers a longer encounter group cannot reopen it.
+
+- **The caught balls sat on the list box's border.** The dex list can put its
+  ball at x=150 because its own frame ends further right; this box is the full
+  twenty tiles, so its border owns 152 onward and the ball was drawn through
+  it. Moved inside.
+
 ## [0.30.4] - 2026-08-31
 
 ### Fixed
