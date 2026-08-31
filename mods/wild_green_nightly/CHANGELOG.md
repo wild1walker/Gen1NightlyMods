@@ -6,6 +6,19 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.31.14] - 2026-08-31
+
+### Changed
+
+- **The green figure names the file it was loaded from.** Gen1WildUI puts a
+  one-pixel white pad round the title art on a dark ground, and it bakes that
+  pad from a **file** -- reading the picture back off the GPU instead is what
+  wrecked two of its releases. It could only find the red figure's path,
+  because that is the one `TitleState` loaded and this mod swaps the picture
+  without touching it. The derived copy now records its own path
+  (`__gen1WildPlayerPath`) as it installs itself. Nothing here depends on
+  anyone reading it.
+
 ## [0.31.13] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

@@ -248,8 +248,33 @@ function Matte.new(context)
       end
       return real(mode, x, y, w, h, ...)
     end
+
+    -- ------- the two that carry a margin
+    --
+    -- Both are a pixel larger than the picture they stand in for, because
+    -- their own line work runs into the edge of the sheet it was cut from and
+    -- the pad had nowhere to grow.  Drawn a pixel up and left, they land
+    -- exactly where the bare ones would have.
+    local realDraw = lg.draw
+    local logo, ball, ballQuad =
+      state.__gen1WildLogo, state.__gen1WildBall, state.ballQuad
+    if logo or (ball and ballQuad) then
+      lg.draw = function(image, a, b, c, ...)
+        if logo and image == logo
+            and type(a) == "number" and type(b) == "number" then
+          return realDraw(image, a - 1, b - 1)
+        end
+        if ball and a == ballQuad
+            and type(b) == "number" and type(c) == "number" then
+          return realDraw(ball, b - 1, c - 1)
+        end
+        return realDraw(image, a, b, c, ...)
+      end
+    end
+
     local ok, problem = pcall(base, state, ...)
     lg.rectangle = real
+    lg.draw = realDraw
     return ok, problem, painted
   end
 
@@ -304,15 +329,25 @@ function Matte.new(context)
   -- flood could not reach.  One pixel of growth and not two, for the icons'
   -- reason: two swells a shape until it fills the space it was cut out of,
   -- which is the box this is here to stop being.
-  local function sticker(id)
-    local w, h = id:getDimensions()
+  -- ------- what counts as line work
+  --
+  --   * the logo is printed ON paper -- opaque everywhere, near-white where
+  --     the paper is -- so its ink is what is NOT paper.
+  --   * the figure and the mon are sprites on transparency (`raw2bpp` with
+  --     `matte`, `writeCompressedPic` through `matteColor0`), so their ink is
+  --     every opaque pixel and the pad is a one-pixel outline.
+  local function stickerRect(id, onPaper, rect)
+    local w, h = rect.w, rect.h
+    local x0, y0 = rect.x, rect.y
     if w <= 0 or h <= 0 then return false end
 
     local ink = {}
     for y = 0, h - 1 do
       for x = 0, w - 1 do
-        local _, _, _, a = id:getPixel(x, y)
-        if a > 0 and not paper(id, x, y) then ink[y * w + x] = true end
+        local _, _, _, a = id:getPixel(x0 + x, y0 + y)
+        if a > 0 and not (onPaper and paper(id, x0 + x, y0 + y)) then
+          ink[y * w + x] = true
+        end
       end
     end
     if not next(ink) then return false end
@@ -354,14 +389,36 @@ function Matte.new(context)
         local key = y * w + x
         if not ink[key] then
           if outside[key] then
-            id:setPixel(x, y, 0, 0, 0, 0)
+            id:setPixel(x0 + x, y0 + y, 0, 0, 0, 0)
           else
-            id:setPixel(x, y, 1, 1, 1, 1)
+            id:setPixel(x0 + x, y0 + y, 1, 1, 1, 1)
           end
         end
       end
     end
     return true
+  end
+
+  -- ------- one sheet, several pictures
+  --
+  -- The figure is a sheet the title draws in pieces: three full-width slices
+  -- with the POKe BALL tucked into the gap at (0,16).  A halo grown across
+  -- the whole sheet would grow across that boundary too -- a white pixel off
+  -- the ball's edge that belongs to the trainer, landing on screen nowhere
+  -- near him.  So the bake runs once per PIECE, inside that piece's
+  -- rectangle, with the flood starting at the rectangle's own border.  Pieces
+  -- that are contiguous when they land grow no halo along the seam, because
+  -- the pixel across it is ink and ink is never repapered.
+  local function sticker(id, onPaper, rects)
+    if not rects then
+      local w, h = id:getDimensions()
+      rects = { { x = 0, y = 0, w = w, h = h } }
+    end
+    local any = false
+    for _, rect in ipairs(rects) do
+      if stickerRect(id, onPaper, rect) then any = true end
+    end
+    return any
   end
 
   -- Every near-white pixel, counters included.  The ribbon is eight pixels of
@@ -402,22 +459,84 @@ function Matte.new(context)
 
   -- A copy, always: Assets.imageData caches, and keying the cached data would
   -- hole the same art everywhere else it is drawn.
-  local function keyedImage(path, bake)
-    if keyed[path] ~= nil then return keyed[path] or nil end
-    keyed[path] = false
+  --
+  -- `margin` grows the copy by a pixel on every side and pastes the art into
+  -- the middle of it, for art whose own line work reaches the edge of its
+  -- sheet and leaves the pad nowhere to go.  The ROM's POKeMON logo is
+  -- exactly that -- `raw2bpp("PokemonLogoGraphics", 128, 56)` with no
+  -- transparency, and the wordmark runs into the last column -- which is what
+  -- "a little bit of padding missing on the right side" is.  A bigger sheet
+  -- has to be drawn a pixel up and left to land where the bare one would;
+  -- `withBlackPage` does that.
+  local function keyedImage(path, bake, margin)
+    local key = path .. (margin and "+" or "")
+    if keyed[key] ~= nil then return keyed[key] or nil end
+    keyed[key] = false
     pcall(function()
       local Assets = require("src.render.Assets")
       local src = Assets.imageData(path)
       local w, h = src:getDimensions()
-      local id = love.image.newImageData(w, h)
-      id:paste(src, 0, 0, 0, 0, w, h)
+      local pad = margin and 1 or 0
+      local id = love.image.newImageData(w + pad * 2, h + pad * 2)
+      id:paste(src, pad, pad, 0, 0, w, h)
       if bake(id) then
         local out = love.graphics.newImage(id)
         pcall(out.setFilter, out, "nearest", "nearest")
-        keyed[path] = out
+        keyed[key] = out
       end
     end)
-    return keyed[path] or nil
+    return keyed[key] or nil
+  end
+
+  -- The figure's three slices and the POKe BALL in the gap between them, off
+  -- the quads the state built rather than restated here: they are sized from
+  -- the sheet, and a sprite pack may ship a taller one.
+  local function figureRects(state, id)
+    local out, seen = {}, {}
+    local function add(quad)
+      if not quad or type(quad.getViewport) ~= "function" then return end
+      local okQ, qx, qy, qw, qh = pcall(quad.getViewport, quad)
+      if not okQ then return end
+      local mark = table.concat({ qx, qy, qw, qh }, ",")
+      if seen[mark] then return end
+      seen[mark] = true
+      out[#out + 1] = { x = qx, y = qy, w = qw, h = qh }
+    end
+    for _, part in ipairs(state.playerQuads or {}) do add(part[1]) end
+    add(state.ballQuad)
+    if not out[1] then
+      local w, h = id:getDimensions()
+      out[1] = { x = 0, y = 0, w = w, h = h }
+    end
+    return out
+  end
+
+  -- ------- the POKe BALL, which has nowhere on the sheet to grow into
+  --
+  -- Its eight-by-eight cell sits at (0,16) in the gap the trainer's middle
+  -- slice leaves, and every pixel around it inside the sheet belongs to the
+  -- trainer -- so a pad baked in place has nowhere to go.  It is cut out into
+  -- an image a pixel larger on every side and substituted for that one draw,
+  -- a pixel up and left, so it lands where the bare ball would have.
+  local function ballImage(path, quad)
+    if not (quad and type(quad.getViewport) == "function") then return nil end
+    local okQ, qx, qy, qw, qh = pcall(quad.getViewport, quad)
+    if not (okQ and qw and qh and qw > 0 and qh > 0) then return nil end
+    local key = ("%s#ball%d,%d,%d,%d"):format(path, qx, qy, qw, qh)
+    if keyed[key] ~= nil then return keyed[key] or nil end
+    keyed[key] = false
+    pcall(function()
+      local Assets = require("src.render.Assets")
+      local src = Assets.imageData(path)
+      local cell = love.image.newImageData(qw + 2, qh + 2)
+      cell:paste(src, 1, 1, qx, qy, qw, qh)
+      if sticker(cell, false, nil) then
+        local out = love.graphics.newImage(cell)
+        pcall(out.setFilter, out, "nearest", "nearest")
+        keyed[key] = out
+      end
+    end)
+    return keyed[key] or nil
   end
 
   -- The four the title prints on its own paper.  The mon and the figure are
@@ -431,17 +550,63 @@ function Matte.new(context)
     if not (love.image and love.image.newImageData) then return nil, false end
     local title = type(state.title) == "table" and state.title or {}
     local put = {}
-    local function swap(field, path, bake)
+    local function swap(field, path, bake, margin)
       if not state[field] or not path then return false end
-      local image = keyedImage(path, bake)
+      local image = keyedImage(path, bake, margin)
       if not image then return false end
       put[field] = state[field]
       state[field] = image
       return true
     end
-    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"), sticker)
+    -- ------- a picture may only be replaced by one of the same size
+    --
+    -- This is the guard that would have caught 0.31.10 on the first frame.
+    -- The title places the mon at `x = 40 + (56 - w) / 2` and `y = 136 - h`,
+    -- off the dimensions of whatever it is handed, so a substitute of a
+    -- different size is not a different-looking mon, it is a POKeMON across
+    -- half the screen on top of the logo.  If the bake does not come back the
+    -- same size as the picture it is standing in for, it does not stand in.
+    local function sameSize(a, b)
+      if not (a and b) then return false end
+      local okA, aw, ah = pcall(a.getDimensions, a)
+      local okB, bw, bh = pcall(b.getDimensions, b)
+      return okA and okB and aw == bw and ah == bh
+    end
+
+    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"),
+         function(id) return sticker(id, true, nil) end, true)
     swap("version", pathOf(title.versionRibbon or title.version,
                            "assets/generated/title/red_version.png"), keyAll)
+
+    -- ------- the figure, and the ball out of the same sheet
+    --
+    -- Not in OG RED, where the draw rebuilds the image from `playerPath`
+    -- through the OBP tables on every frame and never reads this field.
+    --
+    -- And from the path the picture ACTUALLY came from.  `state.playerPath`
+    -- is the red figure's, because that is what TitleState loaded; Wild Green
+    -- swaps `state.player` for its green derived copy and leaves that path
+    -- alone, so baking it is what put the red suit back on a green cart in
+    -- 0.31.8.  Its recipe names the file it used, and that is the one baked.
+    local obp = false
+    pcall(function()
+      local PaletteFX = require("src.render.PaletteFX")
+      obp = type(PaletteFX.usesSpriteObp) == "function"
+        and PaletteFX.usesSpriteObp() or false
+    end)
+    if not obp and state.player then
+      local path = state.__gen1WildPlayerPath or state.playerPath
+      if path then
+        local baked = keyedImage(path, function(id)
+          return sticker(id, false, figureRects(state, id))
+        end)
+        if sameSize(baked, state.player) then
+          put.player = state.player
+          state.player = baked
+          state.__gen1WildBall = ballImage(path, state.ballQuad)
+        end
+      end
+    end
 
     -- ------- the copyright, all of it or none of it
     --
@@ -476,7 +641,50 @@ function Matte.new(context)
     end
 
     if not next(put) then return nil, false end
+    state.__gen1WildLogo = put.logo and state.logo or nil
     return put, dark
+  end
+
+  -- ------- the mon
+  --
+  -- The one piece of title art with no field to swap: cached per species
+  -- inside the state and reached only through `currentSprite`.  The bake is
+  -- of the FILE that call resolves -- `Sprites.path` with the title kind,
+  -- which is where the engine itself gets it -- and it stands in only if it
+  -- comes back the same size as what the call returned.
+  --
+  -- That guard is the whole safety of this.  With Crystal Animated Sprites
+  -- installed, `currentSprite` hands back an animation SHEET; the static file
+  -- behind it is a different size, the sizes disagree, and nothing is
+  -- substituted.  0.31.10 had no guard and drew the sheet.
+  local function wrapCurrentSprite(base)
+    return function(state, ...)
+      local image, trueColor = base(state, ...)
+      if not image or type(state) ~= "table"
+          or not state.__gen1WildKeyedArt
+          or not (love.image and love.image.newImageData) then
+        return image, trueColor
+      end
+      local baked
+      pcall(function()
+        local species = state.cycleSpecies
+          and state.cycleSpecies[state.cycleIndex]
+        if not species then return end
+        local path = require("src.pokemon.Sprites").path(
+          state.game.data, species, "front", { kind = "title" })
+        if type(path) ~= "string" then return end
+        baked = keyedImage(path, function(id)
+          return sticker(id, false, nil)
+        end)
+      end)
+      if not baked then return image, trueColor end
+      local okA, aw, ah = pcall(baked.getDimensions, baked)
+      local okB, bw, bh = pcall(image.getDimensions, image)
+      if not (okA and okB and aw == bw and ah == bh) then
+        return image, trueColor
+      end
+      return baked, trueColor
+    end
   end
 
   function self.wrapTitle(base)
@@ -528,6 +736,9 @@ function Matte.new(context)
         and not patched[class] then
       patched[class] = true
       class.draw = self.wrapTitle(class.draw)
+      if type(class.currentSprite) == "function" then
+        class.currentSprite = wrapCurrentSprite(class.currentSprite)
+      end
     end
   end
 

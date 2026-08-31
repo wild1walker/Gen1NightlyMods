@@ -800,6 +800,18 @@ return function(mod)
       local ok, image = pcall(Assets.image, swapped)
       if not (ok and image) then return nil end
       pcall(image.setFilter, image, "nearest", "nearest")
+      -- ------- and say where it came from
+      --
+      -- Gen1WildUI puts a one-pixel white pad round the title art on a dark
+      -- ground, and it bakes that pad from a FILE -- reading the picture back
+      -- off the GPU instead is what wrecked two of its releases.  A file it
+      -- can only find if it is told: `title.playerPath` is still the RED
+      -- figure's path, because that is the one TitleState loaded, and baking
+      -- THAT would put the red suit back over this one.
+      --
+      -- So the derived copy names itself.  Nothing here depends on anyone
+      -- reading it.
+      title.__gen1WildPlayerPath = swapped
       return image
     end
 
@@ -855,6 +867,8 @@ return function(mod)
                 local raw = rawOf(title)
                 if not raw then return end      -- nothing to work from yet
                 title.__wildGreenBaked = greenBake(raw) or false
+                -- a bake, not a file: there is no path to hand anyone
+                title.__gen1WildPlayerPath = nil
                 -- the line 1.4.0 needed: the wrap succeeded there and the
                 -- BAKE was what failed, silently, a frame later
                 mod.log:info("title figure: %s", title.__wildGreenBaked

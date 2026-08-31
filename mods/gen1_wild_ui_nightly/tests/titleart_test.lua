@@ -75,7 +75,11 @@ love = {
   graphics = {
     setColor = function() end,
     rectangle = function() end,
-    newImage = function(data) return { data = data, setFilter = function() end } end,
+    newImage = function(data)
+      return { data = data, setFilter = function() end,
+               getDimensions = function(self) return self.data:getDimensions() end }
+    end,
+    draw = function() end,
     -- present, and failing loudly: nothing here may touch the pipeline
     newCanvas = function() gpu.canvases = gpu.canvases + 1; error("no canvases") end,
     setCanvas = function() error("no canvases") end,
@@ -141,7 +145,7 @@ end
 local fills, seen
 local function titleDraw(state)
   love.graphics.rectangle("fill", 0, 0, 160, 144)
-  seen = { logo = state.logo, version = state.version,
+  seen = { logo = state.logo, version = state.version, player = state.player,
            copyImg = state.copyImg, gfInc = state.gfInc }
 end
 
@@ -183,30 +187,58 @@ io.write("the logo keeps paper of its own shape, and loses the rest\n")
 do
   -- A letter: black outline, white face inside it, white field all round.
   -- Keying the paper the border can reach takes the face with the field on
-  -- this logo -- every one of POKeMON's 4381 near-white pixels is reachable
-  -- from the edge -- which is why it had no white in it.  The item icons do
-  -- not key paper, they GROW it.
+  -- this logo -- every one of POKeMON's near-white pixels is reachable from
+  -- the edge -- which is why it had no white in it.  The item icons do not
+  -- key paper, they GROW it.
+  --
+  -- And it is baked into a sheet a pixel larger on every side, because the
+  -- ROM's wordmark runs into the last column of its own -- `raw2bpp`
+  -- "PokemonLogoGraphics" at 128x56 with no transparency -- and a pad has
+  -- nowhere to go there.  That is the missing edge a player reported.
   defaults()
   local logo = art_from {
-    "wwwwwwww",
-    "ww####ww",
-    "ww#ww#ww",
-    "ww#ww#ww",
-    "ww####ww",
-    "wwwwwwww",
+    "wwwwww",
+    "w####w",
+    "w#ww#w",
+    "w####w",
+    "wwwwww",
   }
   art["assets/logo/pokemon_logo.png"] = logo
   local out = run { logo = logo }
   ok(out.logo ~= logo, "the state draws with the baked copy")
-  eq(picture(out.logo, 8, 6), table.concat({
+  eq(picture(out.logo, 8, 7), table.concat({
+    "........",
     ".WWWWWW.",
     ".W####W.",
     ".W#WW#W.",
-    ".W#WW#W.",
     ".W####W.",
     ".WWWWWW.",
+    "........",
   }, "\n"), "the face keeps its white, the field goes, and a pixel of paper "
-    .. "is left round the outline as the pad")
+    .. "is left round the outline as the pad -- on all four sides, including "
+    .. "the one the sheet had no room for")
+end
+
+io.write("and a sheet with a margin is drawn a pixel up and left\n")
+do
+  -- Or the whole wordmark sits one pixel down and right of where the
+  -- cartridge puts it.
+  defaults()
+  local logo = art_from { "w#w" }
+  art["assets/logo/pokemon_logo.png"] = logo
+  local drawnAt
+  local realDraw = love.graphics.draw
+  local state = { logo = logo }
+  local function logoDraw(st)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+    love.graphics.draw(st.logo, 16, 8)
+  end
+  love.graphics.draw = function(image, x, y) drawnAt = { image, x, y } end
+  Matte.new(context).wrapTitle(logoDraw)(state)
+  love.graphics.draw = realDraw
+  ok(drawnAt ~= nil, "the logo is drawn")
+  eq(drawnAt[2], 15, "a pixel left of the 16 the cartridge draws it at")
+  eq(drawnAt[3], 7, "...and a pixel above the 8")
 end
 
 io.write("the ribbon does not get one, and loses its paper outright\n")
@@ -280,6 +312,176 @@ do
   eq(out.copyImg, copy, "the half that could have turned is left alone too, "
     .. "or it would be light letters on a light row")
   eq(#fills, 2, "and the row stays light")
+end
+
+-- ------------------------------------------- the figure, and the guard
+
+io.write("the figure is baked from the path its picture actually came from\n")
+do
+  -- `state.playerPath` is the RED figure's, because that is what TitleState
+  -- loaded.  Wild Green swaps `state.player` for its green derived copy and
+  -- leaves that path alone, so baking it is what put the red suit back on a
+  -- green cart in 0.31.8.  Its recipe names the file it used instead.
+  defaults()
+  local red = art_from { "..##..", "..##.." }
+  local green = art_from { "..##..", "..##.." }
+  art["assets/generated/title/player.png"] = red
+  art["assets/generated/green/title/player.png"] = green
+
+  local quad = function(x, y, w, h)
+    return { getViewport = function() return x, y, w, h end }
+  end
+  local out = run {
+    player = green,
+    playerPath = "assets/generated/title/player.png",
+    __gen1WildPlayerPath = "assets/generated/green/title/player.png",
+    playerQuads = { { quad(0, 0, 6, 2), 0, 0 } },
+  }
+  ok(out.player ~= green, "the figure is stickered")
+  ok(out.player.data ~= red, "and it is the green file that was baked, not "
+    .. "the red one the state still names")
+end
+
+io.write("the figure gets a one-pixel outline, per quad\n")
+do
+  -- Sprites on transparency, so the line work is every opaque pixel and the
+  -- pad is an outline.  Per quad, because the POKe BALL is tucked into the
+  -- gap at (0,16) and the trainer's slices are full width: one bake across
+  -- the sheet would put a pixel of the trainer's edge on the ball.
+  defaults()
+  local figure = art_from {
+    "........",
+    "...##...",
+    "...##...",
+    "........",
+  }
+  art["assets/generated/title/player.png"] = figure
+  local quad = function(x, y, w, h)
+    return { getViewport = function() return x, y, w, h end }
+  end
+  local out = run {
+    player = figure,
+    playerPath = "assets/generated/title/player.png",
+    playerQuads = { { quad(0, 0, 8, 4), 0, 0 } },
+  }
+  eq(picture(out.player, 8, 4), table.concat({
+    "..WWWW..",
+    "..W##W..",
+    "..W##W..",
+    "..WWWW..",
+  }, "\n"), "white all the way round the trainer and nowhere else")
+end
+
+io.write("a bake of a different size does not stand in for anything\n")
+do
+  -- The guard that would have caught 0.31.10 on its first frame.  The title
+  -- places the mon at `x = 40 + (56 - w) / 2` and `y = 136 - h` off the
+  -- dimensions of whatever it is handed, so a substitute of a different size
+  -- is not a different-looking mon, it is a POKeMON across half the screen on
+  -- top of the logo.
+  defaults()
+  local drawn = art_from { "..##..", "..##.." }          -- what is on screen
+  local other = art_from { "##", "##", "##", "##" }      -- a different sheet
+  art["assets/generated/title/player.png"] = other
+  local out = run {
+    player = drawn,
+    playerPath = "assets/generated/title/player.png",
+  }
+  eq(out.player, drawn, "the picture is handed back exactly as it came")
+end
+
+-- ------------------------------------------------------------ the ball
+
+io.write("the ball is cut out so its pad has somewhere to go\n")
+do
+  -- Every pixel around its cell inside the sheet belongs to the trainer.
+  defaults()
+  local sheet = art_from {
+    "..##....",
+    "..##....",
+    "........",
+  }
+  art["assets/generated/title/player.png"] = sheet
+  local ballQuad = { getViewport = function() return 2, 0, 2, 2 end }
+  local painted = {}
+  local realDraw = love.graphics.draw
+  local state = {
+    player = sheet,
+    playerPath = "assets/generated/title/player.png",
+    ballQuad = ballQuad,
+    playerQuads = { { ballQuad, 0, 0 } },
+  }
+  local function ballDraw(st)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+    love.graphics.draw(st.player, st.ballQuad, 82, 40)
+  end
+  love.graphics.draw = function(image, a, b, c)
+    painted[#painted + 1] = { image, a, b, c }
+  end
+  Matte.new(context).wrapTitle(ballDraw)(state)
+  love.graphics.draw = realDraw
+
+  ok(state.__gen1WildBall ~= nil, "a padded ball is cut from the sheet")
+  eq(picture(state.__gen1WildBall, 4, 4),
+     table.concat({ "WWWW", "W##W", "W##W", "WWWW" }, "\n"),
+     "white all the way round it, which the sheet had no room for")
+  eq(#painted, 1, "the ball is drawn once")
+  eq(painted[1][1], state.__gen1WildBall, "and it is the padded copy")
+  eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")
+  eq(painted[1][3], 39, "...and a pixel above it, so it lands where it did")
+end
+
+-- ------------------------------------------------------------- the mon
+
+io.write("the mon is stickered from the file its own call resolves\n")
+do
+  defaults()
+  local monArt = art_from { "....", ".##.", ".##.", "...." }
+  art["mon.png"] = monArt
+  package.preload["src.pokemon.Sprites"] = function()
+    return { path = function() return "mon.png" end }
+  end
+  local TitleState = { draw = titleDraw,
+                       currentSprite = function() return monArt, true end }
+  package.preload["src.ui.TitleState"] = function() return TitleState end
+  Matte.new(context).installTitle()
+  local image = TitleState.currentSprite({ __gen1WildKeyedArt = true,
+                                           cycleSpecies = { "X" },
+                                           cycleIndex = 1, game = { data = {} } })
+  eq(picture(image, 4, 4), table.concat({
+    "WWWW", "W##W", "W##W", "WWWW",
+  }, "\n"), "outlined the way the figure is")
+end
+
+io.write("...and left alone when that file is a different size\n")
+do
+  -- With Crystal Animated Sprites installed, `currentSprite` hands back an
+  -- animation SHEET; the static file behind it is a different size, the sizes
+  -- disagree, and nothing is substituted.  0.31.10 had no guard and drew the
+  -- sheet: a CHARMANDER over half the screen with its other frames beside it.
+  defaults()
+  art["mon.png"] = art_from { "##", "##" }
+  local sheetOfFrames = art_from { "####", "####", "####", "####" }
+  local TitleState = { draw = titleDraw,
+                       currentSprite = function() return sheetOfFrames, true end }
+  package.preload["src.ui.TitleState"] = function() return TitleState end
+  Matte.new(context).installTitle()
+  eq(TitleState.currentSprite({ __gen1WildKeyedArt = true,
+                                cycleSpecies = { "X" }, cycleIndex = 1,
+                                game = { data = {} } }),
+     sheetOfFrames, "the sheet is handed straight back")
+end
+
+io.write("and on a screen that is not the dark one, never touched at all\n")
+do
+  defaults()
+  local plain = art_from { "##" }
+  local TitleState = { draw = titleDraw,
+                       currentSprite = function() return plain, true end }
+  package.preload["src.ui.TitleState"] = function() return TitleState end
+  Matte.new(context).installTitle()
+  eq(TitleState.currentSprite({}), plain,
+    "a state with no dark ground gets its own sprite back untouched")
 end
 
 io.write(("\ntitle art: %d passed, %d failed\n"):format(passed, failed))

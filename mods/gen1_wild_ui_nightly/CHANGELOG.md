@@ -6,6 +6,52 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.14] - 2026-08-31
+
+### Changed
+
+- **The figure, the POKe BALL and the mon have their pad**, and this time
+  without reading a single pixel off the GPU.
+
+  The figure is baked **from the path its picture actually came from**.
+  `state.playerPath` is the red figure's, because that is what `TitleState`
+  loaded; Wild Green swaps `state.player` for its green derived copy and
+  leaves that path alone, which is how 0.31.8 put the red suit back on a green
+  cart. Its recipe now names the file it used (`__gen1WildPlayerPath`) and
+  that is the one baked. Per quad, because the ball is tucked into the gap at
+  (0,16) and the trainer's slices are full width -- one bake across the sheet
+  would put a pixel of the trainer's edge on the ball.
+
+  The **ball** is cut out into an image a pixel larger on every side and
+  substituted for that one draw, a pixel up and left, so it lands where the
+  bare one would have. Inside the sheet every pixel around its cell belongs to
+  the trainer, so a pad baked in place had nowhere to grow.
+
+  The **mon** is stickered from the file `currentSprite` resolves --
+  `Sprites.path` with the title kind, which is where the engine gets it too.
+
+- **A picture may only be replaced by one of the same size.** This is the
+  guard that would have caught 0.31.10 on its first frame. The title places
+  the mon at `x = 40 + (56 - w) / 2` and `y = 136 - h`, off the dimensions of
+  whatever it is handed, so a substitute of a different size is not a
+  different-looking mon -- it is a POKeMON across half the screen on top of
+  the logo. If a bake does not come back the same size as the picture it
+  stands in for, it does not stand in. With Crystal Animated Sprites
+  installed, `currentSprite` hands back an animation *sheet*, the static file
+  behind it is a different size, and nothing is substituted.
+
+### Fixed
+
+- **The pad missing off the right of the POKeMON logo.** The wordmark runs
+  into the last column of its own sheet -- `raw2bpp("PokemonLogoGraphics",
+  128, 56)` with no transparency -- so there was nowhere for a pad to go. It
+  is baked into a sheet a pixel larger on every side and drawn a pixel up and
+  left, which lands it exactly where the bare one was.
+
+  `tests/titleart_test.lua` is 29 (was 13), and it still raises on `newCanvas`
+  and `setCanvas`: a bake that reaches for the GPU fails the suite rather than
+  somebody's title screen.
+
 ## [0.31.13] - 2026-08-31
 
 ### Changed
