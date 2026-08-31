@@ -5,6 +5,28 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.29.2] - 2026-08-31
+
+### Added
+
+- **SPRITE PROBE**, a row that measures instead of guessing.
+
+  The open bug: the follower and every NPC pop away the moment a battle's
+  start animation begins, while the player stays - in ADVANCED, under LIGHT as
+  well as DARK, for wild battles and trainer battles alike. Reading the code
+  eliminated most of the ways that could happen and did not find the one that
+  did, so the bench now carries the instrument.
+
+  ON draws one line over the game: `E` how many things are in the overworld's
+  draw list, `N` how many NPCs, `S` how many sprite draws were issued last
+  frame, `T` whether a battle transition is on the stack. Screenshot it as the
+  battle starts and the three numbers separate the three possible causes on
+  sight - the draw list being emptied, the draws being suppressed one sprite
+  at a time, or the sprites being drawn onto a canvas that then goes.
+
+  Off by default, and inert while it is off: one boolean test per sprite draw
+  and an early return in the frame hook.
+
 ## [0.29.1] - 2026-08-30
 
 _No changes in this release; the channel ships one version across every

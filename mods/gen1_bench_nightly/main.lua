@@ -190,6 +190,71 @@ return function(mod)
     return out
   end)
 
+  -- ------- the sprite probe's two halves
+  --
+  -- The row is in rows.lua and is just a boolean; the measuring is here,
+  -- because it patches an engine class and hooks a frame, and rows.lua is the
+  -- half that is pure enough to test.  Both halves are inert while the row
+  -- says OFF: one boolean test per sprite draw, and an early return in the
+  -- hook.
+  --
+  -- The counter is the OUTERMOST wrapper on SpriteRenderer.draw, deliberately.
+  -- It counts draws ISSUED by the world pass rather than draws that reached
+  -- the engine, so a wrapper below it that returns without drawing -- which is
+  -- one of the three things this is trying to tell apart -- still shows up in
+  -- the count.
+  do
+    local ok, SpriteRenderer = pcall(require, "src.render.SpriteRenderer")
+    if ok and type(SpriteRenderer) == "table"
+        and type(SpriteRenderer.draw) == "function" then
+      local inner = SpriteRenderer.draw
+      SpriteRenderer.draw = function(self, ...)
+        if context.probe then context.drawn = (context.drawn or 0) + 1 end
+        return inner(self, ...)
+      end
+    else
+      mod.log:warn("sprite probe cannot count: SpriteRenderer did not load")
+    end
+  end
+
+  -- Whether a battle transition is what is on top.  Resolved once and compared
+  -- by metatable, the way the suite's theme names an engine class, so a state
+  -- that merely looks like one is not mistaken for it.
+  local transitionClass
+  do
+    local ok, class = pcall(require, "src.render.BattleTransition")
+    if ok and type(class) == "table" then transitionClass = class end
+  end
+
+  mod.hooks:wrap("render.hud", function(next, game, viewport)
+    local result = next(game, viewport)
+    if not context.probe then
+      context.drawn = 0
+      return result
+    end
+    local ow = game and game.overworld
+    local entities = (type(ow) == "table" and type(ow.entities) == "table")
+      and #ow.entities or -1
+    local npcs = (type(ow) == "table" and type(ow.npcs) == "table")
+      and #ow.npcs or -1
+    local states = game and game.stack and game.stack.states
+    local top = type(states) == "table" and states[#states] or nil
+    local inTransition = (transitionClass and top
+      and getmetatable(top) == transitionClass) and 1 or 0
+    local line = ("E%d N%d S%d T%d")
+      :format(entities, npcs, context.drawn or 0, inTransition)
+    context.drawn = 0
+    -- Screen space, top left, over everything: this is a tool status line and
+    -- is meant to be readable in a screenshot rather than to fit the game.
+    local x = (type(viewport) == "table" and tonumber(viewport.x) or 0) + 4
+    local y = (type(viewport) == "table" and tonumber(viewport.y) or 0) + 4
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", x - 2, y - 2, 130, 18)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(line, x, y)
+    return result
+  end)
+
   mod.log:info("test bench on the START menu -- nightly only, %d rows",
     #Rows.build(context))
 end

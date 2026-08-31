@@ -256,6 +256,27 @@ do
   eq(by.arena_bleed.value(game), Rows.DASH, "and the arena rows")
 end
 
+io.write("the sprite probe is a plain boolean the screen can toggle\n")
+do
+  -- An instrument rather than a setting, for the bug where the follower and
+  -- every NPC pop away the moment a battle's start animation begins while the
+  -- player stays.  The row is the whole of its state: main.lua's counter and
+  -- HUD line both read `context.probe` and do nothing while it is off, so a
+  -- bench that never opens this row costs a boolean test per sprite draw.
+  local context = { find = finder({}) }
+  local rows = rowsBy(context)
+  local probe = rows.probe
+  ok(probe ~= nil, "the bench has a probe row")
+  eq(probe.value(), "OFF", "and it starts off, because it draws over the game")
+  ok(probe.step(nil, 1), "stepping it reports a change")
+  eq(context.probe, true, "and flips the flag main.lua reads")
+  eq(probe.value(), "ON", "which is what the row then says")
+  probe.step(nil, 1)
+  eq(probe.value(), "OFF", "stepping again puts it back -- it is a toggle, "
+    .. "so either direction is the same press")
+  eq(context.probe, false, "...and the flag with it")
+end
+
 io.write("a mod that answers with nonsense is not believed\n")
 do
   local liar = {

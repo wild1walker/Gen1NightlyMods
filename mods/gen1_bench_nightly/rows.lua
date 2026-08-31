@@ -348,6 +348,46 @@ end
 
 -- ------- the list
 
+-- ------- the sprite probe
+--
+-- Not a setting: an instrument, for one open bug.
+--
+-- The report is that the follower and every NPC pop away the moment a battle's
+-- start animation begins, while the player stays -- in ADVANCED, under LIGHT
+-- as well as DARK, for wild battles and trainer battles alike.  Reading the
+-- code eliminated most of the ways that could happen and did not find the one
+-- that did, so this stops guessing and measures instead.
+--
+-- ON draws one line over the game:
+--
+--   E<n>  how many things are in ow.entities -- the draw list itself
+--   N<n>  how many are in ow.npcs
+--   S<n>  how many SpriteRenderer draws were ISSUED last frame
+--   T<n>  1 while a battle transition is on the stack
+--
+-- The three numbers separate the three possible causes on sight.  If E falls
+-- to 1 when the transition starts, the draw list is being emptied and the
+-- question is who empties it.  If E holds and S falls, the draws are being
+-- suppressed one sprite at a time, somewhere below the loop.  If E and S both
+-- hold while the screen shows nothing, they were drawn and the canvas they
+-- were drawn onto is what went.
+--
+-- It costs a boolean test per sprite draw while it is off, which is the price
+-- of it being available in a build a player is already running rather than a
+-- build they have to be sent.
+local function probeRow(context)
+  return {
+    id = "probe",
+    label = "SPRITE PROBE",
+    help = "E ENTITIES  N NPCS  S SPRITE DRAWS  T IN TRANSITION.",
+    value = function() return context.probe and "ON" or "OFF" end,
+    step = function()
+      context.probe = not context.probe
+      return true
+    end,
+  }
+end
+
 function Rows.build(context)
   context.species = context.species or BENCH_SPECIES[1]
   context.level = context.level or 5
@@ -367,6 +407,7 @@ function Rows.build(context)
     levelRow(context),
     battleRow(context),
     saveRow(context),
+    probeRow(context),
   }
 end
 
