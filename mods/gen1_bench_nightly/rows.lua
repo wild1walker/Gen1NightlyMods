@@ -379,7 +379,7 @@ local function probeRow(context)
   return {
     id = "probe",
     label = "SPRITE PROBE",
-    help = "E ENTITIES  N NPCS  S SPRITE DRAWS  T IN TRANSITION.",
+    help = "E ENT  N NPCS  S SPRITE  D NPC  T IN WIPE.",
     value = function() return context.probe and "ON" or "OFF" end,
     step = function()
       context.probe = not context.probe
@@ -399,7 +399,7 @@ local function lastBattleRow(context)
   return {
     id = "last_battle",
     label = "LAST BATTLE",
-    help = "E ENTITIES  N NPCS  S SPRITE DRAWS, AT THE WIPE.",
+    help = "E ENTITIES  N NPCS  S SPRITE  D NPC DRAWS.",
     value = function() return context.lastBattle or DASH end,
   }
 end

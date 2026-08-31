@@ -5,6 +5,25 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.1] - 2026-08-31
+
+### Changed
+
+- **The probe counts NPC draws too.** `E11 N10 S1` from the last reading said
+  the draw list was full — player plus ten NPCs — and that exactly one sprite
+  draw was issued. That kills every theory about the list being emptied, but
+  it cannot tell *where* the other ten stop.
+
+  `SpriteRenderer.draw` is the bottom of the stack: a wrapper above it that
+  returns without drawing, or that draws the sprite with its own code, never
+  reaches it. Gen1Follower does both — it suppresses a follower with no mon,
+  and it draws map POKeMON itself. So a low `S` is ambiguous.
+
+  `NPC.draw` is the other end: one call per NPC the overworld's entity loop
+  actually got to. `D` against `S` settles it — `D10 S1` means the loop ran
+  and ten draws were swallowed above the engine, `D0` means the loop never ran
+  and the branch that skipped it is the bug. Two different files.
+
 ## [0.31.0] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

@@ -217,6 +217,32 @@ return function(mod)
     end
   end
 
+  -- ------- and how many of them the LOOP reached
+  --
+  -- The counter above is on SpriteRenderer.draw, which is the bottom of the
+  -- stack: a wrapper above it that returns without drawing, or draws the
+  -- sprite itself, never reaches it.  Gen1Follower does both -- it suppresses
+  -- a follower with no mon and it draws map POKeMON with its own code -- so a
+  -- low S cannot tell "the loop never reached them" from "the loop reached
+  -- them and something above swallowed the draw".
+  --
+  -- NPC.draw is the other end: one call per NPC that the overworld's entity
+  -- loop actually got to.  D against S is the whole question.  D10 S1 means
+  -- the loop ran and ten draws were swallowed above the engine; D0 means the
+  -- loop never ran at all and the branch that skipped it is the bug.
+  do
+    local ok, NPC = pcall(require, "src.world.NPC")
+    if ok and type(NPC) == "table" and type(NPC.draw) == "function" then
+      local inner = NPC.draw
+      NPC.draw = function(self, ...)
+        if context.probe then context.npcDrawn = (context.npcDrawn or 0) + 1 end
+        return inner(self, ...)
+      end
+    else
+      mod.log:warn("sprite probe cannot count NPC draws: NPC did not load")
+    end
+  end
+
   -- Whether a battle transition is what is on top.  Resolved once and compared
   -- by metatable, the way the suite's theme names an engine class, so a state
   -- that merely looks like one is not mistaken for it.
@@ -229,7 +255,7 @@ return function(mod)
   mod.hooks:wrap("render.hud", function(next, game, viewport)
     local result = next(game, viewport)
     if not context.probe then
-      context.drawn = 0
+      context.drawn, context.npcDrawn = 0, 0
       return result
     end
     local ow = game and game.overworld
@@ -263,21 +289,23 @@ return function(mod)
     -- bench shows them as an ordinary row afterwards. Walk into a battle,
     -- open the bench, read LAST BATTLE.
     if inTransition == 1 and not context.inTransition then
-      context.lastBattle = ("E%d N%d S%d"):format(entities, npcs,
-                                                 context.drawn or 0)
+      context.lastBattle = ("E%d N%d S%d D%d"):format(entities, npcs,
+                                                     context.drawn or 0,
+                                                     context.npcDrawn or 0)
     end
     context.inTransition = inTransition == 1
 
-    local line = ("E%d N%d S%d T%d  B%d P%d Z%d")
-      :format(entities, npcs, context.drawn or 0, inTransition,
-              boxes, panels, zoneCount)
+    local line = ("E%d N%d S%d D%d T%d  B%d P%d Z%d")
+      :format(entities, npcs, context.drawn or 0, context.npcDrawn or 0,
+              inTransition, boxes, panels, zoneCount)
     context.drawn = 0
+    context.npcDrawn = 0
     -- Screen space, top left, over everything: this is a tool status line and
     -- is meant to be readable in a screenshot rather than to fit the game.
     local x = (type(viewport) == "table" and tonumber(viewport.x) or 0) + 4
     local y = (type(viewport) == "table" and tonumber(viewport.y) or 0) + 4
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", x - 2, y - 2, 250, 18)
+    love.graphics.rectangle("fill", x - 2, y - 2, 290, 18)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(line, x, y)
     return result

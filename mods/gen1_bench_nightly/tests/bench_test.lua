@@ -287,8 +287,11 @@ do
   local last = rows.last_battle
   ok(last ~= nil, "the bench has a last-battle row")
   eq(last.value(), Rows.DASH, "which says nothing until a battle has started")
-  context.lastBattle = "E1 N4 S1"
-  eq(last.value(), "E1 N4 S1", "and then reports exactly what was captured")
+  context.lastBattle = "E11 N10 S1 D0"
+  eq(last.value(), "E11 N10 S1 D0",
+    "and then reports exactly what was captured -- S against D is the whole "
+    .. "question: the loop reached ten NPCs and something above the engine "
+    .. "swallowed the draws, or the loop never ran")
   ok(last.step == nil, "it is a readout, not a setting")
 end
 
