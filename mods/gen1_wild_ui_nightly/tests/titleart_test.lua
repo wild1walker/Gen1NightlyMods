@@ -398,11 +398,13 @@ do
   defaults()
   local sheet = art_from {
     "..##....",
+    ".####...",
+    ".####...",
     "..##....",
     "........",
   }
   art["assets/generated/title/player.png"] = sheet
-  local ballQuad = { getViewport = function() return 2, 0, 2, 2 end }
+  local ballQuad = { getViewport = function() return 1, 0, 4, 4 end }
   local painted = {}
   local realDraw = love.graphics.draw
   local state = {
@@ -422,9 +424,20 @@ do
   love.graphics.draw = realDraw
 
   ok(state.__gen1WildBall ~= nil, "a padded ball is cut from the sheet")
-  eq(picture(state.__gen1WildBall, 4, 4),
-     table.concat({ "WWWW", "W##W", "W##W", "WWWW" }, "\n"),
-     "white all the way round it, which the sheet had no room for")
+  -- and no pad UNDER it: the ball is drawn after the trainer's slices, so it
+  -- is on top of him, and where he is holding it his hand is directly
+  -- underneath.  A pad on that side is a white line across the hand.
+  eq(picture(state.__gen1WildBall, 6, 6), table.concat({
+    ".WWWW.",
+    "WW##WW",
+    "W####W",
+    "W####W",
+    "W.##.W",
+    "......",
+  }, "\n"),
+     "white round the top and the sides, which the sheet had no room for, "
+     .. "and nothing below the art in a column that has art in it -- the two "
+     .. "outer columns keep theirs, because beside the ball is not under it")
   eq(#painted, 1, "the ball is drawn once")
   eq(painted[1][1], state.__gen1WildBall, "and it is the padded copy")
   eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")

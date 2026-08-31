@@ -518,6 +518,19 @@ function Matte.new(context)
   -- trainer -- so a pad baked in place has nowhere to go.  It is cut out into
   -- an image a pixel larger on every side and substituted for that one draw,
   -- a pixel up and left, so it lands where the bare ball would have.
+  --
+  -- ------- and no pad underneath it
+  --
+  -- The ball is drawn AFTER the trainer's three slices, so it is on top of
+  -- him, and where he is holding it his hand is directly under it.  A pad on
+  -- that side is not paper round the art, it is a white line painted across
+  -- the hand.
+  --
+  -- Per column rather than by cutting the bottom row off: below the LOWEST
+  -- pixel of art in each column, which follows the curve of the ball and
+  -- takes the two bottom corners with it.  A column with no art in it is not
+  -- underneath anything -- it is the pad beside the ball -- and is left as it
+  -- is.
   local function ballImage(path, quad)
     if not (quad and type(quad.getViewport) == "function") then return nil end
     local okQ, qx, qy, qw, qh = pcall(quad.getViewport, quad)
@@ -528,13 +541,28 @@ function Matte.new(context)
     pcall(function()
       local Assets = require("src.render.Assets")
       local src = Assets.imageData(path)
-      local cell = love.image.newImageData(qw + 2, qh + 2)
+      local cw, ch = qw + 2, qh + 2
+      local cell = love.image.newImageData(cw, ch)
       cell:paste(src, 1, 1, qx, qy, qw, qh)
-      if sticker(cell, false, nil) then
-        local out = love.graphics.newImage(cell)
-        pcall(out.setFilter, out, "nearest", "nearest")
-        keyed[key] = out
+
+      -- where the art ends in each column, read before the pad is grown
+      local floor = {}
+      for x = 0, cw - 1 do
+        for y = 0, ch - 1 do
+          local _, _, _, a = cell:getPixel(x, y)
+          if a > 0 then floor[x] = y end
+        end
       end
+
+      if not sticker(cell, false, nil) then return end
+      for x = 0, cw - 1 do
+        if floor[x] then
+          for y = floor[x] + 1, ch - 1 do cell:setPixel(x, y, 0, 0, 0, 0) end
+        end
+      end
+      local out = love.graphics.newImage(cell)
+      pcall(out.setFilter, out, "nearest", "nearest")
+      keyed[key] = out
     end)
     return keyed[key] or nil
   end

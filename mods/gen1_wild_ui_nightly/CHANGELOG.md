@@ -6,6 +6,20 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.15] - 2026-08-31
+
+### Fixed
+
+- **The POKe BALL's pad no longer paints across the trainer's hand.** The ball
+  is drawn *after* the figure's three slices, so it sits on top of him -- and
+  where he is holding it, his hand is directly underneath. A pad on that side
+  is not paper round the art, it is a white line over the hand.
+
+  It is dropped per column rather than by cutting the bottom row off: below
+  the lowest pixel of art in each column, which follows the curve of the ball
+  and takes both bottom corners with it. A column with no art in it is not
+  underneath anything -- that is the pad *beside* the ball, and it stays.
+
 ## [0.31.14] - 2026-08-31
 
 ### Changed
