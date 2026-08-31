@@ -6,6 +6,38 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.29.3] - 2026-08-31
+
+### Fixed
+
+- **Type colours came back grey on a dark battle box.** TACKLE, RAZOR LEAF,
+  LEECH SEED and VINE WHIP all printed in the same light grey; three of those
+  are GRASS and should be green.
+
+  The ink was never wrong. A type ink is a real RGB colour drawn onto the
+  canvas by a tint shader, and it survived for as long as it did because a
+  classic battle hands the renderer **no zone list at all** — with nothing to
+  colorize, the canvas is blitted raw and the letters keep their colour.
+  0.27.0's dark battle UI ended that: it paints a panel over every box a
+  battle draws, which is how the command grid goes dark in the first place,
+  and a panel is a four-shade palette. The letters were then read as four
+  shades off their red channel and repainted, so every type landed on
+  whichever grey its own red channel picked.
+
+  No four-colour palette can carry an arbitrary colour, so the fix leaves the
+  palette pass rather than trying to survive it. A coloured label now claims
+  its own rectangle: the theme's matte is painted into it, the ink is lifted
+  halfway to white (the table is deliberately dark — it was written for
+  black-on-white, and those inks on a black button are unreadable), and the
+  rectangle is marked true colour so the raw re-blit shows what was drawn.
+
+  ADVANCED only, and deliberately: a true-colour mark is discarded in every
+  other mode, so painting a matte there would put a black plate through the
+  shade pass and punch a hole in the button. Elsewhere the letters go through
+  the palette as they do today — legible, just not coloured. Under LIGHT
+  nothing changes at all: the box is white and the dark inks are what they
+  were written for.
+
 ## [0.29.2] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every
