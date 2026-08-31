@@ -6,6 +6,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.16] - 2026-08-31
+
+### Fixed
+
+- **The POKe BALL flashed black on its way down.** 0.31.15 took the pad off
+  its underside because the hand is there -- but the hand is only there once
+  it has landed. `title.asm` throws the ball in from above and animates
+  `ballY` down to its resting place, and for that whole fall there is nothing
+  behind it, so an underside with no paper on it is the ball's bottom edge
+  meeting the black ground directly.
+
+  Both are baked now and the draw picks between them: the full ring while it
+  is falling, the trimmed one once it is in the hand. Where it comes to rest
+  is read off the quad rather than written down -- the draw lays the figure's
+  slices at `80 + part[3]`, so the cell at `(0, qy)` in the sheet belongs at
+  `80 + qy` on screen -- so a sprite pack that moves the ball still lands.
+
+  `tests/titleart_test.lua` is 32 (was 29), driving the same ball through both
+  positions.
+
 ## [0.31.15] - 2026-08-31
 
 ### Fixed

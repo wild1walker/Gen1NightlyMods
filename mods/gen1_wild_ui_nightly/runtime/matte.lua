@@ -266,7 +266,9 @@ function Matte.new(context)
         end
         if ball and a == ballQuad
             and type(b) == "number" and type(c) == "number" then
-          return realDraw(ball, b - 1, c - 1)
+          local image = (ball.homeY and c == ball.homeY)
+            and ball.seated or ball.falling
+          return realDraw(image, b - 1, c - 1)
         end
         return realDraw(image, a, b, c, ...)
       end
@@ -519,23 +521,31 @@ function Matte.new(context)
   -- an image a pixel larger on every side and substituted for that one draw,
   -- a pixel up and left, so it lands where the bare ball would have.
   --
-  -- ------- and no pad underneath it
+  -- ------- and no pad underneath it, ONCE IT HAS LANDED
   --
   -- The ball is drawn AFTER the trainer's three slices, so it is on top of
   -- him, and where he is holding it his hand is directly under it.  A pad on
   -- that side is not paper round the art, it is a white line painted across
   -- the hand.
   --
-  -- Per column rather than by cutting the bottom row off: below the LOWEST
-  -- pixel of art in each column, which follows the curve of the ball and
-  -- takes the two bottom corners with it.  A column with no art in it is not
-  -- underneath anything -- it is the pad beside the ball -- and is left as it
-  -- is.
-  local function ballImage(path, quad)
+  -- But only once it is in the hand.  `title.asm` throws the ball in from
+  -- above and animates `ballY` down to its resting place, and for that whole
+  -- fall there is nothing behind it at all -- so an underside with no paper
+  -- on it is the ball's bottom edge meeting the black ground directly, which
+  -- is the flash a player saw.  Both are baked, and the draw picks: the full
+  -- ring while it is falling, the trimmed one when it has landed.
+  --
+  -- Trimmed per column rather than by cutting the bottom row off: below the
+  -- LOWEST pixel of art in each column, which follows the curve of the ball
+  -- and takes the two bottom corners with it.  A column with no art in it is
+  -- not underneath anything -- it is the pad beside the ball -- and is left
+  -- as it is.
+  local function ballImage(path, quad, trim)
     if not (quad and type(quad.getViewport) == "function") then return nil end
     local okQ, qx, qy, qw, qh = pcall(quad.getViewport, quad)
     if not (okQ and qw and qh and qw > 0 and qh > 0) then return nil end
-    local key = ("%s#ball%d,%d,%d,%d"):format(path, qx, qy, qw, qh)
+    local key = ("%s#ball%d,%d,%d,%d%s")
+      :format(path, qx, qy, qw, qh, trim and "-trim" or "")
     if keyed[key] ~= nil then return keyed[key] or nil end
     keyed[key] = false
     pcall(function()
@@ -555,9 +565,11 @@ function Matte.new(context)
       end
 
       if not sticker(cell, false, nil) then return end
-      for x = 0, cw - 1 do
-        if floor[x] then
-          for y = floor[x] + 1, ch - 1 do cell:setPixel(x, y, 0, 0, 0, 0) end
+      if trim then
+        for x = 0, cw - 1 do
+          if floor[x] then
+            for y = floor[x] + 1, ch - 1 do cell:setPixel(x, y, 0, 0, 0, 0) end
+          end
         end
       end
       local out = love.graphics.newImage(cell)
@@ -631,7 +643,23 @@ function Matte.new(context)
         if sameSize(baked, state.player) then
           put.player = state.player
           state.player = baked
-          state.__gen1WildBall = ballImage(path, state.ballQuad)
+          -- Where the ball comes to rest: the draw lays the figure's slices
+          -- down at `80 + part[3]`, so the cell at (0, qy) in the sheet
+          -- belongs at 80 + qy on screen.  Read off the quad rather than
+          -- written down, so a sprite pack that moves it still lands.
+          local quad = state.ballQuad
+          local homeY
+          if quad and type(quad.getViewport) == "function" then
+            local okQ, _, qy = pcall(quad.getViewport, quad)
+            if okQ and type(qy) == "number" then homeY = 80 + qy end
+          end
+          local falling = ballImage(path, quad, false)
+          local seated = ballImage(path, quad, true)
+          if falling or seated then
+            state.__gen1WildBall = { falling = falling or seated,
+                                     seated = seated or falling,
+                                     homeY = homeY }
+          end
         end
       end
     end

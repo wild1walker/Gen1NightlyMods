@@ -394,7 +394,10 @@ end
 
 io.write("the ball is cut out so its pad has somewhere to go\n")
 do
-  -- Every pixel around its cell inside the sheet belongs to the trainer.
+  -- Every pixel around its cell inside the sheet belongs to the trainer, so a
+  -- pad baked in place has nowhere to grow.  It is copied into an image a
+  -- pixel larger on every side and drawn a pixel up and left, so it lands
+  -- where the bare one would have.
   defaults()
   local sheet = art_from {
     "..##....",
@@ -413,35 +416,61 @@ do
     ballQuad = ballQuad,
     playerQuads = { { ballQuad, 0, 0 } },
   }
+  local ballY = 40
   local function ballDraw(st)
     love.graphics.rectangle("fill", 0, 0, 160, 144)
-    love.graphics.draw(st.player, st.ballQuad, 82, 40)
+    love.graphics.draw(st.player, st.ballQuad, 82, ballY)
   end
-  love.graphics.draw = function(image, a, b, c)
-    painted[#painted + 1] = { image, a, b, c }
+  local function frame()
+    painted = {}
+    love.graphics.draw = function(image, a, b, c)
+      painted[#painted + 1] = { image, a, b, c }
+    end
+    Matte.new(context).wrapTitle(ballDraw)(state)
+    love.graphics.draw = realDraw
   end
-  Matte.new(context).wrapTitle(ballDraw)(state)
-  love.graphics.draw = realDraw
 
-  ok(state.__gen1WildBall ~= nil, "a padded ball is cut from the sheet")
-  -- and no pad UNDER it: the ball is drawn after the trainer's slices, so it
-  -- is on top of him, and where he is holding it his hand is directly
-  -- underneath.  A pad on that side is a white line across the hand.
-  eq(picture(state.__gen1WildBall, 6, 6), table.concat({
+  -- ------- falling: the full ring
+  --
+  -- `title.asm` throws the ball in from above, and for that whole fall there
+  -- is nothing behind it -- so an underside with no paper on it is the ball's
+  -- bottom edge meeting the black ground, which is the flash a player saw.
+  frame()
+  local ball = state.__gen1WildBall
+  ok(ball ~= nil, "a padded ball is cut from the sheet")
+  eq(ball.homeY, 80, "and its resting place is read off the quad: the cell at "
+    .. "(0, qy) in the sheet belongs at 80 + qy on screen")
+  eq(picture(ball.falling, 6, 6), table.concat({
+    ".WWWW.",
+    "WW##WW",
+    "W####W",
+    "W####W",
+    "WW##WW",
+    ".WWWW.",
+  }, "\n"), "white all the way round it while it is in the air")
+  eq(#painted, 1, "the ball is drawn once")
+  eq(painted[1][1], ball.falling, "and mid-fall it is the fully padded copy")
+  eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")
+  eq(painted[1][3], 39, "...and a pixel above it, so it lands where it did")
+
+  -- ------- landed: nothing underneath
+  --
+  -- The ball is drawn AFTER the trainer's slices, so it is on top of him, and
+  -- where he is holding it his hand is directly under it.
+  ballY = ball.homeY
+  frame()
+  ball = state.__gen1WildBall
+  eq(picture(ball.seated, 6, 6), table.concat({
     ".WWWW.",
     "WW##WW",
     "W####W",
     "W####W",
     "W.##.W",
     "......",
-  }, "\n"),
-     "white round the top and the sides, which the sheet had no room for, "
-     .. "and nothing below the art in a column that has art in it -- the two "
-     .. "outer columns keep theirs, because beside the ball is not under it")
-  eq(#painted, 1, "the ball is drawn once")
-  eq(painted[1][1], state.__gen1WildBall, "and it is the padded copy")
-  eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")
-  eq(painted[1][3], 39, "...and a pixel above it, so it lands where it did")
+  }, "\n"), "trimmed per column, below the lowest pixel of art in each -- "
+    .. "the two outer columns keep theirs, because beside the ball is not "
+    .. "under it")
+  eq(painted[1][1], ball.seated, "and in the hand it is the trimmed copy")
 end
 
 -- ------------------------------------------------------------- the mon
