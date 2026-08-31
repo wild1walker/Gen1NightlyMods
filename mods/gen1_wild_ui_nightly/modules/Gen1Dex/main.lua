@@ -112,6 +112,14 @@ return function(mod)
     -- engine's own either way.
     { key = "nickname_backdrop", type = "toggle", label = "NAME IN PLACE",
       default = true },
+    -- A on a town-map location opens a small menu -- INSPECT, and FLY as well
+    -- when the map was opened by the field move -- instead of the press doing
+    -- one fixed thing.  INSPECT lists what lives there, richest share first,
+    -- off the live encounter tables, with the dex's own caught ball and the
+    -- dex's own silence about anything you have not seen.  Off leaves A
+    -- exactly as it was, which for the BAG's map is nothing at all.
+    { key = "map_inspect", type = "toggle", label = "MAP INSPECT",
+      default = true },
   })
 
   local DexData = loadSibling(mod, "dexdata.lua")
@@ -119,6 +127,7 @@ return function(mod)
   local makeList = loadSibling(mod, "list.lua")
   local makeEntry = loadSibling(mod, "entry.lua")
   local makeArea = loadSibling(mod, "area.lua")
+  local makeInspect = loadSibling(mod, "inspect.lua")
   local makeNaming = loadSibling(mod, "naming.lua")
   if not DexData then return end
 
@@ -140,6 +149,30 @@ return function(mod)
   -- into it.  Its own failure is survivable in a way the chrome's is not: no
   -- caption strip and no AREA on an unseen entry still leaves a Pokédex that
   -- draws, so this logs and carries on rather than returning.
+  -- INSPECT rides the town map rather than the dex, but it is the dex's
+  -- question asked from the other end -- the same encounter walk, the same
+  -- tiers, the same caught ball and the same silence -- so it is built here
+  -- and its failure is survivable in the same way the AREA screen's is: a
+  -- town map with A doing what it always did is still a town map.
+  local Inspect
+  if type(makeInspect) == "function" then
+    local ok, built = pcall(makeInspect, mod, C)
+    if ok and type(built) == "table" then
+      Inspect = built
+      local installed, err = pcall(Inspect.install)
+      if not installed then
+        mod.log:error("map INSPECT was not wrapped: %s", tostring(err))
+      end
+      mod.exports.inspect = {
+        roster = Inspect.roster,
+        mapsFor = Inspect.mapsFor,
+        detail = Inspect.detail,
+      }
+    else
+      mod.log:error("map INSPECT did not build: %s", tostring(built))
+    end
+  end
+
   local Area
   if type(makeArea) == "function" then
     local ok, built = pcall(makeArea, mod, C)

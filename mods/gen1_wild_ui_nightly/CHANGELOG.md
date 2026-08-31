@@ -6,6 +6,44 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.30.0] - 2026-08-31
+
+### Added
+
+- **INSPECT on the town map**: stand on a place and ask what lives in it.
+
+  A on a location now opens a small menu rather than doing one fixed thing.
+  FLY already owned that press when the map was opened by the field move, and
+  a second thing on the same button needs somewhere to choose between them —
+  so both live in one menu, and the map opened from the BAG gets the same menu
+  with INSPECT alone in it. B closes it and nothing has happened.
+
+  INSPECT lists what lives there, **richest share first**. That order is a
+  real number rather than a guess: Gen 1 rolls one byte and walks ten
+  cumulative thresholds, so a slot's share is the width of its bucket and a
+  species' share of a map is the sum of the buckets it sits in. Same buckets
+  and the same tier cuts the dex's AREA strip uses, so a COMMON in one means a
+  COMMON in the other — this is the AREA walk read backwards.
+
+  A location is often several maps (a route and its gate, a town and its
+  shore), so shares are pooled and then **rescaled by the maps that actually
+  carried encounters**. Without that a species owning half the one patch of
+  grass in a town would be called VERY RARE because the town's three gates
+  have none.
+
+  Each row carries the dex's own caught ball, in the dex's own column, because
+  this answers the same question the dex list answers and a ball that moved
+  between the two would read as a different mark.
+
+  **It will not name what you have not seen.** A species you have never met
+  prints as question marks — and so does the header, which is the half that
+  would have made the rest pointless. The row keeps its place in the order, so
+  the screen still says "something common lives in this grass", which is what
+  anyone walking in it would work out. It just does not say what.
+
+  New row **MAP INSPECT** under the Pokédex options, on by default. Off leaves
+  A exactly as it was.
+
 ## [0.29.4] - 2026-08-31
 
 ### Added
