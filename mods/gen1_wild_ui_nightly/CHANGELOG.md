@@ -6,6 +6,48 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.12] - 2026-08-31
+
+### Fixed
+
+- **The title screen's art work is backed out, all of it.** 0.31.10 and 0.31.11
+  wrecked this screen and I could not tell you, from the code, exactly how.
+  What I know is what changed: this bundle started substituting the pictures
+  the title draws with, reading them back off the GPU, and shimming
+  `love.graphics.draw` and `setColor` for the duration of the frame. What came
+  out was a POKeMON several times its size, colour zones landing in the wrong
+  places and hairlines through everything, and my second guess at the cause
+  fixed nothing.
+
+  Guessing again on top of two bad releases is not a plan. `matte.lua` is back
+  to 0.31.6 — the last one that only ever touched the logo and the version
+  ribbon, both of which are files nothing else swaps. No canvas readback, no
+  substituted figure, no substituted mon, no draw shim, no colour shim.
+
+  Gone with it: the pad round the figure, the mon and the POKe BALL, and the
+  logo's own white. Those were the request; they are not worth this screen.
+
+### Changed
+
+- **The copyright row carries the plain greys.** This is the one part of the
+  fix worth keeping, and it is the smallest possible version of it.
+
+  `matte.lua` leaves that strip LIGHT on the canvas — it is the only part of
+  the title ground not painted black — and the theme turned it over on top of
+  that, so it read dark with light letters. Until the true-colour rect over
+  the mon reached it: the engine rounds a `colors == false` scissor
+  **outward**, that rect re-blits the canvas **raw**, and raw down there is
+  the white paper. A white bar across the copyright. Painting the row black to
+  hide it is the other report — a black bar through the words — and clipping
+  the ring so it paints nothing there just lets the white back through. There
+  is no third answer while raw and shaded disagree about that row.
+
+  So they are made to agree by the cheap route: the identity palette. What the
+  shader writes is what the canvas already holds, the spill has nothing left
+  to show, and the strip reads the way the cartridge drew it — dark letters on
+  light paper, at the foot of a black screen. The ring is still clipped above
+  it, so nothing is painted through the words either.
+
 ## [0.31.11] - 2026-08-31
 
 ### Fixed

@@ -1024,24 +1024,24 @@ function Theme.new(context)
   --
   -- ------- and the copyright row, which is the page's own palette
   --
-  -- Not reversed, and that is the whole of a bug a player reported twice.
+  -- Not reversed, and that is a bug a player reported three times running.
   --
-  -- 0.31.8 left this row's PAPER white on the canvas and turned it over in
-  -- the palette, so the strip read black with white letters.  Which it did --
-  -- until the true-colour rect over the mon spilled into it.  The engine
-  -- rounds a `colors == false` scissor OUTWARD, that rect re-blits the canvas
-  -- RAW, and raw at row 136 was the white paper: a white bar across the
-  -- copyright, under the mon and under the figure both.  Painting the row
-  -- black to hide it is the OTHER report -- a black bar through the words --
-  -- and clipping the ring so it paints nothing there just lets the white
-  -- through again.  There is no third answer while raw and shaded disagree.
+  -- matte.lua leaves this one strip LIGHT on the canvas -- it is the only
+  -- part of the title ground that is not painted black -- and 0.31.8 turned
+  -- it over in the palette on top of that, so it read dark with light
+  -- letters.  Which it did, until the true-colour rect over the mon reached
+  -- it: the engine rounds a `colors == false` scissor OUTWARD, that rect
+  -- re-blits the canvas RAW, and raw down there was the white paper.  A white
+  -- bar across the copyright.  Painting the row black to hide it is the OTHER
+  -- report -- a black bar through the words -- and clipping the ring so it
+  -- paints nothing there just lets the white back through.  There is no third
+  -- answer while raw and shaded disagree about this row.
   --
-  -- So they are made to agree instead.  matte.lua paints the whole ground
-  -- black, INCLUDING this row, and inverts the copyright art so its letters
-  -- are white on it; this strip then carries the plain greys, which is the
-  -- identity palette -- what the shader writes is what the canvas already
-  -- holds.  Raw and shaded are the same pixels, and the spill has nothing
-  -- left to show.
+  -- So they are made to agree, the cheap way: the plain greys, which is the
+  -- IDENTITY palette.  What the shader writes is what the canvas already
+  -- holds, the spill has nothing left to show, and the strip reads the way
+  -- the cartridge drew it -- dark letters on light paper, at the foot of a
+  -- black screen.
   local COPYRIGHT_ROW = 17
   local BLACK = { 0, 0, 0 }
 
