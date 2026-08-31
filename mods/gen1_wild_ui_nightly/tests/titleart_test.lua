@@ -392,12 +392,16 @@ end
 
 -- ------------------------------------------------------------ the ball
 
-io.write("the ball is cut out so its pad has somewhere to go\n")
+io.write("the ball's ring is laid down behind the trainer\n")
 do
-  -- Every pixel around its cell inside the sheet belongs to the trainer, so a
-  -- pad baked in place has nowhere to grow.  It is copied into an image a
-  -- pixel larger on every side and drawn a pixel up and left, so it lands
-  -- where the bare one would have.
+  -- The engine draws the ball AFTER the figure's three slices, so it is on
+  -- top of him -- and where he is holding it his hand is directly under it.
+  -- A pad drawn with the ball is a white line across the hand.
+  --
+  -- Two releases went at that by trimming the underside and guessing where
+  -- the ball comes to rest.  This is the order instead: the ring goes down
+  -- BEFORE the first slice, the trainer paints over whatever of it he covers,
+  -- and the engine's own ball draw still lands the ball on top of him.
   defaults()
   local sheet = art_from {
     "..##....",
@@ -408,75 +412,80 @@ do
   }
   art["assets/generated/title/player.png"] = sheet
   local ballQuad = { getViewport = function() return 1, 0, 4, 4 end }
+  local slice = { getViewport = function() return 0, 0, 8, 5 end }
   local painted = {}
   local realDraw = love.graphics.draw
   local state = {
     player = sheet,
     playerPath = "assets/generated/title/player.png",
     ballQuad = ballQuad,
-    playerQuads = { { ballQuad, 0, 0 } },
+    ballY = 100,
+    playerQuads = { { slice, 0, 0 } },
   }
-  -- the engine parks the ball at BALL_REST = 100 and bounces it through
-  -- { 97, 95, 94, 93, 92, 93, 94, 95, 97, 100 } -- the state opens at rest
-  local ballY = 100
-  local function ballDraw(st)
+  local function figureDraw(st)
     love.graphics.rectangle("fill", 0, 0, 160, 144)
-    love.graphics.draw(st.player, st.ballQuad, 82, ballY)
+    love.graphics.draw(st.player, slice, 82, 80)          -- the trainer
+    love.graphics.draw(st.player, st.ballQuad, 82, st.ballY)  -- then the ball
   end
-  local function frame()
-    painted = {}
-    love.graphics.draw = function(image, a, b, c)
-      painted[#painted + 1] = { image, a, b, c }
-    end
-    state.ballY = ballY
-    Matte.new(context).wrapTitle(ballDraw)(state)
-    love.graphics.draw = realDraw
+  love.graphics.draw = function(image, a, b, c)
+    painted[#painted + 1] = { image, a, b, c }
   end
+  Matte.new(context).wrapTitle(figureDraw)(state)
+  love.graphics.draw = realDraw
 
-  -- ------- at rest: nothing underneath
-  --
-  -- The ball is drawn AFTER the trainer's slices, so it is on top of him, and
-  -- where he is holding it his hand is directly under it.
-  frame()
   local ball = state.__gen1WildBall
   ok(ball ~= nil, "a padded ball is cut from the sheet")
-  eq(ball.homeY, 100, "and its resting place is LEARNED -- the lowest the "
-    .. "ball is ever drawn -- rather than derived from the quad, which gave "
-    .. "96 and never matched anything")
-  eq(picture(ball.seated, 6, 6), table.concat({
+  eq(picture(ball, 6, 6), table.concat({
     ".WWWW.",
     "WW##WW",
     "W####W",
     "W####W",
-    "W.##.W",
-    "......",
-  }, "\n"), "trimmed per column, below the lowest pixel of art in each -- "
-    .. "the two outer columns keep theirs, because beside the ball is not "
-    .. "under it")
-  eq(#painted, 1, "the ball is drawn once")
-  eq(painted[1][1], ball.seated, "and in the hand it is the trimmed copy")
-  eq(painted[1][2], 81, "a pixel left of where the bare ball would have gone")
-  eq(painted[1][3], 99, "...and a pixel above it, so it lands where it did")
+    "WW##WW",
+    ".WWWW.",
+  }, "\n"), "with the whole ring on it -- what the trainer covers is his to "
+    .. "cover, not this bake's to guess at")
 
-  -- ------- bounced off the hand: the full ring
-  --
-  -- The bounce lifts it as far as 92, eight pixels clear, and there is only
-  -- page behind it there -- so an underside with no paper on it is the ball's
-  -- bottom edge meeting the black ground, which is the flash a player saw.
-  ballY = 92
-  frame()
-  ball = state.__gen1WildBall
-  eq(picture(ball.falling, 6, 6), table.concat({
-    ".WWWW.",
-    "WW##WW",
-    "W####W",
-    "W####W",
-    "WW##WW",
-    ".WWWW.",
-  }, "\n"), "white all the way round it while it is off the hand")
-  eq(painted[1][1], ball.falling, "and that is the copy drawn mid-bounce")
-  eq(ball.homeY, 100, "the resting place it learned is not forgotten when "
-    .. "the ball leaves it")
+  eq(#painted, 3, "three draws: the ring, the slice, the ball")
+  eq(painted[1][1], ball, "the ring goes down FIRST, before the trainer")
+  eq(painted[1][2], 81, "a pixel left of where the ball itself goes")
+  eq(painted[1][3], 99, "...and a pixel above it, so the ball's own art "
+    .. "inside the ring lands exactly where the engine puts it")
+  eq(painted[2][3], 82, "then the trainer's slice, over the ring")
+  eq(painted[2][4], 80, "...where the figure goes")
+  eq(painted[3][1], painted[2][1], "and then the engine's own ball draw, "
+    .. "untouched: the same sheet the slice came from, landing the ball on "
+    .. "top of him the way it always did")
+  eq(painted[3][2], ballQuad, "its own quad")
+  eq(painted[3][3], 82, "at the x it always used")
+  eq(painted[3][4], 100, "and the y the engine gave it, not one this "
+    .. "bundle worked out")
+end
+
+io.write("and the sheet's own bake leaves the ball's cell alone\n")
+do
+  -- Or there would be a second ring, baked into the sheet, drawn on top of
+  -- the trainer by that last draw.
+  defaults()
+  local sheet = art_from {
+    "..##....",
+    "..##....",
+    "........",
+  }
+  art["assets/generated/title/player.png"] = sheet
+  local ballQuad = { getViewport = function() return 2, 0, 2, 2 end }
+  local out = run {
+    player = sheet,
+    playerPath = "assets/generated/title/player.png",
+    ballQuad = ballQuad,
+    ballY = 100,
+    playerQuads = {},
+  }
+  eq(picture(out.player, 8, 3), table.concat({
+    "..##....",
+    "..##....",
+    "........",
+  }, "\n"), "no quads to bake, so the sheet comes back as it was -- the "
+    .. "ball's cell is never stickered in place")
 end
 
 -- ------------------------------------------------------------- the mon

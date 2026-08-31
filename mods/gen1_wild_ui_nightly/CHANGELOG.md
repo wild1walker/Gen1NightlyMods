@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.18] - 2026-08-31
+
+### Fixed
+
+- **The POKe BALL's ring goes down behind the trainer, and the hand hides it
+  for free.** Two releases went at this the wrong way: trim the pad off the
+  ball's underside, work out where the ball comes to rest, and pick between a
+  trimmed copy and a full one. Both got the number wrong -- the quad says the
+  ball rests at 96, the engine parks it at `BALL_REST = 100` and bounces it
+  through 92..100 -- and even right, it would have been a rule about one
+  animation on one screen, guessing at what is behind the ball from where the
+  ball is.
+
+  The order is the answer, and it is what was asked for: put the white
+  **behind** the ball. The ring is laid down before the figure's first slice,
+  so the trainer paints over whatever of it he covers -- his fingers hide the
+  underside while he is holding it, and mid-bounce there is nothing to hide it
+  so the whole ring shows. The engine's own ball draw still follows the slices
+  and lands the ball on top of him exactly as it always did. No phase to know
+  and no resting place to guess.
+
+  The ring image carries the ball's own art in the middle of it, and laying it
+  at `(x - 1, y - 1)` puts that art at exactly `(x, y)` -- where the engine's
+  draw lands a moment later -- so the two coincide to the pixel and what this
+  adds is a ring and nothing else. The first slice is drawn at `82 + part[2]`
+  with `part[2] = 0`, the same 82 the ball uses, so its x is the ball's x and
+  there is nothing hard-coded.
+
+  The sheet's own per-quad bake no longer touches the ball's cell either, or
+  that last draw would put a second ring on top of the trainer.
+
+  `tests/titleart_test.lua` is 36, holding the draw order, the offset, and the
+  engine's ball draw arriving untouched.
+
 ## [0.31.17] - 2026-08-31
 
 ### Fixed

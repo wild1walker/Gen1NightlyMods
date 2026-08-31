@@ -249,28 +249,37 @@ function Matte.new(context)
       return real(mode, x, y, w, h, ...)
     end
 
-    -- ------- the two that carry a margin
+    -- ------- the logo, which carries a margin
     --
-    -- Both are a pixel larger than the picture they stand in for, because
-    -- their own line work runs into the edge of the sheet it was cut from and
-    -- the pad had nowhere to grow.  Drawn a pixel up and left, they land
-    -- exactly where the bare ones would have.
+    -- A pixel larger than the sheet it was cut from, because its own line
+    -- work runs into the last column of that sheet and the pad had nowhere to
+    -- grow.  Drawn a pixel up and left, it lands where the bare one would.
+    --
+    -- ------- and the ball's ring, laid down first
+    --
+    -- Before the figure's first slice, so the trainer paints over whatever of
+    -- it he covers -- his fingers hide the underside while he is holding it,
+    -- and mid-bounce there is nothing to hide it and the whole ring shows.
+    -- The engine's own ball draw follows the slices and lands the ball on top
+    -- of him exactly as it always did.
+    --
+    -- The first slice is drawn at `82 + part[2]` with `part[2] = 0`, which is
+    -- the same 82 the ball is drawn at, so its x is the ball's x and there is
+    -- nothing to hard-code.
     local realDraw = lg.draw
-    local logo, ball, ballQuad =
-      state.__gen1WildLogo, state.__gen1WildBall, state.ballQuad
-    if logo or (ball and ballQuad) then
+    local logo, ball = state.__gen1WildLogo, state.__gen1WildBall
+    local sheet, ballY = state.player, state.ballY
+    if logo or (ball and sheet and type(ballY) == "number") then
+      local laid = false
       lg.draw = function(image, a, b, c, ...)
         if logo and image == logo
             and type(a) == "number" and type(b) == "number" then
           return realDraw(image, a - 1, b - 1)
         end
-        if ball and a == ballQuad
-            and type(b) == "number" and type(c) == "number" then
-          -- at rest or below it, the hand is under the ball; above it, the
-          -- bounce has lifted the ball off the hand and there is only page
-          local image = (ball.homeY and c >= ball.homeY)
-            and ball.seated or ball.falling
-          return realDraw(image, b - 1, c - 1)
+        if ball and not laid and image == sheet and type(a) ~= "number"
+            and type(b) == "number" then
+          laid = true
+          realDraw(ball, b - 1, ballY - 1)
         end
         return realDraw(image, a, b, c, ...)
       end
@@ -645,34 +654,7 @@ function Matte.new(context)
         if sameSize(baked, state.player) then
           put.player = state.player
           state.player = baked
-          -- ------- where the ball comes to rest
-          --
-          -- Learned, not derived.  0.31.16 read it off the quad -- the cell
-          -- at (0, qy) belongs at 80 + qy, so 96 -- and it is not 96: the
-          -- engine parks the ball at `BALL_REST = 100` and bounces it through
-          -- `{97, 95, 94, 93, 92, 93, 94, 95, 97, 100}`.  So the comparison
-          -- never matched, the ball always drew the falling ring, and the pad
-          -- went back over the hand.
-          --
-          -- The lowest the ball is EVER drawn is where it sits, and the state
-          -- opens at rest (`self.ballY = BALL_REST` at construction), so the
-          -- first frame already has it.  Nothing to keep in step with the
-          -- engine's own numbers, and a build that animates it differently is
-          -- measured rather than assumed.
-          local rest = state.__gen1WildBallRest
-          if type(state.ballY) == "number" then
-            rest = math.max(rest or state.ballY, state.ballY)
-            state.__gen1WildBallRest = rest
-          end
-          local quad = state.ballQuad
-          local homeY = rest
-          local falling = ballImage(path, quad, false)
-          local seated = ballImage(path, quad, true)
-          if falling or seated then
-            state.__gen1WildBall = { falling = falling or seated,
-                                     seated = seated or falling,
-                                     homeY = homeY }
-          end
+          state.__gen1WildBall = ballImage(path, state.ballQuad)
         end
       end
     end
