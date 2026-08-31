@@ -335,11 +335,11 @@ function Bundle.install(mod, spec, features)
   -- called itself while it carried them.
   mod.exports.themeArtProbe = function()
     if type(theme) ~= "table" or type(theme.artProbe) ~= "function" then
-      return 0, "-"
+      return 0, "-", false
     end
-    local ok, count, word = pcall(theme.artProbe)
-    if not ok then return 0, "-" end
-    return count or 0, word or "-"
+    local ok, count, word, page = pcall(theme.artProbe)
+    if not ok then return 0, "-", false end
+    return count or 0, word or "-", page and true or false
   end
 
   mod.exports.optionValue = function(key) return optionset.read(mod, key) end

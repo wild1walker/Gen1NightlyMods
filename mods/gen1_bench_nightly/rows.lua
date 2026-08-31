@@ -422,13 +422,14 @@ local function skirtRow(context)
   return {
     id = "skirt_probe",
     label = "ART RECTS",
-    help = "LAST FRAME WITH ART: HOW MANY, AND THE THEME THEN.",
+    help = "LAST ART FRAME: COUNT, THEME, WAS IT A THEMED PAGE.",
     value = function()
       local ui = exportsOf(context.find, "gen1_wild_ui_nightly")
       if not (ui and type(ui.themeArtProbe) == "function") then return DASH end
-      local ok, count, word = pcall(ui.themeArtProbe)
+      local ok, count, word, page = pcall(ui.themeArtProbe)
       if not ok then return DASH end
-      return ("%d %s"):format(count or 0, tostring(word or "-"):upper())
+      return ("%d %s %s"):format(count or 0, tostring(word or "-"):upper(),
+                                 page and "PAGE" or "BARE")
     end,
   }
 end

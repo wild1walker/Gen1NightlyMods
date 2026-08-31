@@ -5,6 +5,15 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.23] - 2026-08-31
+
+### Changed
+
+- **ART RECTS reads `<count> <THEME> <PAGE|BARE>`**, and all three come from
+  the same frame -- the last one that carried true-colour rectangles. The
+  first cut paired the current frame's count with an older frame's theme,
+  which on the bench meant it always read `0`.
+
 ## [0.31.22] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

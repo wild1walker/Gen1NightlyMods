@@ -1223,7 +1223,7 @@ function Theme.new(context)
   -- The last frame that carried true-colour rects: how many, and what the
   -- theme read itself as while it did.  "light" here is the bug reproducing.
   function self.artProbe()
-    return seen.art or 0, seen.artWord or "-"
+    return seen.art or 0, seen.artWord or "-", seen.artPage and true or false
   end
 
   function self.apply(game, zones)
@@ -1244,8 +1244,22 @@ function Theme.new(context)
     -- So the frame says so itself: how many rects arrived, and what the theme
     -- called itself when they did.  Kept from the last frame that had any, so
     -- it survives walking to the bench to read it.
-    seen.art = art and #art or 0
-    if seen.art > 0 then seen.artWord = self.read() end
+    -- Both halves from the SAME frame, which the first cut of this got wrong:
+    -- the count was the CURRENT frame's and the word was the last frame that
+    -- had any, so read on the bench -- which draws no true-colour art -- it
+    -- always said "0", and the word beside it came from somewhere else
+    -- entirely.  A snapshot of the last frame that carried rects is the only
+    -- reading that means anything, because the screen being asked about is
+    -- never the screen being read on.
+    local count = art and #art or 0
+    if count > 0 then
+      -- "BARE" until something below claims the frame as a page.  That is the
+      -- third thing worth knowing: rects on a DARK frame that is not a page
+      -- are the Bill's PC case -- the ring is correct for a dark page and the
+      -- page never went dark -- and rects on a LIGHT frame are a leak in the
+      -- gate.  The word alone cannot tell those two apart.
+      seen.art, seen.artWord, seen.artPage = count, self.read(), false
+    end
     seen.boxes = drawn and #drawn or 0
     seen.panels = 0
     seen.zones = (type(zones) == "table" and #zones) or 0
@@ -1256,6 +1270,7 @@ function Theme.new(context)
     -- and would otherwise fall through untouched.
     local ground = darkGroundState(game)
     if type(zones) == "table" and zones[1] and ground then
+      if count > 0 then seen.artPage = true end
       return withArt(groundZones(zones, ground.__gen1WildKeyedArt), art, artStop)
     end
 
@@ -1275,6 +1290,7 @@ function Theme.new(context)
       out = zones
       page = false
     end
+    if count > 0 then seen.artPage = page and true or false end
 
     -- Panels last, because they are drawn last: a menu box over a map is on
     -- top of the map, and the zone that colours it has to be on top of the

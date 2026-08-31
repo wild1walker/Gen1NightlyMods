@@ -6,6 +6,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.23] - 2026-08-31
+
+### Fixed
+
+- **The ART RECTS probe was reading two different frames.** It reported the
+  CURRENT frame's rect count beside the word from the last frame that had any
+  -- so read on the bench, which draws no true-colour art, the count was
+  always `0` and the word came from somewhere else entirely. "0 DARK" said
+  nothing at all. The screen being asked about is never the screen being read
+  on, so both halves have to come from the same frame, and now they do: a
+  snapshot of the last frame that carried rects.
+
+- **And it says whether that frame was a themed page.** The word alone cannot
+  tell the two candidate faults apart. Rects on a **LIGHT** frame are a leak
+  in the gate. Rects on a **DARK BARE** frame are the Bill's PC shape -- the
+  ring is correct for a dark page and the page never went dark. `DARK PAGE` is
+  the title screen behaving exactly as intended.
+
+  Reads as `<count> <THEME> <PAGE|BARE>`.
+
 ## [0.31.22] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every
