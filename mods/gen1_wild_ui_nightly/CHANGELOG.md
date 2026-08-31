@@ -6,6 +6,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.21] - 2026-08-31
+
+### Fixed
+
+- **The mart's BUY and SELL lists had no descriptions, no icons and no
+  header** -- and the reason is a sentence in this file that was never true.
+
+  `Gen1ItemInfo/screens.lua` claims a list by its `kind`, and its own header
+  said ShopMenu passes none "so ListMenu falls back to the title and the mart
+  lists arrive as BUY and SELL". `ListMenu` does fall back to the title
+  (`kind = opts.kind or title`) -- but `ShopMenu` builds both of its lists as
+  `ListMenu.new(game, nil, items, {...})`, passing **nil for the title as well
+  as no kind**. So both arrive with `kind = nil`, `KINDS[nil]` misses, and the
+  two entries `KINDS["BUY"]` and `KINDS["SELL"]` have been dead letters. The
+  item PC names its three outright, which is exactly why only the mart went
+  quiet.
+
+  They are claimed by what a mart list *is* now: `opts.money` is a function.
+  `ShopMenu` is the only caller of `ListMenu.new` in the engine that passes
+  one -- `BoxMenu`, `BagMenu` and the battle's item list all pass `itemBox`
+  without it -- so the signature is exact, and unlike a title it survives
+  translation. The claim is recorded under this mod's own key rather than by
+  writing `list.kind`: that field belongs to the engine, and renaming somebody
+  else's screen to suit your own lookup only makes the next reader's job
+  harder. The two named keys stay, because a build that *does* name them is
+  still right.
+
+  `tests/iteminfo_test.lua` is 804 (was 798), pinning the real signature: a
+  nameless list with a money callback is claimed, `itemBox` alone is not, and
+  a list the engine did name keeps the name it was given.
+
 ## [0.31.20] - 2026-08-31
 
 ### Added
