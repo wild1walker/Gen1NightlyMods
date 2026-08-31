@@ -5,6 +5,10 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.29] - 2026-08-31
+
+- No changes; released alongside the QOL mod.
+
 ## [0.31.28] - 2026-08-31
 
 - No changes; released alongside the UI mod.

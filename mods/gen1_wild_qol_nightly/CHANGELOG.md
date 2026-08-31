@@ -7,6 +7,19 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.31.29] - 2026-08-31
+
+- A black square outline no longer forms around the overworld character on the
+  way into a battle. A full-colour sprite marks a rectangle to be re-blitted
+  raw, out of the colorize pass, and it was rounded OUTWARD twice -- once here
+  and again by `Renderer.scissorClamped`, which does that to every zone on
+  purpose so two SGB zones share an edge. The margin it gains is background,
+  and background left out of the pass is invisible until the ground changes:
+  the battle wipe takes the ground and leaves the ring. `ADVANCED` and `LIGHT`
+  only, which is what named the cause.
+
+  Carried from Gen1Follower 1.6.1, which is where the file lives now.
+
 ## [0.31.28] - 2026-08-31
 
 - No changes; released alongside the UI mod.

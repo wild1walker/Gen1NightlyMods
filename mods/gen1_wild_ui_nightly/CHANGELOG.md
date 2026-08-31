@@ -6,6 +6,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.29] - 2026-08-31
+
+- No changes; released alongside the QOL mod.
+
 ## [0.31.28] - 2026-08-31
 
 - The title bakes no longer name the player's ROM-derived cache. Each picture's
