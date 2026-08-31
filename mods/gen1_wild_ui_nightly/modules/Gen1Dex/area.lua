@@ -372,8 +372,11 @@ return function(mod, C)
   -- AREA and the word was doing no work: what the line has to carry is WHICH
   -- POKéMON and that nothing is known about it.
   local function headerFor(screen, species)
-    local def = screen.game.data.pokemon[species]
-    local name = (def and def.name) or species
+    -- Masked, because this screen is reachable for a POKeMON the dex has
+    -- never met -- the AREA ON UNSEEN row, and an evolution the entry screen
+    -- is showing -- and the header was printing the one name the rest of the
+    -- screen is careful not to.
+    local name = C.seenName(screen.game.save, screen.game.data, species)
     if #screen.nests > 0 then
       local nest = name .. "'s NEST"
       if fits(nest, HEADER_COLS) then return nil end

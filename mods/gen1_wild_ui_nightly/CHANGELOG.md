@@ -6,6 +6,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.5] - 2026-08-31
+
+### Fixed
+
+- **The AREA map's header still named the POKeMON.** `CHARIZARD UNKNOWN`
+  across the top of Kanto, on a screen whose caption is carefully saying only
+  `EVOLVE CHARMELEON AT LV36` — the rest of it names nothing you have not got,
+  and the header handed over the answer.
+
+  That screen is reachable for a species the dex has never met by two roads:
+  the AREA ON UNSEEN row, and an evolution the entry screen is showing. Both
+  print the header, so masking one road would have left the other.
+
+  The token and the predicate now live in the dex's shared chrome — one
+  `?????`, one "have I met this", used by the AREA header and by the INSPECT
+  list that opens it. Owning counts as meeting even when the seen flag is
+  missing: the dex sets both, an older save may carry one, and a POKeMON in
+  the box is one you have stood in front of. New suite
+  `tests/dexmask_test.lua`.
+
 ## [0.31.4] - 2026-08-31
 
 ### Fixed
