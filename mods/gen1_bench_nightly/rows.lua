@@ -404,6 +404,35 @@ local function lastBattleRow(context)
   }
 end
 
+-- ------- the skirt probe
+--
+-- Bill's PC shows a black ring round every true-colour icon on a LIGHT page,
+-- and the theme says that cannot happen: the skirt that paints the ring and
+-- the zone that darkens it are both behind `read() == "dark"`, and a light
+-- frame is handed straight back untouched.  One of those is not true in the
+-- running game.
+--
+-- This is the frame answering for itself.  It reports the LAST frame that
+-- carried true-colour rects at all -- how many, and what the theme called
+-- itself while it carried them -- so it survives walking from the box to this
+-- screen to read it.  `light` beside a non-zero count is the bug caught in
+-- the act; `0` means the rings are not the theme's at all and the search
+-- moves somewhere else entirely.
+local function skirtRow(context)
+  return {
+    id = "skirt_probe",
+    label = "ART RECTS",
+    help = "LAST FRAME WITH ART: HOW MANY, AND THE THEME THEN.",
+    value = function()
+      local ui = exportsOf(context.find, "gen1_wild_ui_nightly")
+      if not (ui and type(ui.themeArtProbe) == "function") then return DASH end
+      local ok, count, word = pcall(ui.themeArtProbe)
+      if not ok then return DASH end
+      return ("%d %s"):format(count or 0, tostring(word or "-"):upper())
+    end,
+  }
+end
+
 function Rows.build(context)
   context.species = context.species or BENCH_SPECIES[1]
   context.level = context.level or 5
@@ -425,6 +454,7 @@ function Rows.build(context)
     saveRow(context),
     probeRow(context),
     lastBattleRow(context),
+    skirtRow(context),
   }
 end
 

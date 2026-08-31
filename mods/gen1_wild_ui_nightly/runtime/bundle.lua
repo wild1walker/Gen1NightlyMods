@@ -330,6 +330,18 @@ function Bundle.install(mod, spec, features)
     return boxes or 0, panels or 0, zones or 0
   end
 
+  -- And the one the box-screen ring is being chased with: how many
+  -- true-colour rects the last frame that had any carried, and what the theme
+  -- called itself while it carried them.
+  mod.exports.themeArtProbe = function()
+    if type(theme) ~= "table" or type(theme.artProbe) ~= "function" then
+      return 0, "-"
+    end
+    local ok, count, word = pcall(theme.artProbe)
+    if not ok then return 0, "-" end
+    return count or 0, word or "-"
+  end
+
   mod.exports.optionValue = function(key) return optionset.read(mod, key) end
   -- The writing half of the pair, so the other bundle's menu can move a switch
   -- that lives over here rather than only reading it.  Both halves render both

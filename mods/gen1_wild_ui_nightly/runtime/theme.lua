@@ -1220,12 +1220,32 @@ function Theme.new(context)
     return seen.boxes, seen.panels, seen.zones
   end
 
+  -- The last frame that carried true-colour rects: how many, and what the
+  -- theme read itself as while it did.  "light" here is the bug reproducing.
+  function self.artProbe()
+    return seen.art or 0, seen.artWord or "-"
+  end
+
   function self.apply(game, zones)
     -- Drained on every frame, before the LIGHT return: the recorder is a
     -- wrapper on an engine function and cannot be asked to stop, so the one
     -- thing that must always happen is that somebody empties it.
     local drawn = takeBoxes()
     local art, artStop = takeArt()
+    -- ------- the one question a screenshot cannot answer
+    --
+    -- A black ring round every true-colour icon on a LIGHT page was reported
+    -- on Bill's PC, and every path in this file says it cannot happen: the
+    -- skirt that paints that ring and the zone that darkens it are both
+    -- behind `self.read() == "dark"`, and a light frame returns the caller's
+    -- list untouched a few lines below.  One of those two things is not true
+    -- in the running game, and reading the file harder has not found which.
+    --
+    -- So the frame says so itself: how many rects arrived, and what the theme
+    -- called itself when they did.  Kept from the last frame that had any, so
+    -- it survives walking to the bench to read it.
+    seen.art = art and #art or 0
+    if seen.art > 0 then seen.artWord = self.read() end
     seen.boxes = drawn and #drawn or 0
     seen.panels = 0
     seen.zones = (type(zones) == "table" and #zones) or 0

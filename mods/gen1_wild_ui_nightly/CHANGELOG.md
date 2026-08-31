@@ -6,6 +6,31 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.20] - 2026-08-31
+
+### Added
+
+- **A probe for the black rings on Bill's PC**, because reading the file has
+  not found them. Every occupied cell on that screen carries a one-pixel black
+  outline exactly one pixel outside its icon -- measured off a screenshot at
+  7x: the icon lands at (36, 31) and the ring is at x 35..52, y 30..47 -- and
+  it is there under LIGHT and invisible under DARK, which means it is painted
+  black in both.
+
+  The only code in this tree that draws at `x - 1, y - 1, w + 2, h + 2` is the
+  skirt and its `ART_PAGE` zone, and both are behind `read() == "dark"`; a
+  light frame is handed back untouched a few lines into `apply`. Those two
+  facts cannot both be true in the running game, and three wrong guesses at
+  this machinery is enough.
+
+  So the frame reports for itself: `theme.artProbe()` gives the number of
+  true-colour rects the last frame that had any carried, and what the theme
+  called itself while it carried them. Published as `themeArtProbe` and shown
+  on the bench as ART RECTS. A non-zero count beside `LIGHT` is the bug caught
+  in the act; `0` means the rings are not the theme's and the search moves.
+
+  Nothing else changes. No fix is attempted in this release.
+
 ## [0.31.19] - 2026-08-31
 
 A clean-up pass: no new behaviour, one real bug, and the per-frame work the

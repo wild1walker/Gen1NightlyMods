@@ -5,6 +5,16 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.20] - 2026-08-31
+
+### Added
+
+- **ART RECTS**, under LAST BATTLE: the number of true-colour rectangles the
+  last frame that carried any produced, and what the UI theme called itself on
+  that frame. For chasing a black ring that appears round every icon on Bill's
+  PC under LIGHT and vanishes under DARK. It survives walking from the box to
+  the bench, so it can be read at leisure.
+
 ## [0.31.19] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every
