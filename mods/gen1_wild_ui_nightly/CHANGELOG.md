@@ -6,6 +6,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.28] - 2026-08-31
+
+- The title bakes no longer name the player's ROM-derived cache. Each picture's
+  path is read out of `field.title`, and where the importer seeded no
+  descriptor they fell back to a hard-coded path into the generated tree --
+  copied from what the engine itself does at `TitleState.lua:245-275`. The
+  engine may; a mod may not, and the engine's own `modkit.py validate` says so
+  (`MK301`). That fallback was a path into somebody else's install for a file
+  this repository has never seen and could not ship.
+
+  The four pictures that live in that tree -- the version ribbon and the three
+  of the copyright line -- are passed no fallback now. One with no descriptor
+  is simply not baked, which every caller already handled: the picture is still
+  on screen, it just does not get a pad. `assets/logo/pokemon_logo.png` keeps
+  its fallback; it ships with the engine and is not in a generated tree.
+
+  Found by promoting this channel to stable, where CI runs that validator. It
+  is a real bug on the nightly too, which is why the fix lands here rather than
+  only there.
+
 ## [0.31.27] - 2026-08-31
 
 - The AREA map's header no longer names a POKéMON you have never met. The
