@@ -6,6 +6,36 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.24] - 2026-08-31
+
+### Fixed
+
+- **The POKe BALL's ring is under the trainer again, and now it cannot land
+  anywhere else.** 0.31.18 put it there by laying it on the first draw whose
+  TEXTURE matched the sheet this file had swapped onto the state -- which is a
+  bet that nothing changes `state.player` between the swap and the draw. On
+  this cart something does: Wild Green re-asserts its own copy from inside
+  `currentSprite`, which `TitleState:draw` calls after it has captured
+  `playerImage` and before the slices go down. With the texture no longer
+  matching, the first draw that did match was the ball's own -- so the ring
+  was laid there, after the trainer, across the hand.
+
+  It matches the **quad** now. `state.playerQuads` holds the three the engine
+  built and passes verbatim, and a quad is not the sort of thing a mod swaps:
+  it is geometry, not art. Whatever texture arrives carrying one of those
+  three, that draw is a slice of the trainer and the ring belongs in front of
+  it.
+
+  And if none of them is ever seen -- a build that draws the figure whole
+  rather than in slices, a sprite pack that rebuilt the quads -- the ring is
+  not drawn at all. Under the trainer or nowhere: a missing ring is a ball
+  that looks exactly as it did before any of this, and a ring over the hand is
+  the bug.
+
+  `tests/titleart_test.lua` is 43 (was 36), including the failure itself --
+  the slices arriving with a texture the state no longer holds -- and the
+  build with no slices, where nothing is added.
+
 ## [0.31.23] - 2026-08-31
 
 ### Fixed

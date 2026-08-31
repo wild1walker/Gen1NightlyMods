@@ -255,29 +255,57 @@ function Matte.new(context)
     -- work runs into the last column of that sheet and the pad had nowhere to
     -- grow.  Drawn a pixel up and left, it lands where the bare one would.
     --
-    -- ------- and the ball's ring, laid down first
+    -- ------- and the ball's ring, which goes UNDER the trainer or not at all
     --
-    -- Before the figure's first slice, so the trainer paints over whatever of
-    -- it he covers -- his fingers hide the underside while he is holding it,
-    -- and mid-bounce there is nothing to hide it and the whole ring shows.
-    -- The engine's own ball draw follows the slices and lands the ball on top
-    -- of him exactly as it always did.
+    -- The engine draws the figure's three slices and then the ball, so the
+    -- ball sits on top of him and his fingers are directly under it.  A ring
+    -- drawn with the ball is a white line across the hand.  It has to go down
+    -- before the first slice: after the mon, which the ball is also in front
+    -- of, and before the trainer, who is in front of the ring.
     --
-    -- The first slice is drawn at `82 + part[2]` with `part[2] = 0`, which is
-    -- the same 82 the ball is drawn at, so its x is the ball's x and there is
-    -- nothing to hard-code.
+    -- That moment used to be found by matching the IMAGE -- the first draw
+    -- whose texture is the sheet this file swapped onto the state.  Which is
+    -- a bet that nothing between here and the draw changes `state.player`,
+    -- and on this cart something does: Wild Green re-asserts its own copy
+    -- from inside `currentSprite`, which `TitleState:draw` calls after it has
+    -- captured `playerImage` but before the slices go down.  Lose that bet and
+    -- the first texture that matches is the BALL's own draw, so the ring is
+    -- laid there instead -- after the trainer, across the hand, which is what
+    -- was reported.
+    --
+    -- So match the QUAD.  `state.playerQuads` holds the three the engine
+    -- built and passes verbatim, and a quad is not the sort of thing a mod
+    -- swaps -- it is geometry, not art.  Whatever texture arrives carrying one
+    -- of those three, that draw is a slice of the trainer, and the ring
+    -- belongs in front of it.
+    --
+    -- And if none of them is ever seen -- a build that draws the figure whole
+    -- rather than in slices, a sprite pack that rebuilt the quads -- the ring
+    -- is not drawn at all.  Under the trainer or nowhere: a missing ring is a
+    -- ball that looks exactly as it did before any of this, and a ring over
+    -- the hand is the bug.
     local realDraw = lg.draw
     local logo, ball = state.__gen1WildLogo, state.__gen1WildBall
-    local sheet, ballY = state.player, state.ballY
-    if logo or (ball and sheet and type(ballY) == "number") then
+    local ballY = state.ballY
+
+    local slices
+    if ball and type(ballY) == "number" then
+      for _, part in ipairs(state.playerQuads or {}) do
+        if part[1] ~= nil then
+          slices = slices or {}
+          slices[part[1]] = true
+        end
+      end
+    end
+
+    if logo or slices then
       local laid = false
       lg.draw = function(image, a, b, c, ...)
         if logo and image == logo
             and type(a) == "number" and type(b) == "number" then
           return realDraw(image, a - 1, b - 1)
         end
-        if ball and not laid and image == sheet and type(a) ~= "number"
-            and type(b) == "number" then
+        if slices and not laid and slices[a] and type(b) == "number" then
           laid = true
           realDraw(ball, b - 1, ballY - 1)
         end

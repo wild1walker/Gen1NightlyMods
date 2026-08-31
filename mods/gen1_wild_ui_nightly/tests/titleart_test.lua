@@ -461,6 +461,94 @@ do
     .. "bundle worked out")
 end
 
+io.write("...even when the texture is swapped out from under the draw\n")
+do
+  -- The failure this replaced.  The ring used to be laid on the first draw
+  -- whose TEXTURE matched the sheet this file had swapped onto the state --
+  -- and Wild Green re-asserts its own copy from inside `currentSprite`, which
+  -- `TitleState:draw` calls after capturing `playerImage` and before the
+  -- slices.  With the texture no longer matching, the first match became the
+  -- BALL's own draw and the ring landed after the trainer, across the hand.
+  --
+  -- The quads cannot be swapped that way: they are geometry the engine built
+  -- and passes verbatim.
+  defaults()
+  local sheet = art_from {
+    "..##....",
+    ".####...",
+    ".####...",
+    "..##....",
+    "........",
+  }
+  art["assets/generated/title/player.png"] = sheet
+  local ballQuad = { getViewport = function() return 1, 0, 4, 4 end }
+  local slice = { getViewport = function() return 0, 0, 8, 5 end }
+  local somebodyElses = art_from { "########" }   -- not the state's sheet
+  local painted = {}
+  local realDraw = love.graphics.draw
+  local state = {
+    player = sheet,
+    playerPath = "assets/generated/title/player.png",
+    ballQuad = ballQuad,
+    ballY = 100,
+    playerQuads = { { slice, 0, 0 } },
+  }
+  local function figureDraw(st)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+    -- a mod put its own picture back between the swap and the draw
+    love.graphics.draw(somebodyElses, slice, 82, 80)
+    love.graphics.draw(somebodyElses, st.ballQuad, 82, st.ballY)
+  end
+  love.graphics.draw = function(image, a, b, c)
+    painted[#painted + 1] = { image, a, b, c }
+  end
+  Matte.new(context).wrapTitle(figureDraw)(state)
+  love.graphics.draw = realDraw
+
+  eq(#painted, 3, "three draws: the ring, the slice, the ball")
+  eq(painted[1][1], state.__gen1WildBall,
+    "the ring still goes FIRST, matched on the quad rather than the texture")
+  eq(painted[2][1], somebodyElses, "then the other mod's slice, over it")
+  eq(painted[3][2], ballQuad, "and its ball last, on top of the trainer")
+end
+
+io.write("and with no slice to get in front of, no ring is drawn at all\n")
+do
+  -- Under the trainer or nowhere.  A build that draws the figure whole rather
+  -- than in slices has no moment between the mon and the trainer to use, and
+  -- a ring drawn anyway would be the reported bug: white across the hand. A
+  -- missing ring is just the ball as it looked before any of this.
+  defaults()
+  local sheet = art_from { "..##....", ".####...", "........" }
+  art["assets/generated/title/player.png"] = sheet
+  local ballQuad = { getViewport = function() return 1, 0, 4, 2 end }
+  local painted = {}
+  local realDraw = love.graphics.draw
+  local state = {
+    player = sheet,
+    playerPath = "assets/generated/title/player.png",
+    ballQuad = ballQuad,
+    ballY = 100,
+    playerQuads = {},                 -- drawn whole; no slices
+  }
+  local function wholeDraw(st)
+    love.graphics.rectangle("fill", 0, 0, 160, 144)
+    love.graphics.draw(st.player, 82, 80)
+    love.graphics.draw(st.player, st.ballQuad, 82, st.ballY)
+  end
+  love.graphics.draw = function(image, a, b, c)
+    painted[#painted + 1] = { image, a, b, c }
+  end
+  Matte.new(context).wrapTitle(wholeDraw)(state)
+  love.graphics.draw = realDraw
+
+  eq(#painted, 2, "the figure and the ball, and nothing added")
+  for i, call in ipairs(painted) do
+    ok(call[1] ~= state.__gen1WildBall,
+      ("draw %d is not the ring"):format(i))
+  end
+end
+
 io.write("and the sheet's own bake leaves the ball's cell alone\n")
 do
   -- Or there would be a second ring, baked into the sheet, drawn on top of
