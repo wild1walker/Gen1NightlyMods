@@ -348,13 +348,42 @@ local boxCount = 0
 -- stale sixty than a table that grows for the rest of the session.
 local BOX_CAP = 60
 
+-- ------- where the box actually landed
+--
+-- `Font.drawBox` takes tile coordinates, and a caller is free to have moved
+-- the world before it calls: the location banner slides in and out under
+-- `love.graphics.translate(0, offset)`, and a classic state inside a wide
+-- battle is drawn under a centring translate of its own (Game:draw, which
+-- shifts that state's zone list by the same amount and tells PaletteFX to
+-- shift its true-colour marks with `setMarkOffset`).
+--
+-- A panel taken from the untranslated rectangle is parked where the box was
+-- ABOUT to be rather than where it is.  While the banner sits still the two
+-- agree and nothing shows; the moment it slides away the panel stays behind
+-- and the box leaves it, so the plaque flashes white on its way out -- which
+-- is exactly what a player saw once the resting frames went dark.
+--
+-- So the recorder asks the transform.  `transformPoint` is the engine's own
+-- answer to "where does this land", it is the identity on the frames that do
+-- not translate, and it fixes the wide-battle case in the same stroke: those
+-- panels were off by the centring offset for as long as this file has
+-- existed, because `centerClassicZones` runs before `render.zones` and never
+-- saw them.
 local function recordBox(tx, ty, tw, th)
   if type(tx) ~= "number" or type(ty) ~= "number" then return end
   if type(tw) ~= "number" or type(th) ~= "number" then return end
   if tw <= 0 or th <= 0 then return end
   if boxCount >= BOX_CAP then return end
+  local x, y = tx * 8, ty * 8
+  local graphics = love and love.graphics
+  if graphics and type(graphics.transformPoint) == "function" then
+    local ok, px, py = pcall(graphics.transformPoint, x, y)
+    if ok and type(px) == "number" and type(py) == "number" then
+      x, y = px, py
+    end
+  end
   boxCount = boxCount + 1
-  boxes[boxCount] = { x = tx * 8, y = ty * 8, w = tw * 8, h = th * 8 }
+  boxes[boxCount] = { x = x, y = y, w = tw * 8, h = th * 8 }
 end
 
 -- The boxes drawn since the last call, and the list is emptied by asking.

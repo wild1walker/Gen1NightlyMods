@@ -6,6 +6,38 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.30.3] - 2026-08-31
+
+### Changed
+
+- **Type colours are vivid now, not washed.** 0.29.3 mixed each ink halfway
+  to white to make it legible on a black button, and legible is all it was: a
+  GRASS move came out the colour of sage rather than of grass.
+
+  Mixing toward white is the wrong move because it takes the **saturation**
+  out — every ink converges on the same pale wash, which is exactly the
+  complaint. Scaling to the brightest channel does the opposite: the ratios
+  between the three channels are what the hue *is*, so multiplying all three
+  by one gain leaves the hue exactly where it was and spends the headroom on
+  vividness. GRASS's 46/125/50 becomes 94/255/102 — the green of the type
+  charts rather than a tint of it — and the dark end of the table gains the
+  most, which is where it was needed.
+
+### Fixed
+
+- **The location banner no longer flashes white on its way out.** `drawBox`
+  takes tile coordinates and the plaque slides under a `translate`, so the
+  recorder logged where the box was about to be rather than where it landed.
+  At rest the two agree and nothing shows; the moment it slid away the panel
+  stayed parked and the box left it.
+
+  The recorder asks the transform now — `transformPoint`, the engine's own
+  answer to "where does this land", and the identity on every frame that does
+  not translate. It fixes a second case in the same stroke: a classic state
+  inside a wide battle draws under a centring translate, and its panels have
+  been off by that offset for as long as this file has existed, because
+  `centerClassicZones` runs before `render.zones` and never saw them.
+
 ## [0.30.2] - 2026-08-31
 
 ### Fixed

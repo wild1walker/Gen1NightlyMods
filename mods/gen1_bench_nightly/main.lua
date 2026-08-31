@@ -254,6 +254,20 @@ return function(mod)
       local okProbe, b, p, z = pcall(probe)
       if okProbe then boxes, panels, zoneCount = b or 0, p or 0, z or 0 end
     end
+    -- ------- and the frame that matters, kept rather than shown
+    --
+    -- The sprites pop on the FIRST frame a battle transition exists, which is
+    -- one frame out of a wipe that lasts a second: catching it in a
+    -- screenshot means filming the screen and scrubbing. So the numbers from
+    -- that exact frame are snapshotted on the 0 -> 1 edge and held, and the
+    -- bench shows them as an ordinary row afterwards. Walk into a battle,
+    -- open the bench, read LAST BATTLE.
+    if inTransition == 1 and not context.inTransition then
+      context.lastBattle = ("E%d N%d S%d"):format(entities, npcs,
+                                                 context.drawn or 0)
+    end
+    context.inTransition = inTransition == 1
+
     local line = ("E%d N%d S%d T%d  B%d P%d Z%d")
       :format(entities, npcs, context.drawn or 0, inTransition,
               boxes, panels, zoneCount)

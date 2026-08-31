@@ -277,6 +277,21 @@ do
   eq(context.probe, false, "...and the flag with it")
 end
 
+io.write("the last battle row reports the snapshot, and says so when empty\n")
+do
+  -- The sprites go on the FIRST frame a transition exists, one frame out of a
+  -- wipe. main.lua snapshots the numbers on that edge; this row is how they
+  -- are read without filming the screen.
+  local context = { find = finder({}) }
+  local rows = rowsBy(context)
+  local last = rows.last_battle
+  ok(last ~= nil, "the bench has a last-battle row")
+  eq(last.value(), Rows.DASH, "which says nothing until a battle has started")
+  context.lastBattle = "E1 N4 S1"
+  eq(last.value(), "E1 N4 S1", "and then reports exactly what was captured")
+  ok(last.step == nil, "it is a readout, not a setting")
+end
+
 io.write("a mod that answers with nonsense is not believed\n")
 do
   local liar = {

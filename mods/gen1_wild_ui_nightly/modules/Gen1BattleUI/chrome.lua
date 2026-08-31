@@ -213,9 +213,9 @@ return function(mod)
   --   1. paint the theme's matte into the rectangle, or the raw re-blit
   --      brings back the WHITE the box cleared to and puts a white label
   --      plate on a black button;
-  --   2. draw the letters LIFTED halfway to white -- the table above is
-  --      deliberately dark because it was written for black-on-white, and
-  --      those same inks on a black button are unreadable;
+  --   2. draw the letters at FULL STRENGTH -- the table above is deliberately
+  --      dark because it was written for black ink on a white box, and those
+  --      same inks on a black button are both unreadable and drab;
   --   3. mark the rectangle, so what was just drawn is what is shown.
   --
   -- ADVANCED only, and that is not a limitation to apologise for: a mark is
@@ -223,12 +223,25 @@ return function(mod)
   -- there would put a black plate through the shade pass and make a hole in
   -- the button.  Elsewhere the letters go through the palette as they do
   -- today, which is legible -- just not coloured.
-  local LIFT = 0.5
-
-  local function lifted(shade)
-    return { shade[1] + (255 - shade[1]) * LIFT,
-             shade[2] + (255 - shade[2]) * LIFT,
-             shade[3] + (255 - shade[3]) * LIFT }
+  -- Wound up to full strength, hue untouched.
+  --
+  -- 0.29.3 mixed these halfway to white, which made them legible and drab:
+  -- a GRASS move came out the colour of sage rather than of grass.  Mixing
+  -- toward white is the wrong move because it takes the SATURATION out --
+  -- every ink converges on the same pale wash, which is exactly the
+  -- complaint.
+  --
+  -- Scaling to the brightest channel does the opposite: the ratios between
+  -- the three channels are what the hue IS, so multiplying all three by the
+  -- same gain leaves the hue exactly where it was and spends the headroom on
+  -- vividness instead.  GRASS's 46/125/50 becomes 94/255/102 -- the green of
+  -- the type charts rather than a tint of it -- and the dark end of the
+  -- table gains the most, which is where it was needed.
+  local function vivid(shade)
+    local peak = math.max(shade[1], shade[2], shade[3])
+    if peak <= 0 then return { 255, 255, 255 } end
+    local gain = 255 / peak
+    return { shade[1] * gain, shade[2] * gain, shade[3] * gain }
   end
 
   -- The colour to lay under the letters, or nil for "nothing to do here".
@@ -267,7 +280,7 @@ return function(mod)
                            colour[3] / 255, 1)
     love.graphics.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
     C.white()
-    return lifted(shade), function()
+    return vivid(shade), function()
       if type(PaletteFX.markTrueColor) == "function" then
         PaletteFX.markTrueColor(rect.x, rect.y, rect.w, rect.h)
       end

@@ -135,9 +135,18 @@ do
   eq(fills[1].x, 16, "where the letters go")
   eq(fills[1].w, 48, "...at their width")
   eq(fills[1].colour[1], 0, "in the theme's matte, which under DARK is black")
-  ok(ink[2] > GRASS[2], "the ink is lifted toward white")
-  ok(ink[2] > ink[1] and ink[2] > ink[3], "and is still green")
-  ok(ink[1] + ink[2] + ink[3] > 3 * 128, "and is light enough to read on it")
+  -- Wound up to full strength rather than mixed toward white: mixing takes
+  -- the saturation out and every type converges on the same pale wash, which
+  -- is what 0.29.3 shipped and what the sage-green LEECH SEED was.
+  eq(ink[2], 255, "the brightest channel is wound all the way up")
+  ok(ink[2] > ink[1] and ink[2] > ink[3], "and it is still the green one")
+  local function ratio(c) return c[1] / c[2], c[3] / c[2] end
+  local r0, b0 = ratio(GRASS)
+  local r1, b1 = ratio(ink)
+  ok(math.abs(r0 - r1) < 0.001 and math.abs(b0 - b1) < 0.001,
+    "the channel ratios are untouched, which is what keeps the hue exactly "
+    .. "the hue the table chose")
+  ok(ink[1] + ink[2] + ink[3] > 3 * 128, "and it reads on black")
 
   eq(#PaletteFX.marks, 0, "nothing is marked before the letters are down")
   mark()

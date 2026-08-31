@@ -388,6 +388,22 @@ local function probeRow(context)
   }
 end
 
+-- What the probe saw on the one frame that matters.
+--
+-- The follower and the NPCs go on the FIRST frame a battle transition exists.
+-- That is one frame out of a wipe, so reading it off the overlay means
+-- filming the screen and scrubbing to it. main.lua snapshots the three
+-- numbers on that edge instead and this row reports them at leisure: turn the
+-- probe on, walk into any battle, come back here.
+local function lastBattleRow(context)
+  return {
+    id = "last_battle",
+    label = "LAST BATTLE",
+    help = "E ENTITIES  N NPCS  S SPRITE DRAWS, AT THE WIPE.",
+    value = function() return context.lastBattle or DASH end,
+  }
+end
+
 function Rows.build(context)
   context.species = context.species or BENCH_SPECIES[1]
   context.level = context.level or 5
@@ -408,6 +424,7 @@ function Rows.build(context)
     battleRow(context),
     saveRow(context),
     probeRow(context),
+    lastBattleRow(context),
   }
 end
 

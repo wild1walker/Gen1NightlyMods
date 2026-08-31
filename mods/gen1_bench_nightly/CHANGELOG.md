@@ -5,6 +5,18 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.30.3] - 2026-08-31
+
+### Added
+
+- **LAST BATTLE**, a row that reads the frame you cannot screenshot.
+
+  The follower and the NPCs vanish on the *first* frame a battle transition
+  exists — one frame out of a wipe that lasts a second, so reading it off the
+  overlay means filming the screen and scrubbing to it. The probe now
+  snapshots `E`, `N` and `S` on that edge and holds them; walk into any
+  battle with SPRITE PROBE on, come back to the bench, and read the row.
+
 ## [0.30.2] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every
