@@ -6,6 +6,16 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.25] - 2026-08-31
+
+- The AREA screen's evolution hint no longer names a POKéMON you have never
+  met. A player who has seen a WARTORTLE in the wild but never a SQUIRTLE was
+  shown `EVOLVE SQUIRTLE / AT LV16` under a header that had just refused to
+  name it: the hint read the species table raw while every other name on that
+  screen goes through the dex mask. It now says `EVOLVE ????? / AT LV16` --
+  the shape of the answer is still owed, the name is not. The trade and
+  stone forms of the hint (`ON <name>`) are masked the same way.
+
 ## [0.31.24] - 2026-08-31
 
 ### Fixed

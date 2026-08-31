@@ -6,8 +6,16 @@
 -- is careful: the caption says EVOLVE CHARMELEON AT LV36 and names only what
 -- you have already got.  The header handed over the answer.
 --
+-- ...and so did the CAPTION, which that paragraph used to hold up as the
+-- careful one.  "the caption says EVOLVE CHARMELEON AT LV36 and names only
+-- what you have already got" was simply not true: `fromEvolution` read the
+-- species table raw, so a player who had met a WARTORTLE in the wild and
+-- never a SQUIRTLE got "EVOLVE SQUIRTLE AT LV16" printed under a header that
+-- refused to name it.
+--
 -- So the token and the predicate live in the shared chrome, once, for every
--- screen that prints a species it might not have met.
+-- screen that prints a species it might not have met -- and every one of them
+-- goes through it, which is what the last block here holds.
 --
 -- Run:  luajit tests/dexmask_test.lua
 
@@ -30,12 +38,21 @@ local function eq(actual, expected, description)
   ok(actual == expected, description)
 end
 
-package.preload["src.render.Font"] = function()
-  return { draw = function() end, drawBox = function() end,
-           drawCode = function() end, width = function(t) return #t * 8 end,
-           split = function(t) local o = {} for i = 1, #t do o[i] = i end
-                               return o end }
-end
+-- Enough of a font to measure with.  `area.lua` clamps every caption line to
+-- the box's width in glyphs, so the split/measure pair has to answer; nothing
+-- here draws, and every line under test is well inside the budget.
+local Font = {
+  draw = function() end, drawBox = function() end, drawCode = function() end,
+  width = function(t) return #t * 8 end,
+  split = function(t)
+    local o = {}
+    for i = 1, #t do o[i] = { from = i, to = i } end
+    return o
+  end,
+  spansFitting = function(spans) return #spans end,
+}
+
+package.preload["src.render.Font"] = function() return Font end
 
 local function chunkOf(path)
   local handle = assert(io.open(path, "r"), path .. " is missing")
@@ -45,7 +62,8 @@ local function chunkOf(path)
 end
 
 local mod = { options = { get = function() return true end },
-              log = { warn = function() end, info = function() end } }
+              log = { warn = function() end, info = function() end },
+              ui = { Font = Font, Theme = {}, Menu = {} } }
 local C = chunkOf("modules/Gen1Dex/chrome.lua")(mod)
 
 local data = { pokemon = {
@@ -94,6 +112,37 @@ do
   eq(C.seenName({ pokedex = { seen = {}, owned = {} } }, data, "MISSINGNO"),
     C.UNSEEN, "and is masked when it has not been met")
   eq(C.seenName(save, nil, "MISSINGNO"), "MISSINGNO", "no data table either")
+end
+
+-- ------------------------------------------- and the caption, which lied
+
+io.write("the evolution hint masks the POKeMON it names\n")
+do
+  -- The AREA screen is reachable for something never met, and for a species
+  -- with no wild encounters the caption falls back to the evolution table:
+  -- "EVOLVE <from> AT LV<n>".  `from` is a species like any other and has to
+  -- earn its name the same way.
+  local Area = chunkOf("modules/Gen1Dex/area.lua")(mod, C)
+  local evoData = { pokemon = {
+    SQUIRTLE  = { name = "SQUIRTLE",  dex = 7,
+                  evolutions = { { species = "WARTORTLE", level = 16 } } },
+    WARTORTLE = { name = "WARTORTLE", dex = 8 },
+  } }
+
+  local metBoth = { pokedex = { seen = { SQUIRTLE = true, WARTORTLE = true },
+                                owned = {} } }
+  local lines = Area.caption({ data = evoData, save = metBoth }, "WARTORTLE")
+  eq(lines and lines[1], "EVOLVE SQUIRTLE",
+    "a SQUIRTLE you have met is named")
+  eq(lines and lines[2], "AT LV16", "and the level is not a secret either")
+
+  -- the reported case: a WARTORTLE in the wild, no SQUIRTLE ever
+  local metOne = { pokedex = { seen = { WARTORTLE = true }, owned = {} } }
+  lines = Area.caption({ data = evoData, save = metOne }, "WARTORTLE")
+  eq(lines and lines[1], "EVOLVE " .. C.UNSEEN,
+    "one you have not met is masked, exactly as the header masks it")
+  eq(lines and lines[2], "AT LV16",
+    "the shape of the answer is still owed: something evolves into this at 16")
 end
 
 io.write(("\ndex mask: %d passed, %d failed\n"):format(passed, failed))

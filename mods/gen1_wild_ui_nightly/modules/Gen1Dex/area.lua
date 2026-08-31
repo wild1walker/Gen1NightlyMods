@@ -250,7 +250,14 @@ return function(mod, C)
     for id, def in pairs(game.data.pokemon or {}) do
       for _, evo in ipairs(def.evolutions or {}) do
         if evo.species == species then
-          local from = (game.data.pokemon[id] or {}).name or id
+          -- Masked, like every other name this screen prints.  A player who
+          -- has met a WARTORTLE in the wild but never a SQUIRTLE is owed the
+          -- shape of the answer -- something evolves into this at level 16 --
+          -- and not the name of a POKeMON they have not met.  The header two
+          -- lines up has said `?????` for exactly this reason since 0.30.1;
+          -- this line was reading the species table raw and printing "EVOLVE
+          -- SQUIRTLE" under a header that would not name it.
+          local from = C.seenName(game.save, game.data, id)
           if evo.method == "TRADE" then
             return { "LINK CABLE", "ON " .. from }
           end
