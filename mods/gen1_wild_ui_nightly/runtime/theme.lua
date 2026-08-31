@@ -167,6 +167,25 @@ Theme.PAGES = {
   "src.mods.ManagerState",
 }
 
+-- ------- a page whose middle two colours are a KEY
+--
+-- Reversing a palette turns all four colours over, which is right when the
+-- middle two are steps of a paper-to-ink ramp -- which on almost every screen
+-- in this game they are, because almost every screen is ink on paper and uses
+-- the two between for a shadow.
+--
+-- The town map's are not a ramp, they are a legend: colour 1 is the sea and
+-- colour 2 is the land.  Turning all four over puts the sea where Kanto is
+-- and wraps the coastline in trees, which is what a player reported and what
+-- a full reversal will do to any picture that uses its middle colours to mean
+-- something.
+--
+-- It is still a page -- its header is ink on paper and wants inverting like
+-- every other page's -- so the ENDS turn over and the two in the middle stay
+-- exactly where they are.  Sea stays blue, land stays green, the header goes
+-- white on black with the rest of the suite.
+Theme.KEYED_PAGES = { "src.ui.TownMap" }
+
 -- ------- a page only while something is standing on it
 --
 -- The title screen is a picture for most of its life and a page for the rest
@@ -212,11 +231,19 @@ end
 
 local function pageClasses() return resolve(Theme.PAGES) end
 local function coveredClasses() return resolve(Theme.COVERED_PAGES) end
+local function keyedClasses() return resolve(Theme.KEYED_PAGES) end
 
 -- ------- the transforms
 
 local function reversed(colors)
   return { colors[4], colors[3], colors[2], colors[1] }
+end
+
+-- The same turn, with the legend left alone.  Not cached: it is one page's
+-- one zone once a frame, and a cache keyed on the caller's table would have
+-- to be invalidated by nothing in particular.
+local function endsReversed(colors)
+  return { colors[4], colors[2], colors[3], colors[1] }
 end
 
 -- Plain black-and-white, swapped: the page a DARK screen falls back to, and
@@ -797,20 +824,28 @@ function Theme.new(context)
   -- luma 96, ink above 160) or the page falls back to the plain black one.
   -- Measured rather than listed, so a palette added later is judged on what
   -- it is instead of on whether somebody remembered to name it here.
-  local function darkPage(colors)
-    local flipped = reverse(colors)
+  local function darkPage(colors, flip)
+    flip = flip or reverse
+    local flipped = flip(colors)
     if luma(flipped[1]) <= 96 and luma(flipped[4]) >= 160 then return flipped end
+    -- The fallback has to keep the promise the flip was chosen for: a keyed
+    -- page whose ends do not prove dark still gets the plain black page, but
+    -- its legend is carried through rather than flattened into two greys.
+    if flip == endsReversed then
+      return { DARK_PAGE[1], colors[2], colors[3], DARK_PAGE[4] }
+    end
     return DARK_PAGE
   end
 
-  local function dark(zones, pageAt)
+  local function dark(zones, pageAt, keyed)
+    local flip = keyed and endsReversed or reverse
     return restyled(zones, function(index, zone)
       -- `colors == false` is the true-colour opt-out and is a rectangle, not
       -- a palette: an animated mon sprite, an item icon.  It is art, and art
       -- is not inverted.
       if type(zone.colors) ~= "table" then return zone.colors end
-      if index == pageAt then return darkPage(zone.colors) end
-      return reverse(zone.colors)
+      if index == pageAt then return darkPage(zone.colors, flip) end
+      return flip(zone.colors)
     end)
   end
 
@@ -856,7 +891,8 @@ function Theme.new(context)
     local state, ownerAt = pageState(game)
     local out, page
     if state then
-      out = dark(pageZones(zones, state), 1)
+      out = dark(pageZones(zones, state), 1,
+                 keyedClasses()[getmetatable(state)] and true or false)
       page = true
     elseif basePage(zones) then
       -- no page state, but the list itself says it is a page

@@ -6,6 +6,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.30.1] - 2026-08-31
+
+### Fixed
+
+- **The town map had the sea where Kanto is.** Under DARK the map came up with
+  the land and water swapped and the coastline wrapped in trees.
+
+  Reversing a palette turns all four colours over. That is right when the
+  middle two are steps of a paper-to-ink ramp — which on almost every screen
+  in this game they are, because almost every screen is ink on paper and uses
+  the two between for a shadow. The town map's are not a ramp, they are a
+  **legend**: colour 1 is the sea and colour 2 is the land, so turning all
+  four over trades them.
+
+  The map is still a page — its header is ink on paper and wants inverting
+  like every other page's — so now only the **ends** turn over and the two in
+  the middle stay exactly where they are. Sea stays blue, land stays green,
+  the header goes white on black with the rest of the suite.
+
+  `Theme.KEYED_PAGES` names the one class this applies to, so the rule is a
+  list with a reason beside it rather than a special case buried in the
+  transform. Any picture that uses its middle colours to mean something can
+  join it.
+
 ## [0.30.0] - 2026-08-31
 
 ### Added

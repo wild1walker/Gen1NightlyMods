@@ -57,6 +57,10 @@ package.loaded["src.mods.ManagerState"] = { openOptions = function() end }
 local TitleState = {}; TitleState.__index = TitleState
 package.loaded["src.ui.TitleState"] = TitleState
 local HallOfFame = {}; HallOfFame.__index = HallOfFame
+-- The town map is a page AND a legend: registered so Theme.KEYED_PAGES can
+-- resolve it the way it does on a real boot.
+local TownMap = {}; TownMap.__index = TownMap
+package.loaded["src.ui.TownMap"] = TownMap
 
 local OptionSet = load_("runtime/optionset.lua")
 local Theme = load_("runtime/theme.lua")
@@ -227,6 +231,53 @@ do
                   zone(MEWMON, 0, 10, 19, 17) }
   local out = theme.apply({ stack = { states = { title } } }, zones)
   eq(out, zones, "the list comes back by reference")
+end
+
+-- ------------------------------------------------- a page with a legend
+
+do
+  io.write("the town map turns its ends over and leaves its legend alone\n")
+  -- The bug, from a phone screenshot of LAVENDER TOWN on the map: the sea was
+  -- where Kanto is and the coastline was wrapped in trees.  Reversing a
+  -- palette turns all four colours over, which is right when the middle two
+  -- are steps of a paper-to-ink ramp and wrong when they are a legend --
+  -- colour 1 is the sea and colour 2 is the land, and a full turn swaps them.
+  local theme = themeOver()
+  local map = setmetatable({ sgbPalettes = true }, TownMap)
+  local WHITE, SEA = { 255, 255, 255 }, { 90, 150, 240 }
+  local LAND, INK = { 60, 190, 90 }, { 0, 0, 0 }
+  local zones = { { colors = { WHITE, SEA, LAND, INK },
+                    x = 0, y = 0, w = 160, h = 144 } }
+
+  local out = theme.apply({ stack = { states = { map } } }, zones)
+  eq(#out, 1, "one page, as it arrived")
+  eq(out[1].colors[1][1], 0, "the paper goes black")
+  eq(out[1].colors[4][1], 255, "and the ink white, like every other page")
+  eq(out[1].colors[2], SEA, "the sea is still the sea")
+  eq(out[1].colors[3], LAND, "and the land is still the land")
+  ok(out[1].colors ~= zones[1].colors, "on a list of its own, as ever")
+end
+
+do
+  io.write("and every other page still turns over whole\n")
+  -- The middle two are a shadow on an ink-on-paper screen, and leaving them
+  -- put would solarise it.  Only a page in KEYED_PAGES keeps them.
+  local theme = themeOver()
+  local hall = setmetatable({ sgbPalettes = true }, HallOfFame)
+  local A, B = { 255, 255, 255 }, { 200, 60, 60 }
+  local Cc, D = { 120, 30, 30 }, { 0, 0, 0 }
+  local zones = { { colors = { A, B, Cc, D }, x = 0, y = 0, w = 160, h = 144 } }
+  -- HallOfFame is not a page, so stand the list up as one the base rule finds
+  local out = theme.apply({ stack = { states = { hall } } }, zones)
+  eq(out, zones, "a picture is not a page and is not turned at all")
+
+  eq(#Theme.KEYED_PAGES, 1, "one class carries a legend, with a reason beside it")
+  eq(Theme.KEYED_PAGES[1], "src.ui.TownMap", "the town map")
+  local named = false
+  for _, page in ipairs(Theme.PAGES) do
+    if page == "src.ui.TownMap" then named = true end
+  end
+  ok(named, "which is a PAGE as well -- keyed changes the turn, not the rule")
 end
 
 -- ---------------------------------------------- pictures stay pictures
