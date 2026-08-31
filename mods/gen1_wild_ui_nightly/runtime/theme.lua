@@ -475,9 +475,47 @@ end
 local ART_CAP = 40
 local ART_LIST = "__gen1WildArtRects"
 
-local function artList()
+-- ------- and the one row the ring must not reach
+--
+-- The title screen is black to row 135 and WHITE from 136: the copyright line
+-- is the one strip matte.lua leaves light on purpose, and the theme reverses
+-- its palette so its ink is black on that white.
+--
+-- The mon is drawn at `y = 136 - h` and the figure's box ends on the same
+-- line, so the bottom bar of both their rings lands exactly on row 136 --
+-- a black bar painted straight through the copyright, and an ART_PAGE zone
+-- over it that maps that row's ink to black as well.  Both halves of the
+-- skirt have to stop at the strip, which is what this bound is.
+--
+-- It lives beside the rects for the same reason they do: the copy that paints
+-- the ring and the copy that emits the zone are not always the same copy, so
+-- the bound has to be somewhere both of them can read.  Set while the dark
+-- title draws, taken with the rects at `render.zones`, and absent on every
+-- other screen -- where the page is dark all the way down and a ring at the
+-- bottom of it is exactly what is wanted.
+local ART_CLIP = "__gen1WildArtClip"
+
+local function paletteFX()
   local ok, PaletteFX = pcall(require, "src.render.PaletteFX")
   if not ok or type(PaletteFX) ~= "table" then return nil end
+  return PaletteFX
+end
+
+local function artClip()
+  local PaletteFX = paletteFX()
+  local clip = PaletteFX and rawget(PaletteFX, ART_CLIP) or nil
+  return type(clip) == "number" and clip or nil
+end
+
+local function setArtClip(y)
+  local PaletteFX = paletteFX()
+  if not PaletteFX then return false end
+  return pcall(function() PaletteFX[ART_CLIP] = y end) and true or false
+end
+
+local function artList()
+  local PaletteFX = paletteFX()
+  if not PaletteFX then return nil end
   local list = rawget(PaletteFX, ART_LIST)
   if type(list) ~= "table" then
     list = {}
@@ -488,11 +526,13 @@ local function artList()
 end
 
 local function takeArt()
+  local clip = artClip()
+  if clip then setArtClip(nil) end
   local list = artList()
-  if not list or not list[1] then return nil end
+  if not list or not list[1] then return nil, clip end
   local out = {}
   for i = 1, #list do out[i] = list[i]; list[i] = nil end
-  return out
+  return out, clip
 end
 
 -- ------- the ring, minus wherever other art already is
@@ -523,7 +563,12 @@ local function insideAny(px, py, rects, skip)
 end
 
 -- One one-pixel bar, drawn as the runs of it that no other rect covers.
-local function paintBar(x, y, length, horizontal, rects, skip)
+local function paintBar(x, y, length, horizontal, rects, skip, clip)
+  if clip then
+    if y >= clip then return end
+    if not horizontal then length = math.min(length, clip - y) end
+    if length <= 0 then return end
+  end
   local run = nil
   local function flush(stop)
     if not run then return end
@@ -546,13 +591,13 @@ local function paintBar(x, y, length, horizontal, rects, skip)
   flush(horizontal and (x + length) or (y + length))
 end
 
-local function paintSkirt(colour, rect, rects)
+local function paintSkirt(colour, rect, rects, clip)
   local x, y, w, h = rect.x, rect.y, rect.w, rect.h
   love.graphics.setColor(colour[1] / 255, colour[2] / 255, colour[3] / 255, 1)
-  paintBar(x - 1, y - 1, w + 2, true, rects, rect)
-  paintBar(x - 1, y + h, w + 2, true, rects, rect)
-  paintBar(x - 1, y, h, false, rects, rect)
-  paintBar(x + w, y, h, false, rects, rect)
+  paintBar(x - 1, y - 1, w + 2, true, rects, rect, clip)
+  paintBar(x - 1, y + h, w + 2, true, rects, rect, clip)
+  paintBar(x - 1, y, h, false, rects, rect, clip)
+  paintBar(x + w, y, h, false, rects, rect, clip)
   love.graphics.setColor(1, 1, 1, 1)
 end
 
@@ -576,7 +621,7 @@ local function watchArt(skirt)
       if list and #list < ART_CAP then
         local rect = { x = x, y = y, w = w, h = h }
         list[#list + 1] = rect
-        paintSkirt(colour, rect, list)
+        paintSkirt(colour, rect, list, artClip())
       end
     end
     return base(x, y, w, h)
@@ -1004,14 +1049,17 @@ function Theme.new(context)
 
   -- Appended after the panels so it wins over them, and before the engine
   -- splices the true-colour rects so those still win inside the art itself.
-  local function withArt(list, art)
+  local function withArt(list, art, clip)
     if not (art and art[1]) then return list end
     local out = {}
     for _, zone in ipairs(list or {}) do out[#out + 1] = zone end
     for _, rect in ipairs(art) do
-      out[#out + 1] = { colors = ART_PAGE,
-                        x = rect.x - 1, y = rect.y - 1,
-                        w = rect.w + 2, h = rect.h + 2 }
+      local y, h = rect.y - 1, rect.h + 2
+      if clip then h = math.min(h, clip - y) end
+      if h > 0 then
+        out[#out + 1] = { colors = ART_PAGE,
+                          x = rect.x - 1, y = y, w = rect.w + 2, h = h }
+      end
     end
     return out
   end
@@ -1109,7 +1157,15 @@ function Theme.new(context)
     local colour = self.skirt and self.skirt() or nil
     if not colour then return end
     local list = artList() or {}
-    for _, rect in ipairs(list) do paintSkirt(colour, rect, list) end
+    local clip = artClip()
+    for _, rect in ipairs(list) do paintSkirt(colour, rect, list, clip) end
+  end
+
+  -- matte.lua, naming the row its black ground stops at, on every frame it
+  -- paints one.  Taken with the rects at `render.zones`, so a screen that
+  -- does not set it has no clip.
+  function self.clipArt(y)
+    setArtClip(type(y) == "number" and y or nil)
   end
 
   function self.probe()
@@ -1121,7 +1177,7 @@ function Theme.new(context)
     -- wrapper on an engine function and cannot be asked to stop, so the one
     -- thing that must always happen is that somebody empties it.
     local drawn = takeBoxes()
-    local art = takeArt()
+    local art, artStop = takeArt()
     seen.boxes = drawn and #drawn or 0
     seen.panels = 0
     seen.zones = (type(zones) == "table" and #zones) or 0
@@ -1132,7 +1188,7 @@ function Theme.new(context)
     -- and would otherwise fall through untouched.
     local ground = darkGroundState(game)
     if type(zones) == "table" and zones[1] and ground then
-      return withArt(groundZones(zones, ground.__gen1WildKeyedArt), art)
+      return withArt(groundZones(zones, ground.__gen1WildKeyedArt), art, artStop)
     end
 
     local state, ownerAt = pageState(game)
@@ -1159,7 +1215,7 @@ function Theme.new(context)
     local bare = type(out) ~= "table" or not out[1]
     local panels = panelZones(game, ownerAt, drawn, not page)
     seen.panels = panels and #panels or 0
-    if not panels then return withArt(out, art) end
+    if not panels then return withArt(out, art, artStop) end
 
     -- ------- a frame that arrived with no zones of its own
     --
@@ -1197,13 +1253,13 @@ function Theme.new(context)
     if bare then
       local spread = { { colors = false, x = 0, y = 0, w = 160, h = 144 } }
       for _, zone in ipairs(panels) do spread[#spread + 1] = zone end
-      return withArt(spread, art)
+      return withArt(spread, art, artStop)
     end
 
     local spread = {}
     for _, zone in ipairs(out or {}) do spread[#spread + 1] = zone end
     for _, zone in ipairs(panels) do spread[#spread + 1] = zone end
-    return withArt(spread, art)
+    return withArt(spread, art, artStop)
   end
 
   function self.install()

@@ -6,6 +6,67 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.8] - 2026-08-31
+
+### Fixed
+
+- **The skirt was painting over the copyright line.** The title screen is
+  black to row 135 and white from 136 — that strip is the one thing left light
+  on purpose. The mon is drawn at `y = 136 - h` and the figure's box ends on
+  the same line, so the bottom bar of both their rings landed exactly on row
+  136: a black bar straight through the copyright, and an `ART_PAGE` zone over
+  it mapping that row's ink to black as well.
+
+  Both halves of the skirt now stop at a clip row. `matte.lua` names it while
+  it paints the dark ground; the ring and the zone are clipped to it; and it is
+  taken with the rects at `render.zones`, so it is one frame's fact and no
+  other screen carries it — everywhere else the page is dark all the way down
+  and a ring at the bottom of it is exactly what is wanted.
+
+### Changed
+
+- **The POKeMON logo has white in it again, and so do the figure and the
+  mon.** 0.31.2 keyed the paper that was *connected to the border* and kept
+  every enclosed pixel, on the theory that a highlight inside a letter is not
+  reachable from the edge. For this logo that theory is simply false: POKeMON
+  is grey letter faces inside a black outline on white, and of its 4381
+  near-white pixels **every single one** is border-connected. The flood took
+  all of them. The logo had no white to keep.
+
+  What was asked for by name is the item icons' treatment, and the icons do
+  not key paper — they **grow** it. `Gen1ModernBag/icons.lua` dilates the line
+  work by a pixel, floods the outside of the grown shape, and paints whatever
+  the flood could not reach opaque white: paper of the art's own *shape*, a
+  sticker rather than a box. The same three steps now run on the title's art,
+  and the only thing that differs per image is what counts as line work — the
+  logo is printed *on* paper, so its ink is what is not paper; the figure and
+  the mon are sprites on transparency, so their ink is every opaque pixel and
+  the pad is a one-pixel outline.
+
+  The figure is a sheet drawn in pieces — three full-width slices with the
+  POKe BALL tucked into the gap at (0,16) — so the bake runs once per quad,
+  read off the quads the state built. A halo grown across the whole sheet
+  would put a pixel of the trainer's edge on the ball, and land it on screen
+  nowhere near him. The mon has no field to swap at all (it is cached per
+  species behind `currentSprite`), so the wrapper goes on that call and bakes
+  the file it resolves, once per species.
+
+  The **ribbon is deliberately not stickered**. The logo is one connected mass
+  of line work, so a pixel of pad round it is an outline — 417 white pixels on
+  a 128x56 sheet. The ribbon is eight pixels of letters with a pixel between
+  them: pad every letter and the pads meet, and what comes out is a white
+  plate with words on it, which is the white box behind WILD GREEN VERSION
+  this whole line of work started from. Its paper goes, all of it, counters
+  included.
+
+  `tests/titleart_test.lua` is new: 9 assertions driving the bake through a
+  headless `love.image` — the logo's face keeping its white while the field
+  goes, the ribbon losing its paper outright, the figure outlined per quad,
+  OG RED left with the figure it always had (that mode rebuilds the image from
+  `playerPath` through the OBP tables and never reads the field), and the mon
+  reached through `currentSprite` only while the ground is dark.
+  `tests/titlepage_test.lua` is 73 (was 66), holding the clip.
+
 ## [0.31.7] - 2026-08-31
 
 ### Fixed

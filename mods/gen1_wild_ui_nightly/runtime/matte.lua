@@ -250,23 +250,41 @@ function Matte.new(context)
     return ok, problem, painted
   end
 
-  -- ------- and the logo's own white
+  -- ------- and the white inside the art
   --
   -- Pinning colour 0 to black takes the paper out of the logo and the ribbon,
   -- which is what a black ground needs -- and it takes the WHITE OUT OF THE
   -- ART with it, because the field the logo is printed on and the highlights
   -- inside its letters are the same shade.  A palette cannot tell them apart.
   --
-  -- The art can.  This is the item icons' trick, which the player asked for by
-  -- name: key the paper that is CONNECTED TO THE BORDER out to transparency
-  -- and leave every enclosed pixel alone.  The field goes, so the page shows
-  -- through it; the highlight inside a letter is not reachable from the edge
-  -- and stays exactly the white it was drawn.
+  -- 0.31.2 keyed the paper that was CONNECTED TO THE BORDER and left every
+  -- enclosed pixel alone, on the theory that a highlight inside a letter is
+  -- not reachable from the edge.  For this logo that theory is simply false:
+  -- POKeMON is grey letter faces inside a black outline on white, and of its
+  -- 4381 near-white pixels every single one is border-connected.  The flood
+  -- took all of them, which is why the player kept saying the logo had no
+  -- white in it.  It had none to keep.
   --
-  -- Then colour 0 can be white again, which is why the theme asks whether
-  -- this took (`__gen1WildKeyedArt`) rather than assuming it: a build where
-  -- the art cannot be read keeps the pin and keeps its flat logo, which is
-  -- worse-looking and still correct.
+  -- What the player asked for is the ITEM ICONS' treatment, by name, and the
+  -- icons do not key paper -- they GROW it.  `Gen1ModernBag/icons.lua`
+  -- dilates the line work by a pixel, floods the outside of the grown shape,
+  -- and paints everything the flood could not reach opaque white: the art
+  -- keeps paper of its own SHAPE, a sticker rather than a box.  That is the
+  -- pad, and the same three steps give the logo its white back, put a white
+  -- edge round the ribbon's words instead of a scatter of specks in their
+  -- counters, and outline the title mon and the figure.
+  --
+  -- The only thing that differs per image is what counts as line work:
+  --
+  --   * the logo and the ribbon are printed ON paper -- opaque everywhere,
+  --     near-white where the paper is -- so the ink is what is NOT paper.
+  --   * the mon and the figure are sprites on transparency, so the ink is
+  --     every opaque pixel and the pad is a one-pixel white outline.
+  --
+  -- One pixel of growth, for the icons' reason: two swells a shape until it
+  -- fills the space it was cut out of, which is the box this is here to stop
+  -- being.
+  local PAD = 1
   local keyed = {}
 
   local function pathOf(entry, fallback)
@@ -280,79 +298,244 @@ function Matte.new(context)
     return a > 0 and r > 0.83 and g > 0.83 and b > 0.83
   end
 
-  -- A copy, always: Assets.imageData caches, and keying the cached data would
-  -- hole the same art everywhere else it is drawn.
-  -- `all` keys EVERY near-white pixel rather than only the ones reachable
-  -- from the border.
+  -- ------- one sheet, several pictures
   --
-  -- The two images want different answers.  The logo's enclosed white is a
-  -- highlight inside a letter and has to survive, so it floods from the edge.
-  -- The ribbon has no highlights -- it is green letters with a black outline
-  -- on a white field -- and the white shut inside an `e` or an `o` is paper
-  -- that the flood cannot reach.  Leaving those turned them into a scatter of
-  -- white specks through the words the moment colour 0 stopped being pinned.
-  local function keyedImage(path, all)
+  -- The figure is a SHEET the title draws in pieces: three full-width slices
+  -- with the POKe BALL tucked into the gap at (0,16).  A halo grown across
+  -- the whole sheet would grow across that boundary too -- a white pixel off
+  -- the ball's edge that belongs to the trainer, and lands on screen nowhere
+  -- near him.
+  --
+  -- So the bake runs once per PIECE, inside that piece's rectangle, with the
+  -- flood starting at the rectangle's own border.  Pieces that are contiguous
+  -- when they land (the figure's slices are) grow no halo along the seam,
+  -- because the pixel across it is ink and ink is never repapered.
+  local function wholeOf(id)
+    local w, h = id:getDimensions()
+    return { { x = 0, y = 0, w = w, h = h } }
+  end
+
+  -- Grow, flood, keep what the flood could not reach.  In place, on an
+  -- ImageData the caller owns.
+  local function stickerRect(id, onPaper, rect)
+    local w, h = rect.w, rect.h
+    local x0, y0 = rect.x, rect.y
+    if w <= 0 or h <= 0 then return false end
+
+    local ink = {}
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local _, _, _, a = id:getPixel(x0 + x, y0 + y)
+        if a > 0 and not (onPaper and paper(id, x0 + x, y0 + y)) then
+          ink[y * w + x] = true
+        end
+      end
+    end
+    if not next(ink) then return false end
+
+    -- 1. grow the line work by a pixel in all eight directions.  This is the
+    -- sticker's edge and it is also what CLOSES an outline that never had to
+    -- be closed on white paper; a bare flood leaks out through the gaps.
+    local grown = {}
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        if ink[y * w + x] then
+          for dy = -1, 1 do
+            for dx = -1, 1 do
+              local nx, ny = x + dx * PAD, y + dy * PAD
+              if nx >= 0 and ny >= 0 and nx < w and ny < h then
+                grown[ny * w + nx] = true
+              end
+            end
+          end
+        end
+      end
+    end
+
+    -- 2. flood the outside of the grown shape in from the border
+    local queue, head, outside = {}, 1, {}
+    local function push(x, y)
+      if x < 0 or y < 0 or x >= w or y >= h then return end
+      local key = y * w + x
+      if outside[key] or grown[key] then return end
+      outside[key] = true
+      queue[#queue + 1] = key
+    end
+    for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
+    for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+    while head <= #queue do
+      local key = queue[head]; head = head + 1
+      local x, y = key % w, math.floor(key / w)
+      push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1)
+    end
+
+    -- 3. the ink is the picture, the outside is the page, and everything
+    -- between them is the paper this art is printed on.
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local key = y * w + x
+        if not ink[key] then
+          if outside[key] then
+            id:setPixel(x0 + x, y0 + y, 0, 0, 0, 0)
+          else
+            id:setPixel(x0 + x, y0 + y, 1, 1, 1, 1)
+          end
+        end
+      end
+    end
+    return true
+  end
+
+  local function sticker(id, onPaper, rects)
+    local any = false
+    for _, rect in ipairs(rects or wholeOf(id)) do
+      if stickerRect(id, onPaper, rect) then any = true end
+    end
+    return any
+  end
+
+  -- ------- the one that is words rather than a picture
+  --
+  -- The ribbon is not stickered, and the difference is the spacing.  The logo
+  -- is one connected mass of line work, so a pixel of pad round it is an
+  -- OUTLINE -- 417 pixels of white on a 128x56 sheet.  The ribbon is eight
+  -- pixels of letters with a pixel between them: pad every letter and the
+  -- pads meet, and what comes out is a white plate with words on it, which is
+  -- the "white box behind wild green version" this whole line of work started
+  -- from.
+  --
+  -- So its paper goes, all of it, counters included.  Keying only what the
+  -- border could reach left the white shut inside an `e` or an `o` behind as
+  -- a scatter of specks through the words.
+  local function keyPaper(id)
+    local w, h = id:getDimensions()
+    local any = false
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        if paper(id, x, y) then id:setPixel(x, y, 0, 0, 0, 0); any = true end
+      end
+    end
+    return any
+  end
+
+  -- A copy, always: Assets.imageData caches, and stickering the cached data
+  -- would repaper the same art everywhere else it is drawn.
+  local function bakedImage(path, bake)
     if keyed[path] ~= nil then return keyed[path] or nil end
     keyed[path] = false
-    local ok = pcall(function()
+    pcall(function()
       local Assets = require("src.render.Assets")
       local src = Assets.imageData(path)
       local w, h = src:getDimensions()
       local id = love.image.newImageData(w, h)
       id:paste(src, 0, 0, 0, 0, w, h)
-
-      if all then
-        for y = 0, h - 1 do
-          for x = 0, w - 1 do
-            if paper(id, x, y) then id:setPixel(x, y, 0, 0, 0, 0) end
-          end
-        end
-        keyed[path] = love.graphics.newImage(id)
-        return
-      end
-
-      -- Flood from every border pixel; only paper is walkable, so an
-      -- enclosed highlight is never reached.
-      local queue, head, seen = {}, 1, {}
-      local function push(x, y)
-        if x < 0 or y < 0 or x >= w or y >= h then return end
-        local key = y * w + x
-        if seen[key] or not paper(id, x, y) then return end
-        seen[key] = true
-        queue[#queue + 1] = key
-      end
-      for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
-      for y = 0, h - 1 do push(0, y); push(w - 1, y) end
-      while head <= #queue do
-        local key = queue[head]; head = head + 1
-        local x, y = key % w, math.floor(key / w)
-        id:setPixel(x, y, 0, 0, 0, 0)
-        push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1)
-      end
-      keyed[path] = love.graphics.newImage(id)
+      if bake(id) then keyed[path] = love.graphics.newImage(id) end
     end)
-    if not ok then keyed[path] = false end
     return keyed[path] or nil
   end
 
-  -- The two the title prints on its own paper.  The mon and the figure are
-  -- marked true colour and never went through a palette at all.
+  local function stickerImage(path, onPaper, rects)
+    return bakedImage(path, function(id)
+      return sticker(id, onPaper, rects and rects(id) or nil)
+    end)
+  end
+
+  -- ------- the pieces a sheet is drawn in
+  --
+  -- The figure's three slices and the POKe BALL in the gap between them.
+  -- Taken from the quads the state built rather than restated here, because
+  -- they are sized from the sheet and a sprite pack may ship a taller one.
+  local function figureRects(state)
+    return function(id)
+      local w, h = id:getDimensions()
+      local out, seen = {}, {}
+      local function add(quad)
+        if not quad or type(quad.getViewport) ~= "function" then return end
+        local ok, qx, qy, qw, qh = pcall(quad.getViewport, quad)
+        if not ok then return end
+        local key = table.concat({ qx, qy, qw, qh }, ",")
+        if seen[key] then return end
+        seen[key] = true
+        out[#out + 1] = { x = qx, y = qy, w = qw, h = qh }
+      end
+      for _, part in ipairs(state.playerQuads or {}) do add(part[1]) end
+      add(state.ballQuad)
+      if not out[1] then out[1] = { x = 0, y = 0, w = w, h = h } end
+      return out
+    end
+  end
+
+  -- The three the title prints on its own paper, plus the figure.  The mon is
+  -- handled by `wrapCurrentSprite` below, which is the only way to reach it.
   local function keyTitleArt(state)
     if not (love.image and love.image.newImageData) then return nil end
     local title = type(state.title) == "table" and state.title or {}
     local put = {}
-    local function swap(field, path, all)
+    local function swap(field, path, onPaper, rects)
       if not state[field] or not path then return end
-      local image = keyedImage(path, all)
+      local image = stickerImage(path, onPaper, rects)
       if not image then return end
       put[field] = state[field]
       state[field] = image
     end
-    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"))
-    swap("version", pathOf(title.versionRibbon or title.version,
-                           "assets/generated/title/red_version.png"), true)
+    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"), true)
+    do
+      local path = pathOf(title.versionRibbon or title.version,
+                          "assets/generated/title/red_version.png")
+      if state.version and path then
+        local image = bakedImage(path, keyPaper)
+        if image then
+          put.version = state.version
+          state.version = image
+        end
+      end
+    end
+    -- The figure, on transparency: a one-pixel white outline round the
+    -- trainer and his POKe BALL.  Not in OG RED, where the draw rebuilds the
+    -- image from `playerPath` through the OBP tables and never looks at this
+    -- field -- that mode keeps the figure it always had.
+    local obp = false
+    pcall(function()
+      local PaletteFX = require("src.render.PaletteFX")
+      obp = type(PaletteFX.usesSpriteObp) == "function"
+        and PaletteFX.usesSpriteObp() or false
+    end)
+    if not obp then
+      swap("player", state.playerPath, false, figureRects(state))
+    end
     if not next(put) then return nil end
     return put
+  end
+
+  -- The mon is the one piece of title art with no field to swap: it is cached
+  -- per species inside the state and reached through `currentSprite`.  So the
+  -- wrapper stickers what that call returns, and the cache above it means the
+  -- bake happens once per species rather than once a frame.
+  --
+  -- Only while this screen is the dark one.  With the theme LIGHT the state
+  -- never gets its flag and the mon is handed back exactly as it came.
+  local function wrapCurrentSprite(base)
+    return function(state, ...)
+      local image, trueColor = base(state, ...)
+      if not image or not (type(state) == "table" and state.__gen1WildKeyedArt) then
+        return image, trueColor
+      end
+      if not (love.image and love.image.newImageData) then
+        return image, trueColor
+      end
+      -- `Image` does not keep its ImageData on LOVE 11, so the bake goes back
+      -- to the file the state loaded from -- resolved exactly the way
+      -- `currentSprite` resolves it, so a sprite pack's art is what is baked.
+      local path
+      pcall(function()
+        local species = state.cycleSpecies and state.cycleSpecies[state.cycleIndex]
+        if not species then return end
+        path = require("src.pokemon.Sprites").path(
+          state.game.data, species, "front", { kind = "title" })
+      end)
+      if type(path) ~= "string" then return image, trueColor end
+      return stickerImage(path, false) or image, trueColor
+    end
   end
 
   function self.wrapTitle(base)
@@ -366,6 +549,14 @@ function Matte.new(context)
       end
       local put = keyTitleArt(state)
       state.__gen1WildKeyedArt = put and true or nil
+      -- The ring round the art stops above the copyright: this screen is
+      -- black to row 135 and white from 136, and the mon's box ends on
+      -- exactly that line.  Set every frame, taken with the rects at
+      -- `render.zones`, so no other screen carries it.
+      local theme = context.theme
+      if type(theme) == "table" and type(theme.clipArt) == "function" then
+        pcall(theme.clipArt, Matte.GROUND_H)
+      end
       local ok, problem, painted = withBlackPage(base, state, ...)
       if put then
         for field, image in pairs(put) do state[field] = image end
@@ -375,7 +566,6 @@ function Matte.new(context)
       -- fill wipes the skirt that mark painted.  Laying the rings down again
       -- now costs nothing (they are outside the art by construction) and is
       -- the difference between the figure keeping its hairline and not.
-      local theme = context.theme
       if ok and type(theme) == "table"
           and type(theme.paintSkirts) == "function" then
         pcall(theme.paintSkirts)
@@ -397,6 +587,9 @@ function Matte.new(context)
         and not patched[class] then
       patched[class] = true
       class.draw = self.wrapTitle(class.draw)
+      if type(class.currentSprite) == "function" then
+        class.currentSprite = wrapCurrentSprite(class.currentSprite)
+      end
     end
   end
 

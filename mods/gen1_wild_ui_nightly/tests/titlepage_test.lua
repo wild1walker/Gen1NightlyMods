@@ -413,6 +413,71 @@ do
   theme.apply({ stack = { states = {} } }, {})
 end
 
+-- --------------------------------------- the ring stops at the copyright
+
+do
+  io.write("the skirt does not reach the copyright line\n")
+  -- The title screen is black to row 135 and WHITE from 136: the copyright
+  -- is the one strip left light on purpose.  The mon is drawn at
+  -- `y = 136 - h` and the figure's box ends on the same line, so the bottom
+  -- bar of both their rings lands exactly on row 136 -- a black bar painted
+  -- straight through the copyright, which is what a player saw.
+  local theme = themeOver()
+  theme.install()
+  theme.write("dark")
+
+  fills = {}
+  theme.clipArt(136)
+  Theme.recordArt(40, 120, 16, 16)      -- a mon whose box ends at 136
+  theme.paintSkirts()
+
+  local function painted(px, py)
+    for _, f in ipairs(fills) do
+      if px >= f.x and px < f.x + f.w and py >= f.y and py < f.y + f.h then
+        return true
+      end
+    end
+    return false
+  end
+
+  ok(painted(48, 119), "the ring is still painted above the art")
+  ok(painted(39, 128), "...and down its sides, as far as the clip")
+  ok(not painted(39, 136), "but the sides stop at the copyright row")
+  ok(not painted(48, 136), "and the bottom bar is not painted at all")
+
+  -- and the zone half of the skirt is clipped with it, or the row's ink
+  -- would be mapped to black even where no bar was painted
+  local hall = setmetatable({ sgbPalettes = true }, HallOfFame)
+  hall.__gen1WildDarkGround = true
+  local out = theme.apply({ stack = { states = { hall } } },
+                          { zone(MEWMON, 0, 0, 19, 17) })
+  local art = out[#out]
+  eq(art.y, 119, "the art zone still opens a pixel proud of the mark")
+  eq(art.y + art.h, 136, "and ends on the copyright row rather than over it")
+end
+
+do
+  io.write("and the clip is taken with the rects, so it is one frame only\n")
+  -- Set while the dark title draws and cleared at `render.zones`, the way the
+  -- rects are: every other screen is dark all the way down and a ring at the
+  -- bottom of it is exactly what is wanted.
+  local theme = themeOver()
+  theme.install()
+  theme.write("dark")
+  theme.clipArt(136)
+  theme.apply({ stack = { states = {} } }, {})
+
+  fills = {}
+  Theme.recordArt(40, 120, 16, 16)
+  theme.paintSkirts()
+  local low = false
+  for _, f in ipairs(fills) do
+    if f.y >= 136 then low = true end
+  end
+  ok(low, "the next screen's art is skirted all the way round")
+  theme.apply({ stack = { states = {} } }, {})
+end
+
 -- ---------------------------------------------- pictures stay pictures
 
 do
