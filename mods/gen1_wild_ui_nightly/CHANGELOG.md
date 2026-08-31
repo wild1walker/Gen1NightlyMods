@@ -6,6 +6,51 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.30.4] - 2026-08-31
+
+### Fixed
+
+- **The white hairline round every piece of true-colour art.** Box icons,
+  party icons, bag icons, dex icons, a move's type name — fourteen call sites
+  across three mods, one cause.
+
+  `Renderer.scissorClamped` rounds every zone's scissor **outward** to whole
+  framebuffer pixels. That is deliberate and correct: on a fractional DPI a
+  truncated scissor loses up to a pixel a side, two neighbouring SGB zones
+  stop sharing an edge, and the letterbox clear shows through as a seam at
+  every boundary. Letting neighbours overlap by a row instead is harmless when
+  both are *shaded* — the same canvas twice, differing only in palette.
+
+  It is not harmless for a `colors == false` zone. That one draws the canvas
+  **raw**, so its overlap paints unshaded canvas over correctly shaded pixels.
+  Just outside a matte the canvas is the white page — and white is what shades
+  *to* black — so on a dark screen the overlap is a one-pixel white rectangle.
+  It has been there since the marks existed; on white paper raw-white and
+  shaded-white are the same colour, so nothing showed until dark mode.
+
+  **No matte colour can fix it.** Reversing a four-shade palette is an
+  involution with no fixed point (255↔0, 170↔85), so there is no canvas
+  colour that renders the same raw as it does shaded; insetting the mark,
+  insetting the matte, and growing both only move which side is wrong.
+
+  So the palette changes instead of the paint. Each mark now gets a zone of
+  its own, one pixel larger than the rect, **black at both ends**, and a
+  one-pixel black skirt is painted around the art on the canvas. In that ring
+  the canvas is black and the palette maps black to black, so raw and shaded
+  agree and the overlap is invisible. Inside the mark the engine splices its
+  own true-colour rect after ours, so the art is still drawn raw and untouched.
+
+  One wrapper on `markTrueColor` does all fourteen at once — including sites
+  in the other bundles, and any added later — and the two halves cannot drift
+  apart because the same call makes both. UI pass only: a world-pass mark is
+  the follower and the map's characters, and in ADVANCED the world canvas
+  blits raw with no shader over it, so there is no seam to hide there and a
+  skirt would be a black outline drawn round a character on a lit map.
+
+  The upstream fix is one condition in the engine — a bare zone should round
+  its scissor inward, having no seam to protect — and this stands in until
+  that lands.
+
 ## [0.30.3] - 2026-08-31
 
 ### Changed

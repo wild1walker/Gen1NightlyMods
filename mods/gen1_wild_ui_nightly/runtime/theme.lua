@@ -415,6 +415,94 @@ local function watchBoxes()
   return assigned and true or false
 end
 
+-- ------- the hairline around true-colour art
+--
+-- `Renderer.scissorClamped` rounds every zone's scissor OUTWARD to whole
+-- framebuffer pixels, deliberately: on a fractional DPI a truncated scissor
+-- loses up to a pixel a side, two neighbouring SGB zones stop sharing an edge
+-- and the letterbox clear shows through as a seam at every boundary.  Letting
+-- neighbours overlap by a row instead is harmless when both are SHADED -- the
+-- same canvas, drawn twice, differing only in palette across a seam.
+--
+-- It is not harmless for a `colors == false` zone.  That one draws the canvas
+-- RAW, so its overlap paints unshaded canvas over correctly shaded pixels.
+-- Just outside a matte the canvas is the white page -- and white is what
+-- SHADES TO black -- so on a dark screen every piece of true-colour art wears
+-- a one-pixel white rectangle.  Box icons, party icons, bag icons, dex icons,
+-- a move's type name: fourteen call sites, one cause.
+--
+-- ------- why it cannot be painted away
+--
+-- The ring needs a canvas colour that renders the same raw as it does shaded.
+-- Reversing a four-shade palette is an involution with no fixed point --
+-- 255 <-> 0, 170 <-> 85 -- so no matte colour satisfies it, and insetting the
+-- mark, insetting the matte or growing both only moves which side is wrong.
+--
+-- ------- so change the palette instead of the paint
+--
+-- The page's palette is ours.  Give the art a zone of its OWN, one pixel
+-- larger than the mark, whose ends are both black; then paint a one-pixel
+-- black skirt around the art on the canvas.  In that ring the canvas is black
+-- and the zone maps black to black, so raw and shaded agree and the overlap
+-- is invisible.  Inside the mark the engine's own true-colour rect is spliced
+-- after ours and still wins, so the art is untouched.
+--
+-- One wrapper on `markTrueColor` does it for every site at once, including
+-- ones in other bundles and any added later: the skirt is painted where the
+-- art just drew, and the zone is emitted with the panels.  The two halves
+-- cannot drift apart because the same call makes both.
+--
+-- ONLY the UI pass.  A world-pass mark is the follower and the map's
+-- characters, and in ADVANCED the world canvas blits raw with no shader over
+-- it at all -- there is no seam there to hide, and a black skirt would be a
+-- black outline drawn round a character on a lit map.
+local ART_CAP = 40
+local artRects, artCount = {}, 0
+
+local function takeArt()
+  if artCount == 0 then return nil end
+  local out = {}
+  for i = 1, artCount do out[i] = artRects[i]; artRects[i] = nil end
+  artCount = 0
+  return out
+end
+
+local MARK_MARK = "__gen1WildArtSkirt"
+
+local function watchArt(skirt)
+  local ok, PaletteFX = pcall(require, "src.render.PaletteFX")
+  if not ok or type(PaletteFX) ~= "table" then return false end
+  if rawget(PaletteFX, MARK_MARK) then return true end
+  local base = PaletteFX.markTrueColor
+  if type(base) ~= "function" then return false end
+  PaletteFX.markTrueColor = function(x, y, w, h)
+    if type(x) == "number" and type(y) == "number"
+        and type(w) == "number" and type(h) == "number"
+        and w > 0 and h > 0 and artCount < ART_CAP
+        -- the world pass blits raw and has no seam to hide
+        and not (type(PaletteFX.spriteRedrawPassActive) == "function"
+                 and PaletteFX.spriteRedrawPassActive()) then
+      local colour = skirt()
+      if colour then
+        artCount = artCount + 1
+        artRects[artCount] = { x = x, y = y, w = w, h = h }
+        love.graphics.setColor(colour[1] / 255, colour[2] / 255,
+                               colour[3] / 255, 1)
+        -- four bars rather than a bigger filled rect: the art has already
+        -- been drawn and must not be painted over
+        love.graphics.rectangle("fill", x - 1, y - 1, w + 2, 1)
+        love.graphics.rectangle("fill", x - 1, y + h, w + 2, 1)
+        love.graphics.rectangle("fill", x - 1, y, 1, h)
+        love.graphics.rectangle("fill", x + w, y, 1, h)
+        love.graphics.setColor(1, 1, 1, 1)
+      end
+    end
+    return base(x, y, w, h)
+  end
+  local assigned = pcall(function() PaletteFX[MARK_MARK] = true end)
+  return assigned and true or false
+end
+
 local function overlaps(a, b)
   return a.x < b.x + b.w and b.x < a.x + a.w
      and a.y < b.y + b.h and b.y < a.y + a.h
@@ -826,6 +914,26 @@ function Theme.new(context)
     return nil
   end
 
+  -- Both ends black, so a black skirt reads black and the white page under it
+  -- reads black too.  The middles are never sampled -- the only canvas inside
+  -- this zone and outside the art's own rect is the skirt, which is flat
+  -- black -- so they are the plain greys rather than a decision.
+  local ART_PAGE = { BLACK, { 85, 85, 85 }, { 170, 170, 170 }, BLACK }
+
+  -- Appended after the panels so it wins over them, and before the engine
+  -- splices the true-colour rects so those still win inside the art itself.
+  local function withArt(list, art)
+    if not (art and art[1]) then return list end
+    local out = {}
+    for _, zone in ipairs(list or {}) do out[#out + 1] = zone end
+    for _, rect in ipairs(art) do
+      out[#out + 1] = { colors = ART_PAGE,
+                        x = rect.x - 1, y = rect.y - 1,
+                        w = rect.w + 2, h = rect.h + 2 }
+    end
+    return out
+  end
+
   local function groundZones(zones)
     local out = restyled(zones, function(_, zone)
       local colors = zone.colors
@@ -905,6 +1013,7 @@ function Theme.new(context)
     -- wrapper on an engine function and cannot be asked to stop, so the one
     -- thing that must always happen is that somebody empties it.
     local drawn = takeBoxes()
+    local art = takeArt()
     seen.boxes = drawn and #drawn or 0
     seen.panels = 0
     seen.zones = (type(zones) == "table" and #zones) or 0
@@ -914,7 +1023,7 @@ function Theme.new(context)
     -- before pageState, because with the menu CLOSED it is not a page at all
     -- and would otherwise fall through untouched.
     if type(zones) == "table" and zones[1] and darkGroundState(game) then
-      return groundZones(zones)
+      return withArt(groundZones(zones), art)
     end
 
     local state, ownerAt = pageState(game)
@@ -941,7 +1050,7 @@ function Theme.new(context)
     local bare = type(out) ~= "table" or not out[1]
     local panels = panelZones(game, ownerAt, drawn, not page)
     seen.panels = panels and #panels or 0
-    if not panels then return out end
+    if not panels then return withArt(out, art) end
 
     -- ------- a frame that arrived with no zones of its own
     --
@@ -979,13 +1088,13 @@ function Theme.new(context)
     if bare then
       local spread = { { colors = false, x = 0, y = 0, w = 160, h = 144 } }
       for _, zone in ipairs(panels) do spread[#spread + 1] = zone end
-      return spread
+      return withArt(spread, art)
     end
 
     local spread = {}
     for _, zone in ipairs(out or {}) do spread[#spread + 1] = zone end
     for _, zone in ipairs(panels) do spread[#spread + 1] = zone end
-    return spread
+    return withArt(spread, art)
   end
 
   function self.install()
@@ -996,6 +1105,27 @@ function Theme.new(context)
     -- answers, and the boxes it cannot describe stay as they were.
     if not watchBoxes() then
       mod.log:info("boxes are not being watched; panels fall back to the stack")
+    end
+    -- The skirt round true-colour art, for the hairline the engine's outward
+    -- scissor rounding leaves.  Its colour is asked for on every mark rather
+    -- than captured here, so switching the theme mid-game takes effect on the
+    -- next frame like everything else -- and answering nil is what turns the
+    -- whole thing off under LIGHT, or in a mode that discards the marks and
+    -- would read a black skirt as a hole in the page.
+    if not watchArt(function()
+      if self.read() ~= "dark" then return nil end
+      local okFX, PaletteFX = pcall(require, "src.render.PaletteFX")
+      if not okFX or type(PaletteFX) ~= "table" then return nil end
+      if type(PaletteFX.honorsTrueColor) == "function"
+          and not PaletteFX.honorsTrueColor() then
+        return nil
+      end
+      local colour = self.matte()
+      if type(colour) ~= "table" or #colour < 3 then return nil end
+      return colour
+    end) then
+      mod.log:info("true-colour marks are not being watched; art keeps its "
+        .. "hairline on a fractional-DPI display")
     end
     -- Guarded, and reported once.
     --
@@ -1031,6 +1161,14 @@ Theme.luma = luma
 Theme.reversed = reversed
 Theme.overlaps = overlaps
 Theme.recordBox = recordBox
+
+-- The rect half of the skirt, without the paint: tests/titlepage_test.lua
+-- drives the zone this produces, and painting needs a window.
+function Theme.recordArt(x, y, w, h)
+  if artCount >= ART_CAP then return end
+  artCount = artCount + 1
+  artRects[artCount] = { x = x, y = y, w = w, h = h }
+end
 Theme.takeBoxes = takeBoxes
 
 return Theme

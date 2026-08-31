@@ -280,6 +280,62 @@ do
   ok(named, "which is a PAGE as well -- keyed changes the turn, not the rule")
 end
 
+-- ------------------------------------- the skirt round true-colour art
+
+do
+  io.write("art gets a zone of its own, one pixel proud, black at both ends\n")
+  -- The engine rounds a zone's scissor OUTWARD to whole framebuffer pixels,
+  -- which is right for two shaded neighbours and wrong for the true-colour
+  -- opt-out: that one draws the canvas RAW, so its overlap paints unshaded
+  -- canvas over shaded pixels.  Just outside a matte the canvas is the white
+  -- page -- and white is what shades TO black -- so every piece of art wore a
+  -- one-pixel white rectangle.
+  --
+  -- No matte colour can fix it: reversing four shades is an involution with
+  -- no fixed point.  So the art gets a palette instead, black at both ends,
+  -- one pixel larger than the mark, and a black skirt painted in that ring.
+  -- Black canvas under a palette that maps black to black is invisible.
+  local theme = themeOver()
+  local hall = setmetatable({ sgbPalettes = true }, HallOfFame)
+  local box = { tx = 0, ty = 12, tw = 20, th = 6 }
+  Theme.recordBox(0, 12, 20, 6)
+  Theme.recordArt(40, 32, 16, 16)
+
+  local out = theme.apply({ stack = { states = { hall, box } } },
+                          { zone(MEWMON, 0, 0, 19, 17) })
+  eq(#out, 3, "the picture, the box's panel, and the art's own zone")
+  local art = out[#out]
+  eq(art.x, 39, "a pixel proud on the left")
+  eq(art.y, 31, "...and the top")
+  eq(art.w, 18, "two pixels wider than the mark")
+  eq(art.h, 18, "...and two taller")
+  eq(art.colors[1][1], 0, "paper black, so the white page under the skirt "
+    .. "reads black")
+  eq(art.colors[4][1], 0, "and ink black, so the skirt itself reads black")
+  ok(art == out[#out], "last of ours, so it wins over the panel it sits on -- "
+    .. "and the engine splices the true-colour rect after us, so the art "
+    .. "itself is still drawn raw")
+end
+
+do
+  io.write("and it is drained every frame, themed or not\n")
+  -- The wrapper cannot be asked to stop, so the one thing that must always
+  -- happen is that somebody empties it -- or a LIGHT frame's marks would come
+  -- back as zones on the next dark one.
+  local theme = themeOver()
+  theme.write("light")
+  Theme.recordArt(8, 8, 16, 16)
+  local zones = { zone(MEWMON, 0, 0, 19, 17) }
+  eq(theme.apply({ stack = { states = {} } }, zones), zones,
+    "LIGHT hands the list straight back")
+
+  theme.write("dark")
+  local hall = setmetatable({ sgbPalettes = true }, HallOfFame)
+  local out = theme.apply({ stack = { states = { hall } } },
+                          { zone(MEWMON, 0, 0, 19, 17) })
+  eq(#out, 1, "and the mark it swallowed does not turn up a frame later")
+end
+
 -- ---------------------------------------------- pictures stay pictures
 
 do
