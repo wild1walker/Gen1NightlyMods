@@ -88,6 +88,20 @@ SKIP_DIRS = {".git", "__pycache__", ".build-check", "dist",
              ".github", "tests", "tools", "maintained", "upstream"}
 SKIP_SUFFIXES = {".pyc"}
 
+# And one file, by the same rule and for the same reason the paragraph above
+# was written: nothing in the game can reach a CHANGELOG.  It is the only
+# shipped file that grows without bound -- 148 KB of the UI bundle at 0.31.18,
+# more than every PNG in Gen1Dex put together, and a few KB longer after every
+# release -- and it is read by people, on GitHub, where the releases already
+# publish it.
+#
+# README.md stays.  It is twenty kilobytes, it does not grow, and a mod folder
+# somebody has unzipped should say what it is.
+#
+# The CREDITS and THIRD_PARTY_NOTICES files stay too, and would even if they
+# were larger: those are licence terms travelling with the code they cover.
+SKIP_FILES = {"CHANGELOG.md"}
+
 
 def mod_dirs():
     if not MODS.is_dir():
@@ -110,6 +124,10 @@ def files_of(directory):
         if any(part in SKIP_DIRS for part in parts):
             continue
         if path.suffix in SKIP_SUFFIXES:
+            continue
+        # at the mod's root only: a module that ships its own CHANGELOG is
+        # somebody else's file travelling with their code, and stays
+        if len(parts) == 1 and parts[0] in SKIP_FILES:
             continue
         out.append(path)
     # by POSIX path, so a case-insensitive filesystem cannot reorder them

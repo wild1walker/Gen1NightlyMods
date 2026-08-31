@@ -6,6 +6,71 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.19] - 2026-08-31
+
+A clean-up pass: no new behaviour, one real bug, and the per-frame work the
+theme was doing cut down.
+
+### Fixed
+
+- **Bill's PC measured a colour icon's WIDTH by its HEIGHT.** `fullColourRect`
+  clamps a full-colour icon to the 16x16 frame `drawIcon` takes out of a taller
+  sheet, and its width line read `info.h > ICON and ICON or info.w` -- the
+  party screen's identical block reads `info.w`. On the ordinary case (a sheet
+  16 wide and taller than 16) both answer 16 and nothing showed; on art wider
+  than 16 but no taller, Bill's PC marked a rect wider than the icon and blitted
+  a strip of unshaded canvas beside it. One character, and only a sprite pack
+  with unusual icon art would ever have seen it.
+
+### Changed
+
+- **The theme is read once a frame instead of once a mark.**
+  `optionset.read` walks the live game's save, the mod's own option store and
+  the row's fallbacks -- and `self.skirt` was asking for it on **every**
+  true-colour mark on the frame, then asking `self.matte`, which asked again. A
+  box screen with thirty icons read the same word off the save sixty times to
+  draw one screen.
+
+  It is cached against `optionset.generation()`, a number every write of every
+  kind bumps -- not against `self.write`, because the other bundle's menu and
+  the test bench both move this row through `mod.exports.optionWrite`, which
+  never comes through this file. A cache only this file could clear would have
+  left the skirt drawing the old colour on the frame the zones had already
+  turned over: the two disagreeing inside one frame, which is the shape of
+  every hairline in this file's history. It is thrown away at the top of the
+  `render.zones` hook as well, once a frame, for a loaded save that brings its
+  own options and writes nothing.
+
+- **Two more things the frame was paying for.** `keyedClasses()` built a table
+  and ran a `pcall(require)` on every themed frame to answer a question that
+  cannot change after load -- the other two class lists were already memoised
+  and this one was not, which the comment above them had claimed for all three.
+  And `self.skirt` resolved `PaletteFX` through a `pcall(require)` per mark;
+  the module is fetched once at install now, and only `honorsTrueColor` -- which
+  follows the display mode -- is still asked each time.
+
+- **The changelog no longer ships inside the mod.** `tools/pack.py` has said
+  since the channel was stood up that a file the game cannot reach through
+  `mod:read` does not belong in the archive; `tests`, `tools` and `maintained`
+  were acted on at 0.24.0 and this was not. It is the only shipped file that
+  grows without bound -- 148 KB here at 0.31.18, more than every PNG in
+  Gen1Dex put together, and longer after every release -- and it is read by
+  people, on GitHub, where the releases already publish it. About 110 KB comes
+  off the four downloads. README, CREDITS and THIRD_PARTY_NOTICES stay: the
+  first does not grow, and the others are licence terms travelling with the
+  code they cover.
+
+- **Two dead locals removed.** `shiftSelf` in `runtime/optionset.lua`, a helper
+  for a `define(self, schema)` calling convention this file never meets, and
+  `HEADER_Y` in the Modern Bag, a constant nothing read.
+
+  A sweep of all 134 non-test Lua files found only those two and one more, and
+  the one more was not dead at all -- see Wild Green's entry.
+
+  `tests/titlepage_test.lua` is 78 (was 73), holding the cache: read once, seen
+  the moment anything writes it through any door, and cleared at the frame
+  boundary.
+
 ## [0.31.18] - 2026-08-31
 
 ### Fixed

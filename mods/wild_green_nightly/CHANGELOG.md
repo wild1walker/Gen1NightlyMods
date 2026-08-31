@@ -6,6 +6,18 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.31.19] - 2026-08-31
+
+### Changed
+
+- **`WILD_GREEN_PIC` says why it is there.** As Lua it is unused -- `suitOf`
+  builds that ramp for every suit as `picRamp`, and green's comes out as
+  exactly those four -- so a sweep for dead code flags it, and this one was
+  deleted before `tools/check.py` said what it was for: it is the copy the
+  check holds against `PIC_RAMP` in `tools/palette.py`, which is what keeps the
+  three copies of this palette from drifting apart. It is back, with the reason
+  written beside it so the next sweep does not have to find out the same way.
+
 ## [0.31.18] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

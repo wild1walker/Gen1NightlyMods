@@ -80,6 +80,7 @@ package.loaded["src.ui.TownMap"] = TownMap
 local OptionSet = load_("runtime/optionset.lua")
 local Theme = load_("runtime/theme.lua")
 
+local lastMod, lastOptionSet
 local function themeOver()
   local stored = {}
   local mod = {
@@ -90,7 +91,9 @@ local function themeOver()
     log = { info = function() end, warn = function() end, error = function() end },
     hooks = { wrap = function() end },
   }
-  local theme = Theme.new({ mod = mod, optionset = OptionSet.new() })
+  local optionset = OptionSet.new()
+  lastMod, lastOptionSet = mod, optionset
+  local theme = Theme.new({ mod = mod, optionset = optionset })
   theme.defineRow()
   theme.write("dark")
   return theme
@@ -525,6 +528,52 @@ do
 
   eq(#out, 2, "the map's zone and the menu's panel")
   eq(out[1].colors[1][1], 255, "a map that goes dark is a map you cannot read")
+end
+
+-- ----------------------------------------- what the theme reads, and when
+
+do
+  io.write("the theme is read once, and again the moment anything writes it\n")
+  -- `optionset.read` walks the live game's save, the mod's own option store
+  -- and the row's fallbacks.  `self.skirt` asks for it on EVERY true-colour
+  -- mark on the frame and then asks `self.matte`, which asks again -- a box
+  -- screen with thirty icons was reading the same word off the save sixty
+  -- times to draw one screen.
+  local theme = themeOver()
+  local reads = 0
+  local base = lastOptionSet.read
+  lastOptionSet.read = function(...)
+    reads = reads + 1
+    return base(...)
+  end
+
+  eq(theme.read(), "dark", "the value is what was written")
+  local first = reads
+  theme.read(); theme.read(); theme.read()
+  eq(reads, first, "and asking three more times costs nothing")
+
+  -- ------- and it is not stale, whoever writes
+  --
+  -- The OTHER bundle's menu and the test bench both move this row through
+  -- `mod.exports.optionWrite`, which never comes through theme.lua at all.  A
+  -- cache only this file could clear would leave the skirt drawing yesterday's
+  -- colour on the frame the zones had already turned over -- the two
+  -- disagreeing inside one frame, which is the shape of every hairline in this
+  -- file's history.  So it is kept against `optionset.generation()`, which
+  -- every write of every kind bumps.
+  lastOptionSet.write(lastMod, "ui_theme", "light")
+  eq(theme.read(), "light",
+    "a write that went nowhere near this file is seen by the next read")
+
+  lastOptionSet.write(lastMod, "ui_theme", "dark")
+  eq(theme.read(), "dark", "...and back")
+
+  -- and the frame boundary clears it too, for a loaded save that brings its
+  -- own options along and writes nothing
+  theme.forget()
+  local before = reads
+  theme.read()
+  ok(reads > before, "forgetting makes the next read go and look")
 end
 
 -- ------------------------------------------------------------ the list

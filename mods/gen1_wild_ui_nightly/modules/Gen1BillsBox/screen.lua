@@ -431,7 +431,7 @@ return function(mod)
       else
         local info = scanPath(path)
         hit = info.colour
-          and { w = info.h > ICON and ICON or info.w,
+          and { w = info.w > ICON and ICON or info.w,
                 h = info.h > ICON and ICON or info.h }
           or false
       end

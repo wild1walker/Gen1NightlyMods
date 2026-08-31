@@ -82,12 +82,27 @@ return function(ctx)
   --
   -- So the portrait gets the same trick in green, and neither of the
   -- position rules: a face-sized rule on face-sized art is noise.
+  --
+  -- ------- and why this is written out when nothing here reads it
+  --
+  -- `suitOf` below builds this ramp for every suit as `picRamp`, and green's
+  -- comes out as exactly these four -- so as Lua, this table is unused, and a
+  -- sweep for dead code will say so.  It is not dead: `tools/check.py` holds
+  -- it against `PIC_RAMP` in `tools/palette.py`, which is what keeps the
+  -- three copies of this palette -- the recipe, this file and main.lua -- from
+  -- drifting apart.  None of the three can import from either of the others
+  -- (the transform runs in a sandbox with no require, an entry chunk cannot
+  -- require its own files, and the tools are Python), so the duplication is
+  -- the design and the check is what makes it safe.  Delete it and the check
+  -- has nothing to compare; it will tell you so, which is how this comment
+  -- came to be here.
   local WILD_GREEN_PIC = {
     { 0xff, 0xff, 0xff },
     { 0xa8, 0xdd, 0x8a },
     { 0x65, 0xba, 0x3f },
     { 0x00, 0x00, 0x00 },
   }
+  local _ = WILD_GREEN_PIC          -- read, so "unused" means what it says
 
   -- ------- and the other eight
   --

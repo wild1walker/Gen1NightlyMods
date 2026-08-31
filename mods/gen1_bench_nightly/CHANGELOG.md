@@ -5,6 +5,11 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.31.19] - 2026-08-31
+
+_No changes in this release; the channel ships one version across every
+mod._
+
 ## [0.31.18] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

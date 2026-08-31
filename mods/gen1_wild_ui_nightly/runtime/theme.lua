@@ -690,16 +690,47 @@ function Theme.new(context)
 
   local classes                         -- built on the first frame
   local covered
+  local keyed
   local reversals = setmetatable({}, { __mode = "k" })
 
+  -- ------- read once a frame, not once a mark
+  --
+  -- `optionset.read` walks the live game's save, the mod's own option store
+  -- and the row's fallbacks -- a dozen table lookups behind two pcalls.  That
+  -- is nothing to do once and this is not asked once: `self.skirt` asks it for
+  -- EVERY true-colour mark on the frame and then asks `self.matte`, which
+  -- asks it again.  A box screen with thirty icons was reading the same word
+  -- off the save sixty times to draw one screen.
+  --
+  -- Kept against `optionset.generation()`, a number every write of every kind
+  -- bumps.  Not against `self.write` alone: the OTHER bundle's menu and the
+  -- test bench both move this row through `mod.exports.optionWrite`, which
+  -- never comes through this file, and a cache that only this file could
+  -- clear would have left the skirt drawing yesterday's colour on the frame
+  -- the zones already turned over -- the two disagreeing inside one frame,
+  -- which is the shape of every hairline in this file's history.
+  --
+  -- And thrown away at the top of the `render.zones` hook as well, once a
+  -- frame: a loaded save brings its own options with it and writes nothing.
+  local answer, answerAt
+
   function self.read()
+    local now = optionset.generation and optionset.generation() or nil
+    if answer and answerAt == now then return answer end
     local value = optionset.read(mod, KEY)
-    if not Theme.LABELS[value] then return Theme.DEFAULT end
+    if not Theme.LABELS[value] then value = Theme.DEFAULT end
+    answer, answerAt = value, now
     return value
+  end
+
+  -- Called by the hook below, and by tests standing in for a frame boundary.
+  function self.forget()
+    answer, answerAt = nil, nil
   end
 
   function self.write(value, game)
     if not Theme.LABELS[value] then return end
+    self.forget()
     return optionset.write(mod, KEY, value, game)
   end
 
@@ -1211,8 +1242,9 @@ function Theme.new(context)
     local state, ownerAt = pageState(game)
     local out, page
     if state then
+      keyed = keyed or keyedClasses()
       out = dark(pageZones(zones, state), 1,
-                 keyedClasses()[getmetatable(state)] and true or false)
+                 keyed[getmetatable(state)] and true or false)
       page = true
     elseif basePage(zones) then
       -- no page state, but the list itself says it is a page
@@ -1294,12 +1326,21 @@ function Theme.new(context)
     -- next frame like everything else -- and answering nil is what turns the
     -- whole thing off under LIGHT, or in a mode that discards the marks and
     -- would read a black skirt as a hole in the page.
+    -- Resolved once.  This closure runs for EVERY true-colour mark on the
+    -- frame, and a `pcall(require)` a mark is a pcall and a table lookup to
+    -- fetch a module that cannot change after load.  What still has to be
+    -- asked each time is `honorsTrueColor`, which follows the display mode.
+    local skirtFX
+    do
+      local okFX, found = pcall(require, "src.render.PaletteFX")
+      if okFX and type(found) == "table" then skirtFX = found end
+    end
+
     self.skirt = function()
+      if not skirtFX then return nil end
       if self.read() ~= "dark" then return nil end
-      local okFX, PaletteFX = pcall(require, "src.render.PaletteFX")
-      if not okFX or type(PaletteFX) ~= "table" then return nil end
-      if type(PaletteFX.honorsTrueColor) == "function"
-          and not PaletteFX.honorsTrueColor() then
+      if type(skirtFX.honorsTrueColor) == "function"
+          and not skirtFX.honorsTrueColor() then
         return nil
       end
       local colour = self.matte()
@@ -1323,6 +1364,9 @@ function Theme.new(context)
     -- a broken theme is one pcall per frame rather than one error per frame.
     local broken = false
     mod.hooks:wrap("render.zones", function(nextLink, game, zones)
+      -- the frame boundary, and it is here rather than inside `apply` so a
+      -- theme that has stood down still forgets what it read
+      self.forget()
       zones = nextLink(game, zones)
       if broken then return zones end
       local ok, out = pcall(self.apply, game, zones)
