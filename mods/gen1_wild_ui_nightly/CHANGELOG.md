@@ -6,6 +6,15 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.29.4] - 2026-08-31
+
+### Added
+
+- **`themeProbe` export**: what the theme's last frame saw — boxes recorded,
+  panels produced, zones handed in. For the nightly bench's SPRITE PROBE and
+  nothing else. A build with no theme answers three zeroes rather than
+  nothing, so a caller never has to know whether the theme installed.
+
 ## [0.29.3] - 2026-08-31
 
 ### Fixed

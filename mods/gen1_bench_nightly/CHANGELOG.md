@@ -5,6 +5,22 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.29.4] - 2026-08-31
+
+### Changed
+
+- **SPRITE PROBE reports the theme's frame too.** The line gains `B` boxes
+  recorded, `P` panels produced and `Z` zones handed in, read through the UI
+  bundle's own published export rather than by reaching into it.
+
+  It is for the route banner, which is still white on a dark map after 0.28.0
+  was supposed to have taken it. Every branch of the theme should darken it
+  and reading the code has not found the one that does not, so the three
+  numbers partition the answer: `B0` means the box was never recorded and the
+  bug is in the recorder; `B1 P0` means it was recorded and never panelled and
+  the bug is in the rule; `B1 P1` and still white means the zone list is not
+  reaching the blit. Three different files.
+
 ## [0.29.3] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

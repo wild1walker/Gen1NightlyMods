@@ -822,11 +822,28 @@ function Theme.new(context)
   -- it looks -- this runs on every frame of the overworld and every frame of
   -- every battle, and on those frames it must cost a table lookup and a walk
   -- down a stack that is usually two states deep.
+  -- ------- what the last frame actually saw
+  --
+  -- Not a feature: the bench's SPRITE PROBE reads this so a screenshot can
+  -- say whether a box that stayed white was never RECORDED or was recorded
+  -- and never PANELLED.  Those are two different bugs in two different files
+  -- and they look identical on a phone.  Three integers a frame, written
+  -- whether or not anyone is looking, because the alternative is a flag that
+  -- has to be plumbed from a different mod before the numbers start.
+  local seen = { boxes = 0, panels = 0, zones = 0 }
+
+  function self.probe()
+    return seen.boxes, seen.panels, seen.zones
+  end
+
   function self.apply(game, zones)
     -- Drained on every frame, before the LIGHT return: the recorder is a
     -- wrapper on an engine function and cannot be asked to stop, so the one
     -- thing that must always happen is that somebody empties it.
     local drawn = takeBoxes()
+    seen.boxes = drawn and #drawn or 0
+    seen.panels = 0
+    seen.zones = (type(zones) == "table" and #zones) or 0
     if self.read() ~= "dark" then return zones end
 
     -- The title screen with its ground already painted black.  Answered
@@ -858,6 +875,7 @@ function Theme.new(context)
     -- the START menu has never been one.
     local bare = type(out) ~= "table" or not out[1]
     local panels = panelZones(game, ownerAt, drawn, not page)
+    seen.panels = panels and #panels or 0
     if not panels then return out end
 
     -- ------- a frame that arrived with no zones of its own

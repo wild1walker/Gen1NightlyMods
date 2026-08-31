@@ -317,6 +317,19 @@ function Bundle.install(mod, spec, features)
   mod.exports.bundle = spec.id
   mod.exports.installed = installed
   mod.exports.deferred = deferred
+  -- What the theme's last frame saw: boxes recorded, panels produced, zones
+  -- handed in.  Published for the nightly bench and nothing else -- a build
+  -- with no theme answers three zeroes rather than nothing, so a caller never
+  -- has to know whether the theme installed.
+  mod.exports.themeProbe = function()
+    if type(theme) ~= "table" or type(theme.probe) ~= "function" then
+      return 0, 0, 0
+    end
+    local ok, boxes, panels, zones = pcall(theme.probe)
+    if not ok then return 0, 0, 0 end
+    return boxes or 0, panels or 0, zones or 0
+  end
+
   mod.exports.optionValue = function(key) return optionset.read(mod, key) end
   -- The writing half of the pair, so the other bundle's menu can move a switch
   -- that lives over here rather than only reading it.  Both halves render both

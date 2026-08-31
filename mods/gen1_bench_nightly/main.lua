@@ -241,15 +241,29 @@ return function(mod)
     local top = type(states) == "table" and states[#states] or nil
     local inTransition = (transitionClass and top
       and getmetatable(top) == transitionClass) and 1 or 0
-    local line = ("E%d N%d S%d T%d")
-      :format(entities, npcs, context.drawn or 0, inTransition)
+    -- And what the theme's last frame saw, through the bundle's own export
+    -- rather than by reaching into it: B boxes RECORDED, P panels PRODUCED,
+    -- Z zones handed in.  A box that stays white with B0 was never recorded
+    -- and the bug is in the recorder; one with B1 P0 was recorded and never
+    -- panelled, and the bug is in the rule.  Two different files.
+    local boxes, panels, zoneCount = 0, 0, 0
+    local ui = context.find("gen1_wild_ui_nightly")
+    local probe = type(ui) == "table" and type(ui.exports) == "table"
+      and ui.exports.themeProbe or nil
+    if type(probe) == "function" then
+      local okProbe, b, p, z = pcall(probe)
+      if okProbe then boxes, panels, zoneCount = b or 0, p or 0, z or 0 end
+    end
+    local line = ("E%d N%d S%d T%d  B%d P%d Z%d")
+      :format(entities, npcs, context.drawn or 0, inTransition,
+              boxes, panels, zoneCount)
     context.drawn = 0
     -- Screen space, top left, over everything: this is a tool status line and
     -- is meant to be readable in a screenshot rather than to fit the game.
     local x = (type(viewport) == "table" and tonumber(viewport.x) or 0) + 4
     local y = (type(viewport) == "table" and tonumber(viewport.y) or 0) + 4
     love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", x - 2, y - 2, 130, 18)
+    love.graphics.rectangle("fill", x - 2, y - 2, 250, 18)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(line, x, y)
     return result
