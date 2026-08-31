@@ -230,9 +230,20 @@ do
   eq(out[4].y, 136, "the strip is the copyright row")
   eq(out[4].h, 8, "...and only that row")
   eq(out[4].w, 160, "...all the way across")
-  eq(out[4].colors[1][1], 0, "its page is black")
-  eq(out[4].colors[4][1], 255, "and its ink is white, which is why the row "
-    .. "was left white to be reversed rather than painted with the rest")
+  -- The plain greys, which is the IDENTITY palette: what the shader writes
+  -- is what the canvas already holds.  That is the point of it.  matte.lua
+  -- paints this row black with the rest of the ground and inverts the
+  -- copyright art so its letters are light, and because raw and shaded are
+  -- then the same pixels, the true-colour rect over the mon has nothing to
+  -- show when the engine's outward scissor rounding spills it a row down.
+  --
+  -- 0.31.8 reversed this strip over white paper instead.  It looked right
+  -- until that spill, which re-blitted the raw paper as a white bar across
+  -- the copyright -- and painting the row black to hide it is the black bar
+  -- the same player reported the release before.
+  eq(out[4].colors[1][1], 255, "colour 0 is white, as drawn")
+  eq(out[4].colors[4][1], 0, "and colour 3 black, as drawn: the strip is the "
+    .. "identity, so the canvas shows through it either way")
 end
 
 do

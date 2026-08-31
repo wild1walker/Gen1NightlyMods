@@ -221,12 +221,14 @@ do
 
   eq(drawn, 1, "drawn ONCE -- this is the page, not a matte, so there is "
     .. "nothing to learn from a first pass")
-  eq(#fills, 2, "the one full-screen fill is served as two")
+  eq(#fills, 1, "the full-screen fill is served black, once")
   eq(fills[1].colour[1], 0, "the page is black")
-  eq(fills[1].h, 136, "...down to the copyright row and no further")
-  eq(fills[2].colour[1], 1, "and that row is left white")
-  eq(fills[2].y, 136, "...where the copyright line is drawn")
-  eq(fills[2].h, 8, "...one row of it")
+  eq(fills[1].h, 144, "...all of it, the copyright row included")
+  -- 0.31.8 left that row white and turned it over in the palette.  The strip
+  -- read right and the true-colour rect over the mon spilled a row of RAW
+  -- white across it, because the engine rounds a `colors == false` scissor
+  -- outward and raw at row 136 was the paper.  Raw and shaded have to be the
+  -- same pixels down there; the letters are inverted to suit.
   eq(#PaletteFX.marks, 1, "the figure still marks, exactly once")
   eq(PaletteFX.marks[1].x, 82, "...its own rectangle, untouched")
   eq(title.__gen1WildDarkGround, true,
@@ -240,7 +242,7 @@ do
   PaletteFX.mode = "gbc"
   local title = {}
   Matte.new(context).wrapTitle(titleDraw)(title)
-  eq(#fills, 2, "SGB gets the black page too")
+  eq(#fills, 1, "SGB gets the black page too")
   eq(fills[1].colour[1], 0, "...black")
   eq(title.__gen1WildDarkGround, true, "and the flag with it")
   PaletteFX.mode = "redpp"

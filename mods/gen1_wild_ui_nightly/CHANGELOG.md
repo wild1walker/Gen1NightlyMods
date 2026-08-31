@@ -6,6 +6,54 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.10] - 2026-08-31
+
+### Fixed
+
+- **The white bar across the copyright, and the black one before it, were the
+  same bug.** The title's copyright row was left white on the canvas and
+  turned over in the palette, so the strip read black with white letters. It
+  did — until the true-colour rect over the mon reached it. The engine rounds
+  a `colors == false` scissor **outward**, that rect re-blits the canvas
+  **raw**, and raw at row 136 was the white paper: a white bar under the mon
+  and under the figure both. Painting the row black to hide it is the other
+  report — a black bar through the words — and clipping the ring so it paints
+  nothing there just lets the white through again. There is no third answer
+  while raw and shaded disagree about that row.
+
+  So they are made to agree. The ground is painted black **all the way down**,
+  the copyright art is inverted so its letters are light on it, and the strip
+  carries the plain greys — the identity palette, where what the shader
+  writes is what the canvas already holds. Raw and shaded are the same pixels,
+  and the spill has nothing left to show.
+
+- **The trainer lost his colour.** 0.31.8 baked the pad from
+  `state.playerPath` — a *path* — and installed the result. On this cart the
+  figure is not the file at that path: Wild Green swaps `state.player` for its
+  green derived copy from a wrapper outside this one, and Crystal Animated
+  Sprites does the same for the mon. Baking the path put the red figure back
+  over the green one.
+
+  The pad is now baked from the **picture**, whoever put it there. LÖVE 11
+  does not keep an `Image`'s `ImageData`, so it comes back off the GPU: the
+  image is drawn to a canvas of its own size under `"replace"` — which writes
+  source RGBA instead of blending it — and that canvas is read. Once per
+  image, cached weakly, with the canvas, shader, blend mode, colour, scissor
+  and transform all put back.
+
+- **The POKe BALL had no pad.** Its eight-by-eight cell sits at (0,16) in the
+  gap the trainer's middle slice leaves, and every pixel around it inside the
+  sheet belongs to the trainer — so a pad baked in place had nowhere to grow.
+  The cell is now cut into an image a pixel larger on every side, stickered
+  there, and substituted for that one draw at `(x - 1, y - 1)` so it lands
+  exactly where the bare ball would have.
+
+  `tests/titleart_test.lua` is 26 (was 9), driving the readback through a
+  headless canvas: a coloured figure keeping its colour through the bake, the
+  ball's pad growing outside the cell it was cut from and being drawn a pixel
+  up and left, and the copyright turning over. `tests/matte_test.lua` is 47,
+  holding the single black fill.
+
 ## [0.31.9] - 2026-08-31
 
 ### Fixed

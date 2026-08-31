@@ -224,29 +224,61 @@ function Matte.new(context)
     return theme.read() == "dark"
   end
 
-  -- Serve the screen's opening full-screen fill as a black page with a white
-  -- copyright row, once, and then get out of the way.
+  -- Serve the screen's opening full-screen fill as a black page, once, and
+  -- then get out of the way.
+  --
+  -- ALL of it, the copyright row included.  0.31.8 left that row white on the
+  -- canvas and turned it over in the palette; the strip looked right and the
+  -- true-colour rect over the mon spilled a row of raw white across it, which
+  -- is the bar a player reported.  Raw and shaded have to be the same pixels
+  -- down there, so the paper is black and the letters are inverted to suit
+  -- (`invertInk` below).
+  --
+  -- And the ink of anything the screen draws with `setColor(0, 0, 0)` goes
+  -- white with them.  That is the copyright's text fallback and the logo's,
+  -- on a build with no art for either -- black ink on a black page is not a
+  -- choice anybody made, it is the page changing under a draw that predates
+  -- it.
   local function withBlackPage(base, state, ...)
     local lg = love.graphics
     local real = lg.rectangle
+    local realColor = lg.setColor
     local painted = false
     lg.rectangle = function(mode, x, y, w, h, ...)
       if not painted and mode == "fill"
           and x == 0 and y == 0 and w == 160 and h == 144 then
         painted = true
         lg.rectangle = real
-        lg.setColor(0, 0, 0, 1)
-        real("fill", 0, 0, 160, Matte.GROUND_H)
-        lg.setColor(1, 1, 1, 1)
-        real("fill", 0, Matte.GROUND_H, 160, 144 - Matte.GROUND_H)
+        realColor(0, 0, 0, 1)
+        real("fill", 0, 0, 160, 144)
         -- (1,1,1,1) is what the screen left set before its fill and what the
         -- logo draw on the next line expects to find.
+        realColor(1, 1, 1, 1)
         return
       end
       return real(mode, x, y, w, h, ...)
     end
+    lg.setColor = function(r, g, b, a, ...)
+      if r == 0 and g == 0 and b == 0 and (a == nil or a == 1) then
+        return realColor(1, 1, 1, a or 1)
+      end
+      return realColor(r, g, b, a, ...)
+    end
+    -- and the one draw whose pad could not be baked where it is drawn from
+    local realDraw = lg.draw
+    local ball, ballQuad = state.__gen1WildBall, state.ballQuad
+    if ball and ballQuad then
+      lg.draw = function(image, quad, x, y, ...)
+        if quad == ballQuad and type(x) == "number" and type(y) == "number" then
+          return realDraw(ball, x - 1, y - 1)
+        end
+        return realDraw(image, quad, x, y, ...)
+      end
+    end
     local ok, problem = pcall(base, state, ...)
     lg.rectangle = real
+    lg.setColor = realColor
+    lg.draw = realDraw
     return ok, problem, painted
   end
 
@@ -285,13 +317,6 @@ function Matte.new(context)
   -- fills the space it was cut out of, which is the box this is here to stop
   -- being.
   local PAD = 1
-  local keyed = {}
-
-  local function pathOf(entry, fallback)
-    if type(entry) == "table" then entry = entry.path end
-    if type(entry) == "string" then return entry end
-    return fallback
-  end
 
   local function paper(id, x, y)
     local r, g, b, a = id:getPixel(x, y)
@@ -394,6 +419,82 @@ function Matte.new(context)
     return any
   end
 
+  -- ------- reading back art this bundle did not load
+  --
+  -- The figure is not ours, and on this cart it is not the importer's either:
+  -- Wild Green swaps `state.player` for its green derived copy, and Crystal
+  -- Animated Sprites swaps the mon, both of them AFTER this bundle would have
+  -- had a chance to look at a path.  0.31.8 baked the PATH and installed the
+  -- result, which put the red figure back on a green cart -- "our trainer
+  -- sprite doesn't have color now", and quite right.
+  --
+  -- So the pad is baked from the PICTURE, whoever put it there.  LOVE 11 does
+  -- not keep an Image's ImageData, so it comes back off the GPU: draw the
+  -- image to a canvas of its own size under "replace" -- which writes the
+  -- source RGBA instead of blending it -- and read that canvas.  Once per
+  -- image and cached weakly, so a mod that swaps the art gets one bake per
+  -- picture rather than one a frame.
+  --
+  -- Everything the engine has set is put back: canvas, shader, blend mode,
+  -- colour, scissor and transform.  This runs in the middle of the screen's
+  -- own draw, and a draw that returns the pipeline in a different state than
+  -- it found it is a bug in every frame after this one.
+  local function dataOf(image)
+    local lg = love.graphics
+    if type(lg.newCanvas) ~= "function" then return nil end
+    local w, h = image:getDimensions()
+    if not (w and h and w > 0 and h > 0) then return nil end
+    local canvas = lg.newCanvas(w, h)
+    local wasCanvas = lg.getCanvas and lg.getCanvas() or nil
+    local wasShader = lg.getShader and lg.getShader() or nil
+    local sx, sy, sw, sh
+    if lg.getScissor then sx, sy, sw, sh = lg.getScissor() end
+    local r, g, b, a = 1, 1, 1, 1
+    if lg.getColor then r, g, b, a = lg.getColor() end
+    if lg.push then lg.push() end
+    if lg.origin then lg.origin() end
+    if lg.setScissor then lg.setScissor() end
+    lg.setCanvas(canvas)
+    if lg.setShader then lg.setShader() end
+    if lg.clear then lg.clear(0, 0, 0, 0) end
+    lg.setBlendMode("replace")
+    lg.setColor(1, 1, 1, 1)
+    lg.draw(image, 0, 0)
+    lg.setBlendMode("alpha")
+    lg.setCanvas(wasCanvas)
+    if lg.setShader then lg.setShader(wasShader) end
+    if lg.setScissor then
+      if sx then lg.setScissor(sx, sy, sw, sh) else lg.setScissor() end
+    end
+    if lg.pop then lg.pop() end
+    lg.setColor(r, g, b, a)
+    return canvas:newImageData()
+  end
+
+  -- Weak on the key, so an image a mod stops using is not kept alive by this,
+  -- and `ours` so a bake is never baked again -- the swap puts our copy on the
+  -- state, and on a build where nobody swaps it back that copy is what the
+  -- next frame would hand us.
+  local bakes = setmetatable({}, { __mode = "k" })
+  local ours = setmetatable({}, { __mode = "k" })
+
+  local function bakedOf(image, bake)
+    if not image or ours[image] then return nil end
+    if bakes[image] ~= nil then return bakes[image] or nil end
+    bakes[image] = false
+    pcall(function()
+      local id = dataOf(image)
+      if not id then return end
+      if bake(id) then
+        local out = love.graphics.newImage(id)
+        pcall(out.setFilter, out, "nearest", "nearest")
+        ours[out] = true
+        bakes[image] = out
+      end
+    end)
+    return bakes[image] or nil
+  end
+
   -- ------- the one that is words rather than a picture
   --
   -- The ribbon is not stickered, and the difference is the spacing.  The logo
@@ -416,28 +517,6 @@ function Matte.new(context)
       end
     end
     return any
-  end
-
-  -- A copy, always: Assets.imageData caches, and stickering the cached data
-  -- would repaper the same art everywhere else it is drawn.
-  local function bakedImage(path, bake)
-    if keyed[path] ~= nil then return keyed[path] or nil end
-    keyed[path] = false
-    pcall(function()
-      local Assets = require("src.render.Assets")
-      local src = Assets.imageData(path)
-      local w, h = src:getDimensions()
-      local id = love.image.newImageData(w, h)
-      id:paste(src, 0, 0, 0, 0, w, h)
-      if bake(id) then keyed[path] = love.graphics.newImage(id) end
-    end)
-    return keyed[path] or nil
-  end
-
-  local function stickerImage(path, onPaper, rects)
-    return bakedImage(path, function(id)
-      return sticker(id, onPaper, rects and rects(id) or nil)
-    end)
   end
 
   -- ------- the pieces a sheet is drawn in
@@ -465,35 +544,92 @@ function Matte.new(context)
     end
   end
 
-  -- The three the title prints on its own paper, plus the figure.  The mon is
-  -- handled by `wrapCurrentSprite` below, which is the only way to reach it.
-  local function keyTitleArt(state)
-    if not (love.image and love.image.newImageData) then return nil end
-    local title = type(state.title) == "table" and state.title or {}
-    local put = {}
-    local function swap(field, path, onPaper, rects)
-      if not state[field] or not path then return end
-      local image = stickerImage(path, onPaper, rects)
-      if not image then return end
-      put[field] = state[field]
-      state[field] = image
+  -- ------- the POKe BALL, which has nowhere on the sheet to grow into
+  --
+  -- The ball is an eight-by-eight cell at (0,16) tucked into the gap the
+  -- trainer's middle slice leaves, and the draw throws it at a y of its own.
+  -- Every pixel around it inside the sheet belongs to the trainer, so a pad
+  -- baked in place has nowhere to go and the ball came out with no white
+  -- round it at all.
+  --
+  -- So it is cut out instead: the cell copied into an image a pixel larger on
+  -- every side, stickered there, and substituted for that one draw at
+  -- (x - 1, y - 1) so it lands exactly where the unpadded ball would have.
+  local balls = setmetatable({}, { __mode = "k" })
+
+  local function ballPad(image, quad)
+    if not (image and quad and type(quad.getViewport) == "function") then
+      return nil
     end
-    swap("logo", pathOf(title.logo, "assets/logo/pokemon_logo.png"), true)
-    do
-      local path = pathOf(title.versionRibbon or title.version,
-                          "assets/generated/title/red_version.png")
-      if state.version and path then
-        local image = bakedImage(path, keyPaper)
-        if image then
-          put.version = state.version
-          state.version = image
+    if balls[image] ~= nil then return balls[image] or nil end
+    balls[image] = false
+    local okQ, qx, qy, qw, qh = pcall(quad.getViewport, quad)
+    if not (okQ and qw and qh and qw > 0 and qh > 0) then return nil end
+    local out
+    pcall(function()
+      local id = dataOf(image)
+      if not id then return end
+      local cell = love.image.newImageData(qw + 2, qh + 2)
+      cell:paste(id, 1, 1, qx, qy, qw, qh)
+      if not sticker(cell, false, nil) then return end
+      out = love.graphics.newImage(cell)
+      pcall(out.setFilter, out, "nearest", "nearest")
+      ours[out] = true
+    end)
+    balls[image] = out or false
+    return out
+  end
+
+  -- ------- the copyright, inverted
+  --
+  -- Its art is line work on paper, printed dark, and the row it lands on is
+  -- now black like the rest of the ground.  Every opaque pixel turns over, so
+  -- dark letters come out light and the paper they were on comes out black --
+  -- which is the page, so it disappears into it.
+  --
+  -- Both halves of the pair, and the Yellow "9" between them when there is
+  -- one, because they are drawn as one line.
+  local function invertInk(id)
+    local w, h = id:getDimensions()
+    local any = false
+    for y = 0, h - 1 do
+      for x = 0, w - 1 do
+        local r, g, b, a = id:getPixel(x, y)
+        if a > 0 then
+          id:setPixel(x, y, 1 - r, 1 - g, 1 - b, a)
+          any = true
         end
       end
     end
+    return any
+  end
+
+  -- The art the title draws on its own page.  Every one of them is read back
+  -- off the picture the state is holding, so whatever a mod has swapped in is
+  -- what gets the treatment.
+  local function keyTitleArt(state)
+    if not (love.image and love.image.newImageData) then return nil end
+    local put = {}
+    local function swap(field, bake)
+      local image = state[field]
+      if not image then return end
+      local baked = bakedOf(image, bake)
+      if not baked then return end
+      put[field] = image
+      state[field] = baked
+    end
+
+    swap("logo", function(id) return sticker(id, true, nil) end)
+    swap("version", keyPaper)
+    -- the copyright's three, so its letters read on a black row
+    swap("copyImg", invertInk)
+    swap("nineImg", invertInk)
+    swap("gfInc", invertInk)
+
     -- The figure, on transparency: a one-pixel white outline round the
-    -- trainer and his POKe BALL.  Not in OG RED, where the draw rebuilds the
-    -- image from `playerPath` through the OBP tables and never looks at this
-    -- field -- that mode keeps the figure it always had.
+    -- trainer.  Not in OG RED, where the draw rebuilds the image from
+    -- `playerPath` through the OBP tables and never looks at this field --
+    -- that mode keeps the figure it always had.
     local obp = false
     pcall(function()
       local PaletteFX = require("src.render.PaletteFX")
@@ -501,7 +637,11 @@ function Matte.new(context)
         and PaletteFX.usesSpriteObp() or false
     end)
     if not obp then
-      swap("player", state.playerPath, false, figureRects(state))
+      local rects = figureRects(state)
+      swap("player", function(id) return sticker(id, false, rects(id)) end)
+      if put.player then
+        state.__gen1WildBall = ballPad(put.player, state.ballQuad)
+      end
     end
     if not next(put) then return nil end
     return put
@@ -509,8 +649,8 @@ function Matte.new(context)
 
   -- The mon is the one piece of title art with no field to swap: it is cached
   -- per species inside the state and reached through `currentSprite`.  So the
-  -- wrapper stickers what that call returns, and the cache above it means the
-  -- bake happens once per species rather than once a frame.
+  -- wrapper stickers what that call hands back -- which is the picture a
+  -- sprite pack installed, not a path this bundle guessed at.
   --
   -- Only while this screen is the dark one.  With the theme LIGHT the state
   -- never gets its flag and the mon is handed back exactly as it came.
@@ -523,18 +663,10 @@ function Matte.new(context)
       if not (love.image and love.image.newImageData) then
         return image, trueColor
       end
-      -- `Image` does not keep its ImageData on LOVE 11, so the bake goes back
-      -- to the file the state loaded from -- resolved exactly the way
-      -- `currentSprite` resolves it, so a sprite pack's art is what is baked.
-      local path
-      pcall(function()
-        local species = state.cycleSpecies and state.cycleSpecies[state.cycleIndex]
-        if not species then return end
-        path = require("src.pokemon.Sprites").path(
-          state.game.data, species, "front", { kind = "title" })
+      local baked = bakedOf(image, function(id)
+        return sticker(id, false, nil)
       end)
-      if type(path) ~= "string" then return image, trueColor end
-      return stickerImage(path, false) or image, trueColor
+      return baked or image, trueColor
     end
   end
 

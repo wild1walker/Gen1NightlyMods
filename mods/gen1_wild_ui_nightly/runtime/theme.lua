@@ -1022,11 +1022,28 @@ function Theme.new(context)
   -- BE black pixels.  The palette handles the shaded paper; the paint
   -- handles the raw.
   --
-  -- Then one strip on top: the copyright row, reversed, because its ink is
-  -- black and its page is the white matte.lua left for it.
+  -- ------- and the copyright row, which is the page's own palette
+  --
+  -- Not reversed, and that is the whole of a bug a player reported twice.
+  --
+  -- 0.31.8 left this row's PAPER white on the canvas and turned it over in
+  -- the palette, so the strip read black with white letters.  Which it did --
+  -- until the true-colour rect over the mon spilled into it.  The engine
+  -- rounds a `colors == false` scissor OUTWARD, that rect re-blits the canvas
+  -- RAW, and raw at row 136 was the white paper: a white bar across the
+  -- copyright, under the mon and under the figure both.  Painting the row
+  -- black to hide it is the OTHER report -- a black bar through the words --
+  -- and clipping the ring so it paints nothing there just lets the white
+  -- through again.  There is no third answer while raw and shaded disagree.
+  --
+  -- So they are made to agree instead.  matte.lua paints the whole ground
+  -- black, INCLUDING this row, and inverts the copyright art so its letters
+  -- are white on it; this strip then carries the plain greys, which is the
+  -- identity palette -- what the shader writes is what the canvas already
+  -- holds.  Raw and shaded are the same pixels, and the spill has nothing
+  -- left to show.
   local COPYRIGHT_ROW = 17
   local BLACK = { 0, 0, 0 }
-  local REVERSED_GREYS = reversed(GREYS)
 
   local function darkGroundState(game)
     local stack = game and game.stack
@@ -1075,7 +1092,7 @@ function Theme.new(context)
       if type(colors) ~= "table" then return colors end
       return { keyed and colors[1] or BLACK, colors[2], colors[3], BLACK }
     end)
-    out[#out + 1] = { colors = REVERSED_GREYS,
+    out[#out + 1] = { colors = GREYS,
                       x = 0, y = COPYRIGHT_ROW * 8, w = 160, h = 8 }
     return out
   end
