@@ -6,6 +6,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.22] - 2026-08-31
+
+_No changes in this release; the channel ships one version across every
+mod._
+
 ## [0.31.21] - 2026-08-31
 
 ### Fixed

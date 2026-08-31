@@ -389,9 +389,34 @@ return function(mod)
   -- the route is the only place a save can ever go and a settled frame is the
   -- best of them.
   --
-  -- A real stop stays a window either way.  Standing still for STILL_FOR
-  -- seconds with no direction held is not a pause between two things the
-  -- player is doing; it is the player not doing anything.
+  -- BOTH OF THEM BELONG TO THE BUILD WITH NOWHERE ELSE TO WRITE.
+  --
+  -- That is what the paragraph above was reaching for and did not finish.
+  -- `quietFrame` finished it -- it takes the grace window only when SAVE ON
+  -- LOADS is off -- and this function did not, so on the DEFAULT build, where
+  -- a covered screen is always coming, a save still landed the moment a menu
+  -- closed.  Reported as exactly that: "closing menus / standing still
+  -- shouldn't trigger an auto save".
+  --
+  -- They are right, and the reason is already written above: with SAVE ON
+  -- LOADS on there is nothing to buy.  The next door, the next warp, the ride
+  -- back out of the next battle -- `writeUnderCover` takes one of those and
+  -- the player sees none of it.  A route window only costs a hitch somewhere
+  -- they are looking.
+  --
+  -- So on the default build the route has NO window: not a settled frame, not
+  -- a real stop.  With SAVE ON LOADS off the route is the only place a save
+  -- can ever go, and there both come back -- a real stop first, because
+  -- standing still with no direction held is the player not doing anything.
+  --
+  -- Nothing is written less often than it was, only somewhere else:
+  -- `loadScreenWrite` asks for the same three things this path does -- due,
+  -- dirty, and MIN_GAP since the last one -- so a save that was going to
+  -- happen still happens, at the next covered screen instead of on the route.
+  -- The honest cost is that a player who walks a long way without a door, a
+  -- warp or a battle waits longer for one; the events that mark the file
+  -- dirty are mostly the ones that lead to a fade soon after, so in practice
+  -- that wait is short.
   local function writeWindow(game)
     local ow = game and game.overworld
     if not (ow and ow.player) then return false end
@@ -413,6 +438,8 @@ return function(mod)
     if screenOver(game) then return false end
     if ow.player.moving then return false end
     if walking(game, ow) then return false end
+    -- the same line quietFrame draws, in the same place, for the same reason
+    if mod.options:get("on_load") ~= false then return false end
     if state.stillFor >= STILL_FOR then return true end
     return state.settledAt ~= nil
       and state.clock - state.settledAt <= SETTLE_GRACE
@@ -1281,6 +1308,11 @@ return function(mod)
   mod.exports.veilStepping = veilStepping
   mod.exports.fullyVeiled = fullyVeiled
   mod.exports.veilState = state
+  -- And the third: may a save be written on the route this frame?  Exposed
+  -- for the same reason as the other two -- it is a pure question about one
+  -- frame, and the answer changed with SAVE ON LOADS in a way nothing else in
+  -- the tree could have caught.
+  mod.exports.writeWindow = writeWindow
 
   -- ...and two for the nightly channel's test bench, which is the other thing
   -- that wants to drive this by hand.  A save cannot be watched for by

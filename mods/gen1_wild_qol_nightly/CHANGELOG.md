@@ -7,6 +7,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.31.22] - 2026-08-31
+
+### Fixed
+
+- **Closing a menu, or standing still, no longer takes an autosave.** Two
+  windows used to open on the route: `STILL_FOR` seconds of standing still,
+  and `SETTLE_GRACE` seconds after a menu or a conversation handed control
+  back. Both are in plain sight -- the player is standing on the overworld
+  looking at it -- and the second is the frame they have been *waiting* for,
+  so the hitch lands in the first stride out of a menu rather than in the
+  pause before it.
+
+  This file already knew. `quietFrame` refuses the grace window while SAVE ON
+  LOADS is on, and the paragraph over `writeWindow` says why: "with SAVE ON
+  LOADS on there is no reason to take it -- a screen the player cannot see is
+  coming." `writeWindow` never drew that line, so on the default build a save
+  landed the moment a menu closed. It draws it now, in the same place and the
+  same words, and it covers the real-stop window too.
+
+  On the default build the route has **no** window: not a settled frame, not a
+  real stop. Every write goes under a screen that is already a solid colour --
+  a door's fade, a warp, the ride back out of a battle. With SAVE ON LOADS
+  **off** the route is the only place a save can go and both windows come
+  back, unchanged.
+
+  Nothing is written less often, only somewhere else: `loadScreenWrite` asks
+  for the same three things the route path did -- due, dirty, and `MIN_GAP`
+  since the last write -- so a save that was going to happen still happens, at
+  the next covered screen. The honest cost is that a long walk with no door,
+  warp or battle waits longer for one; the events that mark the file dirty are
+  mostly the ones that lead to a fade soon after, so in practice that wait is
+  short.
+
+  `tests/autosave_veil_test.lua` is 26 (was 22), driving `writeWindow` through
+  both settings of the row.
+
 ## [0.31.21] - 2026-08-31
 
 _No changes in this release; the channel ships one version across every

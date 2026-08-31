@@ -245,5 +245,51 @@ do
   eq(fullyVeiled(game), false, "so the frame after a battle settles again")
 end
 
+-- ------------------------------------------- and when the ROUTE is a window
+
+io.write("the route is not a window while a covered screen is coming\n")
+do
+  -- Two windows used to open on the route: STILL_FOR seconds of standing
+  -- still, and SETTLE_GRACE seconds after a menu or a conversation handed
+  -- control back.  Both are in plain sight -- the player is standing on the
+  -- overworld looking at it -- and the second is the frame they have been
+  -- WAITING for, so the hitch lands in the first stride out of a menu.
+  --
+  -- `quietFrame` already refused to take the grace window while SAVE ON LOADS
+  -- was on; `writeWindow` did not, so on the default build a save landed the
+  -- moment a menu closed. Reported as "closing menus / standing still
+  -- shouldn't trigger an auto save", which is right: with a covered screen
+  -- always coming there is nothing to buy on the route.
+  local writeWindow = mod.exports.writeWindow
+  local state = mod.exports.veilState
+  ok(type(writeWindow) == "function", "the question is exposed")
+
+  local game = { overworld = { player = { moving = false } }, stack = {} }
+  state.inBattle = false
+  state.clock = 100
+  state.stillFor = 99          -- long past STILL_FOR
+  state.settledAt = 100        -- and a menu closed this very frame
+
+  mod.stored.on_load = true
+  eq(writeWindow(game), false,
+    "with SAVE ON LOADS on, neither a real stop nor a just-closed menu is a "
+    .. "window: the next door takes the save instead")
+
+  mod.stored.on_load = false
+  eq(writeWindow(game), true,
+    "with it off the route is the only place a save can go, so a real stop "
+    .. "is a window again")
+
+  state.stillFor = 0
+  eq(writeWindow(game), true,
+    "...and so is the moment a menu handed control back")
+
+  state.settledAt = nil
+  eq(writeWindow(game), false,
+    "but walking on with neither is still no window at all")
+
+  mod.stored.on_load = nil
+end
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
