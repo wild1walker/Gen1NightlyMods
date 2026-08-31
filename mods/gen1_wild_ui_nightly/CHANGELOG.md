@@ -6,6 +6,23 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.31.31] - 2026-08-31
+
+- The black box round the overworld character on the way into a battle. `DARK`
+  only, which is the only theme that paints a skirt at all.
+
+  A true-colour mark gets a one-pixel black skirt so the raw art and the shaded
+  page agree at the seam. The wrapper that paints it decided for itself whether
+  a mark deserved one, by asking whether the **world** pass was running -- the
+  world blits raw and a skirt there is a black ring round a character on a lit
+  map. Right about the world, blind to a third case: with *no* pass current
+  `markTrueColor` drops the mark entirely, and "not the world" is true of
+  no-pass too. The skirt went round a mark the engine had thrown away.
+
+  It calls the engine first now and skirts a rect only if the engine kept one
+  -- and skirts the rect it kept, not the one passed in, which also fixes the
+  skirt landing at the unshifted x on a wide layout.
+
 ## [0.31.30] - 2026-08-31
 
 - The XP bar no longer shows through the level-up pop-up. `battle.overlay`
