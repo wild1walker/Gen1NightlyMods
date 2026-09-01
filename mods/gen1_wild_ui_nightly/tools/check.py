@@ -377,6 +377,73 @@ def check_sources(problems: Problems, features: list[dict], quiet: bool) -> None
               f"{forked} forked into modules/")
 
 
+def check_maintained_copies(problems: Problems, quiet: bool) -> None:
+    """A maintained module and the copy the game loads are the same file.
+
+    `maintained/<Dir>` is the source and `modules/<Dir>` is the copy the
+    bundle actually reads -- runtime/bundle.lua builds every entry path as
+    `modules/<dir>/<entry>`, and tools/pack.py leaves `maintained/` out of the
+    archive entirely.  Two copies, one of them shipped, and in this fork
+    nothing regenerates one from the other: there is no build.py here, so the
+    second copy is made by hand and stays right by hand.
+
+    Which makes the drift silent in the worst direction.  A fix typed into
+    `modules/` alone ships and works, so nothing complains -- and the source
+    it was supposed to have come from quietly no longer contains it.  The next
+    person to refresh the copy from its source, which is the documented
+    direction, reverts the fix and gets no warning either.
+
+    0.24.0 did exactly that.  `OUTRO_HOLD_FRAMES` -- the ten-frame hold at
+    full black that keeps the covered moment in the battle cut from being a
+    single frame, and so keeps Gen1WildQOL's autosave from writing into the
+    middle of it -- went into `modules/WidescreenBattleIntro/main.lua` and
+    never reached `maintained/`.  It sat one hand-copy away from being undone
+    for eight releases, and every check in this file passed the whole time,
+    because check_sources asks only where a feature's source IS, never
+    whether the two copies of it still agree.
+
+    So: byte for byte, both directions.  A file present in one and not the
+    other is the same fault caught a step earlier.
+    """
+    if not MAINTAINED.is_dir():
+        return
+
+    pairs = 0
+    for source_dir in sorted(p for p in MAINTAINED.iterdir() if p.is_dir()):
+        directory = source_dir.name
+        copy_dir = MODULES / directory
+        if not copy_dir.is_dir():
+            problems.error(
+                f"maintained/{directory} has no copy under modules/, so the "
+                "bundle loads nothing for it")
+            continue
+
+        pairs += 1
+        left = {p.relative_to(source_dir)
+                for p in source_dir.rglob("*") if p.is_file()}
+        right = {p.relative_to(copy_dir)
+                 for p in copy_dir.rglob("*") if p.is_file()}
+
+        for missing in sorted(left - right):
+            problems.error(
+                f"maintained/{directory}/{missing} has no counterpart in "
+                f"modules/{directory}; the game never loads it")
+        for extra in sorted(right - left):
+            problems.error(
+                f"modules/{directory}/{extra} is not in "
+                f"maintained/{directory}; the copy the game loads has a file "
+                "its source does not")
+        for shared in sorted(left & right):
+            if (source_dir / shared).read_bytes() != (copy_dir / shared).read_bytes():
+                problems.error(
+                    f"maintained/{directory}/{shared} and "
+                    f"modules/{directory}/{shared} differ; the copy the game "
+                    "loads is not the source it came from")
+
+    if not quiet:
+        print(f"  maintained: {pairs} module(s) match their copy in modules/")
+
+
 def check_module_reads(problems: Problems, quiet: bool) -> None:
     """Every Lua file a module names in its code is actually in modules/.
 
@@ -711,6 +778,7 @@ def main() -> int:
     check_features(problems, features, args.quiet)
     check_option_keys(problems, features, args.quiet)
     check_sources(problems, features, args.quiet)
+    check_maintained_copies(problems, args.quiet)
     check_module_reads(problems, args.quiet)
     check_shared(problems, features, args.quiet)
     check_options_screen(problems, args.quiet)
