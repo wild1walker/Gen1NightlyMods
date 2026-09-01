@@ -58,6 +58,7 @@ local function fakeMod()
   }
   self.save = { get = function(_, _, fallback) return fallback end,
                 set = function() end }
+  self.writes = 0
   self.cache = { read = function() end, write = function() end }
   self.storage = { read = function() end, write = function() end,
                    delete = function() end }
@@ -187,6 +188,47 @@ do
   run(mod, quietGame({ script = true }), 12)
   eq(status(mod).outcomePending, false,
      "the cap releases a hold that never settled on its own")
+end
+
+-- ------------------------------------------- and the save actually LANDS
+--
+-- Releasing the hold is not the point; the save is.  0.32.6 released it
+-- correctly and then asked for the save three quarters of the way through the
+-- window that had opened when the last text box closed -- SETTLE_GRACE is
+-- 1.5s -- so a player who walked off immediately missed it entirely and
+-- waited STILL_FOR (3s of standing still) instead.  Reported as the autosave
+-- simply not appearing after a battle any more.
+--
+-- So this asserts the thing the player sees, which the previous cases did not.
+io.write("the post-battle save lands in the window, not after it\n")
+
+do
+  local mod = install()
+  local wrote = false
+  -- writeSave is what the mod calls; count it rather than infer from state.
+  local game = quietGame()
+  game.writeSave = function() wrote = true return true end
+  game.save = { options = {} }
+
+  -- MIN_GAP is 20 seconds between any two autosaves, and install() has just
+  -- reset the clock, so age it past that first or nothing may write for a
+  -- reason that has nothing to do with battles.
+  run(mod, game, 21)
+  wrote = false
+
+  mod.exports.autosaveRequest()
+  mod.fire("battle.ended", { battle = { onFinish = function() end },
+                             result = "win" })
+
+  -- the battle's dialogue, then control back
+  run(mod, (function() local g = quietGame({ screen = true })
+      g.writeSave = game.writeSave; g.save = game.save; return g end)(), 1)
+  eq(status(mod).outcomePending, true, "held through the dialogue")
+
+  run(mod, game, 1.2)
+  eq(status(mod).outcomePending, false, "released once it closed")
+  ok(status(mod).due == false or wrote,
+     "and the save was taken rather than left owed past its window")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))

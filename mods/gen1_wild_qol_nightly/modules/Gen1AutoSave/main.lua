@@ -1173,11 +1173,13 @@ return function(mod)
   function releaseOutcome(game, dt, held)
     if not state.outcomePending then return end
     state.outcomeHeld = (state.outcomeHeld or 0) + dt
-    local ow = game and game.overworld
+    -- `held` is already "the game is doing something": in a battle, a screen
+    -- over the map, a script running, engaging, mid-warp.  That is the whole
+    -- question -- whether the post-battle sequence has finished -- and walking
+    -- is not part of it.  Requiring stillness as well made the hold sticky for
+    -- a player who walks off the moment the dialogue closes, which is most of
+    -- them.
     local quiet = not held
-      and ow and ow.player and not ow.player.moving
-      and not scriptRunning(ow)
-      and not screenOver(game)
     if quiet then
       state.outcomeClear = (state.outcomeClear or 0) + dt
     else
@@ -1191,10 +1193,33 @@ return function(mod)
       state.outcomePending = false
       state.outcomeClear = 0
       state.outcomeHeld = 0
+      -- The release IS the moment the game handed control back, as far as this
+      -- mod's idea of settled goes: the battle, its dialogue and whatever
+      -- recorded its outcome have all just finished.  Without this the save is
+      -- asked for three quarters of the way through a window that opened when
+      -- the last text box closed -- SETTLE_GRACE is 1.5s -- so a player who
+      -- walks off immediately missed it and waited STILL_FOR instead.  That is
+      -- the autosave that stopped appearing after a battle in 0.32.6.
+      state.settledAt = state.clock
       if capped then
         mod.log:warn("a battle never settled; releasing the autosave hold")
       end
       if mod.options:get("events") then request() end
+      -- ------- and take it HERE, on this frame
+      --
+      -- Holding the battle's return hold left nothing behind it.  Under the
+      -- default options the idle path is off entirely -- writeWindow's own
+      -- `on_load ~= false` refusal -- so every save goes through a covered
+      -- screen, and the return hold was the only covered screen a battle has.
+      -- Blocking it without putting anything in its place is why the autosave
+      -- stopped appearing after a battle at all.
+      --
+      -- So the release is the window now.  It is the frame the last text box
+      -- closed, which is a screen changing anyway, and it is the earliest
+      -- frame on which the outcome is certainly written -- which is the whole
+      -- point.  loadScreenWrite keeps every other guard it has: due, dirty,
+      -- MIN_GAP, sync settled, nobody walking.
+      loadScreenWrite(game, "battle just finished")
     end
   end
 

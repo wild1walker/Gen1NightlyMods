@@ -7,6 +7,35 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.7] - 2026-09-01
+
+- **Autosave stopped appearing after a battle at all — that was 0.32.6's
+  doing, and it is fixed.**
+
+  0.32.6 held the save until the post-battle world settled, which was right,
+  and put nothing in place of the window it took away, which was not. Under the
+  **default** options the idle write path is off entirely — `writeWindow`
+  refuses unless `on_load` is explicitly false — so every save goes through a
+  covered screen, and the battle's return hold was the only covered screen a
+  battle has. Blocking it left nothing behind it: no post-battle save until the
+  next door or warp.
+
+  The release is the window now. It is the frame the last text box closed,
+  which is a screen changing anyway, and it is the earliest frame on which the
+  outcome is certainly written — which was the whole point of holding. Every
+  other guard still applies: due, dirty, twenty seconds since the last save,
+  sync settled, nobody walking.
+
+  Two smaller things went with it: the hold no longer requires the player to be
+  standing still (walking has nothing to do with whether the defeat was
+  recorded, and requiring it made the hold sticky for anyone who walks off as
+  the dialogue closes), and releasing now counts as the game handing control
+  back, so the save gets the full settle window rather than what was left of
+  it.
+
+  The test asserts the save **lands** now, not merely that the hold released.
+  That is the assertion 0.32.6 was missing, and it fails against it.
+
 ## [0.32.6] - 2026-09-01
 
 - **Autosave and the trainer who challenges you again — the third attempt, and
