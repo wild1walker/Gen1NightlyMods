@@ -258,5 +258,42 @@ do
   eq(bar(rects) and bar(rects).canvas, "WORLD", "after it, it follows")
 end
 
+-- ------------------------------------ the paint raises on the world canvas
+
+-- This is the one path in this file that has never run in a real game, and
+-- the comment above drawSnappedExpBar makes a promise about it: the canvas
+-- goes back even when the paint raises, so a bar that fails on one frame
+-- cannot leave the whole battle drawing into the voxel mod's world image.
+--
+-- The error still travels, on purpose.  Gen1BattleUI's `battle.overlay` wrap
+-- pcalls XP.draw and warns (main.lua), so a raise here costs the XP bar and
+-- nothing else -- which is the difference between this and 0.32.3, where an
+-- unguarded raise in that same hook took the entire battle UI down.
+--
+-- Both halves are asserted rather than trusted: the error gets out, and the
+-- canvas is still put back on the way.
+do
+  local OverworldBattle = overworldBattle(true)
+  local mod = stubMod("BATTLE_ART_VOXEL_FORK",
+                      { OverworldBattle = OverworldBattle })
+  mod.voxel.installHudSnapHook()
+  local battle = stubBattle(stubShot())
+  OverworldBattle.snapHUDs(battle)
+
+  local XP = makeXP(mod, CHROME)
+  drawn, marks, canvasLog = {}, {}, {}
+  canvas = nil
+
+  local sound = love.graphics.rectangle
+  love.graphics.rectangle = function() error("the paint failed", 0) end
+  local drew, problem = pcall(XP.draw, battle)
+  love.graphics.rectangle = sound
+
+  eq(drew, false, "a raising paint is not swallowed")
+  eq(problem, "the paint failed", "and the error that gets out is its own")
+  eq(canvas, nil, "the world canvas is put back even so")
+  eq(canvasLog[1], "WORLD", "having been set to the world canvas first")
+end
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
