@@ -95,16 +95,23 @@ are all before the win exists, which is why it happened every time rather than
 sometimes. The save waits for the outcome now, and lands on the frame the game
 hands control back — a window in its own right.
 
-### No line across the move panel's `PP` row
+### The top of the move panel's `PP` line
 
-Reported on a dark battle menu, and the theme is not the cause. The XP bar sits
-two rows below where the panel prints `PP`, and the panel is drawn after it and
-covers it — but a true-colour mark re-blits its region *raw* after the pass is
-composed, so the bar came back on top of the panel that had just covered it,
-with `DARK`'s one-pixel skirt landing exactly on the top row of `PP`.
+Two bugs on one line, found one at a time.
 
-Covering settles the pixels, not the mark. The bar stops at the panel's edge
-now, and marks only what it drew.
+The XP bar was showing through the panel to the right of the numbers: it is
+drawn first and the panel covers it, but a true-colour mark re-blits its region
+*raw* after the pass is composed, so it came back on top of the panel that had
+just covered it. Covering settles the pixels, not the mark — the bar stops at
+the panel's edge now and marks only what it drew.
+
+The cut top of `PP` itself was something else. The type name above it is marked
+so its colour can leave the palette pass, and the theme rings every mark by a
+pixel — with both ends of that ring black. The panel's lines are eight pixels
+apart in an eight-pixel cell, so the ring had nowhere to go but the line below,
+landing on its first pixel row: ink mapped to black on a black page. The marked
+row is a pixel shorter now, which puts the ring in the blank row that already
+separates the two lines.
 
 ### Every voxel mod, and none of them required
 

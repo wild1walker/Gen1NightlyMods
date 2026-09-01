@@ -6,6 +6,34 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.3] - 2026-09-01
+
+- **The top of the move panel's `PP` line, actually this time.** 0.32.1 went
+  after the wrong thing on the same line. What it fixed was real -- the XP bar
+  was showing through the panel to the right of the numbers -- but the bar sits
+  at x 80-147 and `PP  2/35` is eight glyphs ending at x 72, so it was never
+  what cut those glyphs.
+
+  The theme rings every true-colour mark: `withArt` emits an `ART_PAGE` zone
+  one pixel larger than the rect on every side, so the raw blit and the shaded
+  page agree across the seam `Renderer.scissorClamped` rounds outward. Both
+  ends of that zone are **black** -- shade 0 *and* shade 3 -- which is right
+  inside the ring, where the only canvas is flat black skirt, and fatal to
+  anything else in it: ink mapped to black on a black page is ink that is not
+  there.
+
+  The panel prints three lines eight pixels apart in an eight-pixel glyph
+  cell, and the type name is marked because its colour has to leave the palette
+  pass. A full-height mark has nowhere to put its ring except the line below,
+  and its bottom edge is that line's **first** pixel row -- so the top stroke
+  of every glyph there came out black on black, and `PP` read as two broken
+  uprights.
+
+  The marked row is one pixel shorter than the row now, which puts the ring in
+  the blank row that already separates the two lines. That gap is what makes
+  this correct rather than a trade: a row inked to its last pixel would lose
+  that pixel instead.
+
 ## [0.32.2] - 2026-09-01
 
 - **The white block over the message box on the party screen.** Pick the
