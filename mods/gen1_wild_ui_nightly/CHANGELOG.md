@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.11] - 2026-09-01
+
+- **0.32.9's two changes are back, with the fault that broke battles found
+  and proved.**
+
+  It was the theme change, and the mechanism is now a test. `isWhole` is asked
+  by two callers and they want different things:
+
+  - `basePage` is a **guess** — "a list that opens on whole-screen greys is a
+    black-and-white page whoever built it" — made when nothing on the stack
+    claimed to be a page.
+  - `pageZones` runs **after** `pageState` has already identified one, and only
+    needs to know *where* its frame is.
+
+  0.32.9 widened the single test both shared. `basePage` then accepted a
+  160-wide band of greys at x=72 belonging to something that is **not** a page,
+  reversed it, and battles came out greyscale and garbled with no text box and
+  no move menu. There are two functions now: `isWhole` stays strict for the
+  guess, `wholeAt` finds the frame wherever the engine centred it and only
+  `pageZones` may ask it.
+
+  So `DARK` lands correctly on a page opened over a **wide** battle — the thing
+  0.32.9 was for — without a picture ever being guessed into a page.
+
+- **Backdrops stand down while a voxel mod draws the battle** — the same
+  feature, with a defect of its own fixed before it went back in. Reading
+  `Renderer.worldOverride` alone was wrong: the engine sets one for its **own**
+  render pipelines (`OverworldController` → `Pipelines.drawWorld`), so a
+  pipeline mod or the engine's world-background battle would have stood the
+  backdrop down for a reason that has nothing to do with a diorama. It now
+  takes a voxel mod being installed **and** the world having been replaced this
+  frame — which makes it completely inert on an install with no voxel mod,
+  which is most of them.
+
 ## [0.32.10] - 2026-09-01
 
 - **Reverted both of 0.32.9's changes.** They made battles unplayable — the
