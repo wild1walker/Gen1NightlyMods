@@ -346,6 +346,54 @@ local function saveRow(context)
   }
 end
 
+-- ------- did the post-battle save land AFTER the defeat was recorded
+--
+-- The instrument for the one bug three releases have now gone after and
+-- missed: beat a trainer, autosave, come back, and he challenges you again
+-- because the save was taken before his defeat was written.
+--
+-- Each attempt was a theory about WHICH callback records the defeat -- and the
+-- answer turned out to depend on how the battle started, which is why two of
+-- them fixed a case that was not the reported one.  So this row does not
+-- theorise.  It reports the two numbers that settle it: how many trainers the
+-- save called beaten when the battle ended, and how many it called beaten on
+-- the frame the post-battle save was actually written.
+--
+--   12>13 OK      something was recorded between the two -- the save is sound
+--   12>12 EARLY   nothing was -- this is the bug, caught in the act
+--   12>-- NO SAVE the hold released and no save landed (MIN_GAP, sync, walking)
+--   WILD          a wild battle, which records no defeat and proves nothing
+--
+-- A trainer already beaten reads EARLY too, and correctly: there was nothing
+-- to record, so the count could not move.  The reading that matters is the one
+-- taken straight after beating somebody NEW.
+local function battleSaveRow(context)
+  return {
+    id = "battle_save",
+    label = "SAVE AFTER",
+    help = "TRAINERS BEATEN, AT THE BATTLE END > AT THE SAVE.",
+    value = function()
+      local qol = featureExports(context.find, "gen1_wild_qol_nightly",
+                                 "Gen1AutoSave")
+      if not (qol and qol.autosaveStatus) then return DASH end
+      local ok, status = pcall(qol.autosaveStatus)
+      if not ok or type(status) ~= "table" then return DASH end
+      local before = status.defeatedAtEnd
+      if before == nil then return DASH end
+      if status.battleKind and status.battleKind ~= "trainer" then
+        return ("WILD %d"):format(before)
+      end
+      local after = status.defeatedAtWrite
+      local hold = status.holdSeconds
+      local held = hold and ("%.1fS"):format(hold) or "-"
+      if status.outcomePending then return ("%d>.. HOLDING"):format(before) end
+      if after == nil then return ("%d>-- NO SAVE %s"):format(before, held) end
+      if after > before then return ("%d>%d OK %s"):format(before, after, held) end
+      return ("%d>%d EARLY %s"):format(before, after, held)
+    end,
+  }
+end
+
 -- ------- the list
 
 -- ------- the sprite probe
@@ -503,6 +551,7 @@ function Rows.build(context)
     lastBattleRow(context),
     skirtRow(context),
     voxelRow(context),
+    battleSaveRow(context),
   }
 end
 

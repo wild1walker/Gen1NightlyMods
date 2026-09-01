@@ -6,6 +6,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.8] - 2026-09-01
+
+- No changes; released alongside the bench and QOL mods.
+
 ## [0.32.7] - 2026-09-01
 
 - No changes; released alongside the QOL mod.

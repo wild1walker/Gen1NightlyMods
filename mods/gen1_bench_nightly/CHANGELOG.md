@@ -5,6 +5,32 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.8] - 2026-09-01
+
+- A `SAVE AFTER` row: **did the post-battle save land after the defeat was
+  recorded, or before it?**
+
+  The instrument for the one bug three releases have now gone after and missed.
+  Each attempt was a theory about *which* callback records a trainer's defeat —
+  and the answer turns out to depend on how the battle started, which is why
+  two of them fixed a case that was not the reported one.
+
+  So this row does not theorise. It reports the two numbers that settle it: how
+  many trainers the save calls beaten when the battle ends, and how many it
+  calls beaten on the frame the post-battle save is actually written.
+
+  | reading | what it means |
+  |---|---|
+  | `12>13 OK` | something was recorded between the two — the save is sound |
+  | `12>12 EARLY` | nothing was — this is the bug, caught in the act |
+  | `12>-- NO SAVE` | the hold released and no save landed, which is a different fault |
+  | `12>.. HOLDING` | the hold is still on; no verdict yet |
+  | `WILD 12` | a wild battle, which records no defeat and proves nothing |
+
+  Take the reading straight after beating somebody **new**: a trainer already
+  beaten has nothing to record, so the count cannot move and it reads `EARLY`
+  correctly.
+
 ## [0.32.7] - 2026-09-01
 
 - No changes; released alongside the QOL mod.

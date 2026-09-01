@@ -7,6 +7,17 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.8] - 2026-09-01
+
+- Two counts published for the bench's `SAVE AFTER` row: how many trainers the
+  save calls beaten when a battle ends, and how many when the post-battle save
+  is written. Counted rather than looked up by id, because the id is not on the
+  battle — the engine closes over the npc inside `onFinish` and never publishes
+  it, and a count answers the only question being asked: did anything get
+  recorded between those two frames.
+
+  Nothing about when a save is taken changes.
+
 ## [0.32.7] - 2026-09-01
 
 - **Autosave stopped appearing after a battle at all — that was 0.32.6's

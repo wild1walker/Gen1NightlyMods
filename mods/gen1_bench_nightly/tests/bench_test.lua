@@ -346,6 +346,51 @@ do
   eq(rows.voxel.value(), Rows.DASH, "and a probe that raises is not believed")
 end
 
+-- ------- the SAVE AFTER reading
+--
+-- The instrument for the post-battle save bug: two counts of how many trainers
+-- the save calls beaten -- when the battle ended, and when the save was
+-- written.  The verdict is entirely in whether the second is larger.
+io.write("SAVE AFTER reports whether the defeat was recorded before the save\n")
+do
+  local function withStatus(status)
+    return finder({ gen1_wild_qol_nightly = { id = "q", exports = { features = {
+      gen1autosave = { id = "Gen1AutoSave", exports = {
+        autosaveStatus = function() return status end } } } } } })
+  end
+
+  local function readingFor(status)
+    return rowsBy({ find = withStatus(status) }).battle_save.value()
+  end
+
+  eq(readingFor({ battleKind = "trainer", defeatedAtEnd = 12,
+                  defeatedAtWrite = 13, holdSeconds = 0.8 }),
+     "12>13 OK 0.8S",
+     "something was recorded between the two, so the save is sound")
+
+  eq(readingFor({ battleKind = "trainer", defeatedAtEnd = 12,
+                  defeatedAtWrite = 12, holdSeconds = 0.8 }),
+     "12>12 EARLY 0.8S",
+     "nothing was -- the bug, caught in the act")
+
+  eq(readingFor({ battleKind = "trainer", defeatedAtEnd = 12,
+                  holdSeconds = 1.2 }),
+     "12>-- NO SAVE 1.2S",
+     "the hold released and no save landed, which is a different fault")
+
+  eq(readingFor({ battleKind = "trainer", defeatedAtEnd = 12,
+                  outcomePending = true }),
+     "12>.. HOLDING",
+     "and while the hold is on there is no verdict yet")
+
+  eq(readingFor({ battleKind = "wild", defeatedAtEnd = 12 }), "WILD 12",
+     "a wild battle records no defeat and proves nothing either way")
+
+  eq(rowsBy({ find = finder({}) }).battle_save.value(), Rows.DASH,
+     "no autosave installed reads as absent")
+  eq(readingFor({}), Rows.DASH, "and so does a battle nobody has fought yet")
+end
+
 io.write("a mod that answers with nonsense is not believed\n")
 do
   local liar = {

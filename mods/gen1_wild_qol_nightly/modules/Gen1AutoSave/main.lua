@@ -1162,11 +1162,39 @@ return function(mod)
   local OUTCOME_QUIET = 0.75   -- seconds of a settled world before releasing
   local OUTCOME_CAP = 10       -- ...and the longest the hold may ever last
 
+  -- ------- and the reading, for the bench
+  --
+  -- Three releases went after "the save is taken before the defeat is
+  -- recorded" and each one was a theory about WHICH callback records it.  This
+  -- stops theorising: count the trainers the save says are beaten when the
+  -- battle ends, count them again on the frame the post-battle save is
+  -- actually written, and show both.  The count going up is the outcome having
+  -- landed first; the count standing still is this bug, caught in the act, on
+  -- a screen rather than in a guess.
+  --
+  -- Counted rather than looked up by id because the id is not on the battle:
+  -- the engine closes over the npc inside onFinish and never publishes it.  A
+  -- count answers the only question being asked -- did anything get recorded
+  -- between these two frames -- without needing to know who.
+  local function defeatedCount(game)
+    local save = game and game.save
+    local beaten = save and save.defeatedTrainers
+    if type(beaten) ~= "table" then return nil end
+    local n = 0
+    for _ in pairs(beaten) do n = n + 1 end
+    return n
+  end
+
   mod.events:on("battle.ended", function(event)
     state.inBattle = false
     state.outcomePending = true
     state.outcomeClear = 0
     state.outcomeHeld = 0
+    local battle = event and event.battle
+    state.lastBattleKind = battle and battle.kind or nil
+    state.defeatedAtEnd = defeatedCount(state.game)
+    state.defeatedAtWrite = nil
+    state.holdSeconds = nil
   end)
 
   -- Called once a frame from trackStillness, which already computes `held`.
@@ -1190,6 +1218,7 @@ return function(mod)
     -- of the session.  It has never been reached in testing and should not be.
     local capped = state.outcomeHeld >= OUTCOME_CAP
     if state.outcomeClear >= OUTCOME_QUIET or capped then
+      state.holdSeconds = state.outcomeHeld
       state.outcomePending = false
       state.outcomeClear = 0
       state.outcomeHeld = 0
@@ -1219,7 +1248,14 @@ return function(mod)
       -- frame on which the outcome is certainly written -- which is the whole
       -- point.  loadScreenWrite keeps every other guard it has: due, dirty,
       -- MIN_GAP, sync settled, nobody walking.
+      local before = state.lastWriteAt
       loadScreenWrite(game, "battle just finished")
+      -- Only when a save actually landed on this frame: a refused write --
+      -- MIN_GAP, sync busy, somebody walking -- is not a reading about the
+      -- outcome and must not be shown as one.
+      if state.lastWriteAt ~= before then
+        state.defeatedAtWrite = defeatedCount(game)
+      end
     end
   end
 
@@ -1447,6 +1483,11 @@ return function(mod)
       inBattle = state.inBattle and true or false,
       outcomePending = state.outcomePending and true or false,
       sinceWrite = state.clock - state.lastWriteAt,
+      -- the bench's reading; see defeatedCount
+      battleKind = state.lastBattleKind,
+      holdSeconds = state.holdSeconds,
+      defeatedAtEnd = state.defeatedAtEnd,
+      defeatedAtWrite = state.defeatedAtWrite,
     }
   end
 

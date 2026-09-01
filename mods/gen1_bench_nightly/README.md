@@ -19,6 +19,7 @@ START.** It ships on no release.
   START A BATTLE                  press A
   ASK FOR A SAVE    DUE           press A; it lands on the next covered frame
   VOXEL             NONE          which voxel mod, and where the battle HUDs go
+  SAVE AFTER        12>13 OK      trainers beaten: at the battle end > at the save
 ```
 
 Left and right turn a row, A presses one, B goes back. The bottom line says
@@ -44,6 +45,7 @@ through what another mod *publishes* and stands down where nothing answers:
 | `ASK FOR A SAVE` | Gen1WildQOL Nightly's autosave, through the bundle's feature table |
 | `COLORS`, `BATTLE LAYOUT`, `START A BATTLE` | the engine: save options, and `BattleState.newWild` |
 | `VOXEL` | both bundles' `voxelProbe` — which voxel mod each of them found, and whether that one moves the battle HUDs onto its world canvas |
+| `SAVE AFTER` | Gen1WildQOL Nightly's autosave, through the bundle's feature table — how many trainers the save called beaten when the battle ended, and how many when the post-battle save was written |
 
 That is the right price. A bench wired into a mod's locals breaks the mod every
 time the mod is edited, and this channel edits them constantly.
