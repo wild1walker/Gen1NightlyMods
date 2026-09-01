@@ -50,7 +50,7 @@ end
 -- than dropped: this file's whole subject is what a handler does.
 local function fakeMod()
   local self = { id = "gen1_wild_qol_nightly", path = ".", exports = {},
-                 stored = {}, handlers = {} }
+                 stored = {}, handlers = {}, hooked = {} }
   self.options = {
     define = function() end,
     get = function(_, key) return self.stored[key] end,
@@ -65,7 +65,7 @@ local function fakeMod()
   for _, level in ipairs({ "info", "warn", "error", "debug" }) do
     self.log[level] = function() end
   end
-  self.hooks = { wrap = function() end }
+  self.hooks = { wrap = function(_, name, fn) self.hooked[name] = fn end }
   self.events = {
     on = function(_, name, fn)
       local list = self.handlers[name] or {}
@@ -103,119 +103,90 @@ local function due(mod)
   return mod.exports.autosaveStatus().due
 end
 
-io.write("a post-battle save waits for the outcome\n")
+io.write("the hold covers every kind of battle, and every way one records itself\n")
 
--- ------------------------------- a trainer battle: the outcome is onFinish
-
-do
-  local mod = install()
-  local ran = {}
-  local battle = {
-    onFinish = function(result) ran[#ran + 1] = "onFinish:" .. tostring(result) end,
+-- A settled overworld: nobody moving, no script, nothing on the screen.
+local function quietGame(opts)
+  opts = opts or {}
+  local ow = {
+    player = { moving = false },
+    runner = opts.script
+      and { isRunning = function() return true end } or nil,
+    scriptMoves = {},
   }
-  local inner = battle.onFinish
-
-  mod.fire("battle.ended", { battle = battle, result = "win" })
-  eq(due(mod), false,
-     "battle.ended alone does NOT make a save due -- the win is not written yet")
-  ok(battle.onFinish ~= inner, "the outcome call has been wrapped")
-
-  battle.onFinish("win")
-  eq(ran[1], "onFinish:win", "the battle's own onFinish still runs, and first")
-  eq(due(mod), true, "and the save is due once it has")
+  -- screenOver asks the stack for its top and compares it to the overworld
+  -- itself, so a screen is any other state sitting on it.
+  local top = opts.screen and { textbox = true } or ow
+  return { overworld = ow,
+           stack = { states = { ow, opts.screen and top or nil },
+                     top = function() return top end } }
 end
 
--- --------------------------------- a wild battle: there is nothing to wait for
+-- Run the mod's own update pump for `seconds`, a sixtieth at a time.
+local function run(mod, game, seconds)
+  local pump = mod.hooked["core.update"]
+  local dt = 1 / 60
+  for _ = 1, math.floor(seconds / dt) do
+    pump(function() end, game, dt)
+  end
+end
 
+local function status(mod) return mod.exports.autosaveStatus() end
+
+-- ------------------------------------ a scripted trainer: the reported case
+do
+  -- The Rocket in the hideout. Its onFinish only STARTS the script that
+  -- records the defeat, so a hold that released when onFinish returned -- as
+  -- 0.32.5 did -- released while the script was still to run.
+  local mod = install()
+  mod.exports.autosaveRequest()          -- a save already owed
+  eq(status(mod).due, true, "a save is owed before the battle ends")
+
+  mod.fire("battle.ended", { battle = { onFinish = function() end },
+                             result = "win" })
+  eq(status(mod).outcomePending, true, "the hold goes on when the battle ends")
+
+  -- onFinish has run and handed off to the script, which is still going.
+  run(mod, quietGame({ script = true }), 3)
+  eq(status(mod).outcomePending, true,
+     "and STAYS on while the script that records the defeat is running")
+
+  -- the script finishes
+  run(mod, quietGame(), 1)
+  eq(status(mod).outcomePending, false, "released once the world is settled")
+end
+
+-- ------------------------------------------- a screen still up holds it too
 do
   local mod = install()
   mod.fire("battle.ended", { battle = {}, result = "win" })
-  eq(due(mod), true,
-     "a battle carrying no onFinish has no outcome pending, so it is due at once")
-
-  mod = install()
-  mod.fire("battle.ended", { result = "run" })
-  eq(due(mod), true, "and so is an event with no battle on it at all")
+  run(mod, quietGame({ screen = true }), 3)
+  eq(status(mod).outcomePending, true,
+     "a text box over the map is the dialogue that has not finished yet")
+  run(mod, quietGame(), 1)
+  eq(status(mod).outcomePending, false, "and it releases when that closes")
 end
 
--- --------------------------------------------------- the switch is honoured
-
+-- --------------------------------------------- a wild battle is held as well
 do
-  local mod = install()
-  mod.options:set("events", false)
-  local battle = { onFinish = function() end }
-  mod.fire("battle.ended", { battle = battle, result = "win" })
-  eq(due(mod), false, "with the events row off, nothing is asked for")
-  battle.onFinish("win")
-  eq(due(mod), false, "and running the outcome does not smuggle one in")
-end
-
--- ------------------------------------------------ a teardown that goes wrong
-
-do
-  local mod = install()
-  local battle = { onFinish = function() error("boom", 0) end }
-  mod.fire("battle.ended", { battle = battle, result = "win" })
-  local fine = pcall(battle.onFinish, "win")
-  eq(fine, false, "a raising onFinish still raises to whoever called it")
-  eq(due(mod), true,
-     "and the save is still due: a half-torn-down battle is what will be loaded")
-end
-
--- ----------------------------------------------------- wrapped exactly once
-
-do
-  local mod = install()
-  local calls = 0
-  local battle = { onFinish = function() calls = calls + 1 end }
-  mod.fire("battle.ended", { battle = battle, result = "win" })
-  local first = battle.onFinish
-  mod.fire("battle.ended", { battle = battle, result = "win" })
-  eq(battle.onFinish, first, "a second battle.ended does not wrap the wrapper")
-  battle.onFinish("win")
-  eq(calls, 1, "so the battle's own onFinish runs once, not twice")
-end
-
--- ------------------- the half 0.32.2 missed: a save that was ALREADY owed
---
--- Delaying the request is not enough on its own.  `due` is very often already
--- true when a battle ends -- a catch, an evolution, a map entered on the way
--- to the fight -- and the covered-screen write wants only `due and dirty`.
--- The battle's return hold is the most covered screen this mod ever sees, so
--- a save that was already owed lands there regardless of what battle.ended
--- asked for: between the last hit and the defeat being recorded.
---
--- What has to be true is that the WRITE stands down, not the request.
-io.write("a save already owed does not spend the battle's return hold\n")
-
-do
-  local mod = install()
-  local status = mod.exports.autosaveStatus
-
-  -- something earlier already asked for a save
-  mod.exports.autosaveRequest()
-  eq(status().due, true, "a save is owed before the battle even ends")
-
-  local battle = { onFinish = function() end }
-  mod.fire("battle.ended", { battle = battle, result = "win" })
-
-  eq(status().inBattle, false, "the battle is over as far as the mod knows")
-  eq(status().outcomePending, true,
-     "but its outcome is not written yet, and the mod is holding for that")
-
-  battle.onFinish("win")
-  eq(status().outcomePending, false, "the hold is released once it is")
-  eq(status().due, true, "and the save is still owed, to be taken after")
-end
-
-do
-  -- A wild battle has no outcome to wait for, so it must not hold at all --
-  -- holding every battle would push every post-battle save off the one window
-  -- the mod was built around.
+  -- It records no defeat, but holding it costs one settled second and means
+  -- there is one rule rather than a guess about which battles matter.
   local mod = install()
   mod.fire("battle.ended", { battle = {}, result = "run" })
-  eq(mod.exports.autosaveStatus().outcomePending, false,
-     "a battle carrying no onFinish holds nothing")
+  eq(status(mod).outcomePending, true, "held")
+  run(mod, quietGame(), 1)
+  eq(status(mod).outcomePending, false, "and released a moment later")
+  eq(status(mod).due, true, "the post-battle save is asked for at release")
+end
+
+-- ----------------------------------------------------- and it cannot wedge
+do
+  -- A script that never ends must not switch autosave off for the session.
+  local mod = install()
+  mod.fire("battle.ended", { battle = {}, result = "win" })
+  run(mod, quietGame({ script = true }), 12)
+  eq(status(mod).outcomePending, false,
+     "the cap releases a hold that never settled on its own")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))

@@ -7,6 +7,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.6] - 2026-09-01
+
+- **Autosave and the trainer who challenges you again — the third attempt, and
+  the first one aimed at the right thing.**
+
+  0.32.2 delayed the *request*. 0.32.5 waited for the battle's `onFinish` to
+  return. Both were guesses about which callback records the defeat, and the
+  reported case is the one neither covers.
+
+  **Which thing writes the outcome depends on how the battle started:**
+
+  | how it started | what records the defeat |
+  |---|---|
+  | a line-of-sight trainer | `onFinish` sets `defeatedTrainers[npc.id]` directly |
+  | a **scripted** trainer | `onFinish` only *starts a script runner*; the script records it later, past its own text boxes |
+  | a static wild encounter | `onFinish` again, on a third branch |
+
+  A Rocket in a hideout is the middle row. `onFinish` returning there means the
+  script has *begun*, so 0.32.5's hold released while the thing that writes the
+  defeat had not run yet.
+
+  So this stops guessing. The hold is released by an **observable state of the
+  world** instead of by a callback: the battle is over, no script is running,
+  nothing is on the screen, and the player has had control for three quarters
+  of a second. Whatever recorded the outcome has finished by then, whichever of
+  the three it was, because all of them run before the game hands the pad back.
+
+  The cost is the post-battle covered window — a save owed at the end of a
+  battle now waits for the dialogue to finish rather than landing in the return
+  hold. That window was the feature and it was also the bug: it is earlier than
+  every one of those writes. Every other covered screen — a door, a warp, a
+  cave mouth — is untouched.
+
+  A ten-second cap releases the hold regardless, so a script that never ends
+  cannot switch autosave off for the session.
+
 ## [0.32.5] - 2026-09-01
 
 - **Autosave saving a trainer battle as un-won, properly this time.** 0.32.2

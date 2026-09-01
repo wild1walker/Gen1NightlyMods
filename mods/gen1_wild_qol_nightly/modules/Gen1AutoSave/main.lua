@@ -455,6 +455,11 @@ return function(mod)
   -- handed control back -- a menu closed, a conversation ended, a battle
   -- finished -- which is a window in its own right, because the player is
   -- standing exactly where the game left them and has not moved yet.
+  -- Declared here, assigned far below where the battle wiring lives: the
+  -- pump calls it and a local declared after its use is a GLOBAL read, which
+  -- is nil.  That exact mistake took the battle UI out in 0.32.3.
+  local releaseOutcome
+
   local function trackStillness(game, dt)
     local ow = game and game.overworld
     local held = state.inBattle or screenOver(game) or scriptRunning(ow)
@@ -463,31 +468,7 @@ return function(mod)
     if state.wasHeld and not held then state.settledAt = state.clock end
     state.wasHeld = held and true or false
 
-    -- ------- and the dead man's handle on outcomePending
-    --
-    -- That flag is cleared by the battle's own onFinish, which is the only
-    -- thing that can say the outcome is written.  If a teardown ever reaches
-    -- the overworld WITHOUT running it -- a path that returns early, another
-    -- mod driving the exit and dropping the call -- the flag would stay set
-    -- and autosave would be off for the rest of the session, silently.
-    --
-    -- So control being back for a second releases it anyway.  A second is far
-    -- longer than the gap it guards (onFinish runs on the frame control
-    -- returns) and far shorter than a player notices, and the failure it
-    -- converts is "autosave stopped forever" into "one save may be early".
-    if state.outcomePending then
-      if held then
-        state.outcomeClear = 0
-      else
-        state.outcomeClear = (state.outcomeClear or 0) + dt
-        if state.outcomeClear >= 1 then
-          state.outcomePending = false
-          state.outcomeClear = 0
-          mod.log:warn("a battle handed control back without recording its "
-                       .. "outcome; releasing the autosave hold")
-        end
-      end
-    end
+    if releaseOutcome then releaseOutcome(game, dt, held) end
 
     if ow and ow.player and not held and not ow.player.moving
         and not walking(game, ow) then
@@ -1148,64 +1129,75 @@ return function(mod)
   end)
   -- ---------- and a battle's outcome is committed AFTER battle.ended
   --
-  -- The event is emitted while the battle is still tearing down, and the thing
-  -- that writes the OUTCOME into the save runs later.  BattleState hands
-  -- `onFinish` to the battle-return transition as its onDone, and a trainer's
-  -- onFinish is what sets `save.defeatedTrainers[npc.id]` and the map's event
-  -- flag (src/world/OverworldController.lua, the trainer_encounter branch).
+  -- The event is emitted while the battle is still tearing down.  What writes
+  -- the OUTCOME runs later, and WHICH thing writes it depends on how the
+  -- battle was started -- which is why the first two attempts at this failed:
   --
-  -- So the ten covered frames at the front of that return -- which is exactly
-  -- the window a post-battle save aims at, and the reason it lands reliably --
-  -- are frames on which the win DOES NOT EXIST YET.  A save taken there is a
-  -- save of the battle not won: load it and the trainer is standing there
-  -- wanting to fight again, having already been beaten.  The good window is
-  -- what made it happen every time.
+  --   a line-of-sight trainer   `battle.onFinish` sets
+  --                             save.defeatedTrainers[npc.id] directly
+  --   a SCRIPTED trainer        `onFinish` only STARTS a script runner
+  --                             (OverworldController:restoreBattleContinuation,
+  --                             origin.kind == "script_battle").  The defeat is
+  --                             recorded by the script, after it resumes, past
+  --                             its own text boxes.  onFinish returning means
+  --                             the script has BEGUN.
+  --   a static wild encounter   onFinish, but on a different branch again
   --
-  -- Waiting costs no window.  `onFinish` IS the return's onDone, so the frame
-  -- it runs on is the frame the game hands control back -- which is
-  -- `settledAt`, a window in its own right and the one directly under the
-  -- player: standing where the battle left them, not yet moved.  The write
-  -- moves a few frames later and becomes true.
+  -- 0.32.2 waited for the request; 0.32.5 waited for onFinish to return.  Both
+  -- were guesses about which callback owns the write, and a Rocket in a
+  -- hideout is the second row: beaten, saved, and challenging you again.
   --
-  -- Wrapped rather than delayed by a count, because "committed" is not a
-  -- duration.  The engine reads `self.onFinish` AFTER emitting battle.ended,
-  -- so a wrap put on here is the one it runs -- whichever route the teardown
-  -- takes: the win's transition, a blackout's synchronous call, or the one
-  -- Oak's lab has of its own.
+  -- So this does not guess any more.  The hold is released by an OBSERVABLE
+  -- state of the world rather than by a callback: the battle is over, no
+  -- script is running, nothing is on the screen, and the player has had
+  -- control for a moment.  Whatever recorded the outcome has finished by then,
+  -- whichever of the three it was, because all three run before the game hands
+  -- the player the pad back.
   --
-  -- A battle with no onFinish has no outcome waiting to be written -- a wild
-  -- encounter carries none -- so that one is due immediately, as it was.
-  local OUTCOME_HOOK = "__qolAutoSaveOutcome"
-
-  local function requestAfterOutcome(battle)
-    if not mod.options:get("events") then return end
-    local inner = type(battle) == "table" and battle.onFinish or nil
-    if type(inner) ~= "function" then return request() end
-    if rawget(battle, OUTCOME_HOOK) then return end
-    -- Held from here until that call returns.  Asking later is not enough on
-    -- its own: `due` is very often ALREADY true when a battle ends -- a catch,
-    -- an evolution, a map entered on the way to the fight -- and the write
-    -- path only wants `due and dirty` plus a covered screen.  The battle's
-    -- return hold is a covered screen, so a save that was already owed lands
-    -- there whatever this asks for, which is the bug wearing its other face.
-    state.outcomePending = true
-    state.outcomeClear = 0
-    battle.onFinish = function(...)
-      -- The save is asked for whatever the outcome did, including raising:
-      -- a teardown that failed half way is still a teardown the player will
-      -- be loading, and the raise goes on to whoever called it either way.
-      local ok, err = pcall(inner, ...)
-      state.outcomePending = false
-      request()
-      if not ok then error(err, 0) end
-    end
-    battle[OUTCOME_HOOK] = true
-  end
+  -- The cost is the post-battle covered window: a save owed at the end of a
+  -- battle now waits for the dialogue to finish instead of landing in the
+  -- return hold.  That window was the feature; it was also the bug, because it
+  -- is EARLIER than every one of those writes.  Every other covered screen --
+  -- a door, a warp, a cave mouth -- is untouched.
+  local OUTCOME_QUIET = 0.75   -- seconds of a settled world before releasing
+  local OUTCOME_CAP = 10       -- ...and the longest the hold may ever last
 
   mod.events:on("battle.ended", function(event)
     state.inBattle = false
-    requestAfterOutcome(event and event.battle)
+    state.outcomePending = true
+    state.outcomeClear = 0
+    state.outcomeHeld = 0
   end)
+
+  -- Called once a frame from trackStillness, which already computes `held`.
+  function releaseOutcome(game, dt, held)
+    if not state.outcomePending then return end
+    state.outcomeHeld = (state.outcomeHeld or 0) + dt
+    local ow = game and game.overworld
+    local quiet = not held
+      and ow and ow.player and not ow.player.moving
+      and not scriptRunning(ow)
+      and not screenOver(game)
+    if quiet then
+      state.outcomeClear = (state.outcomeClear or 0) + dt
+    else
+      state.outcomeClear = 0
+    end
+    -- The cap is not a second opinion about the outcome; it is the promise
+    -- that a script which never ends cannot switch autosave off for the rest
+    -- of the session.  It has never been reached in testing and should not be.
+    local capped = state.outcomeHeld >= OUTCOME_CAP
+    if state.outcomeClear >= OUTCOME_QUIET or capped then
+      state.outcomePending = false
+      state.outcomeClear = 0
+      state.outcomeHeld = 0
+      if capped then
+        mod.log:warn("a battle never settled; releasing the autosave hold")
+      end
+      if mod.options:get("events") then request() end
+    end
+  end
+
 
   -- ---------- which map changes had a screen in front of them
   --

@@ -1,7 +1,7 @@
 {
   "id": "gen1_bench_nightly",
   "name": "Test Bench",
-  "version": "0.32.5",
+  "version": "0.32.6",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
