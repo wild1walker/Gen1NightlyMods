@@ -7,6 +7,46 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.0] - 2026-09-01
+
+- **Every voxel mod, and none of them required.** A voxel mod redraws the
+  overworld as a 3D diorama and can draw the battle over the map instead of
+  over white paper. There is not one of them: the original Dramatic Shape is
+  defunct and three maintained forks have grown out of it -- absol89's
+  `BATTLE_ART_VOXEL_FORK`, `DRAMALESS_SHAPE`, and `potato_voxel` for low-end
+  devices -- each under an id of its own, because only one may run at a time.
+  This bundle knew one of the six ids and now knows all of them.
+
+  Nothing here requires any of them, and nothing changes if you have none.
+
+- **The caught marker no longer lands away from the foe's name under two of
+  the forks.** This is the bug the id list was hiding.
+
+  The forks disagree about one thing: where the battle HUDs end up. The
+  Dramatic Shape lineage lifts them out of the flat 160x144 frame and
+  composites them into its world canvas, and publishes `snapHUDs` to say
+  whether it managed it on a given frame. `DRAMALESS_SHAPE` and `potato_voxel`
+  do not do this at all -- they override the world *behind* the frame and
+  leave the HUDs, the text box and the menus exactly where the engine drew
+  them.
+
+  The overlay host asked the wrong question. It looked for a `snapHUDs` wrap
+  having recorded a **no**, so a fork with no `snapHUDs` to wrap recorded
+  nothing, and nothing read as **yes**: the marker was drawn onto a
+  window-sized canvas at coordinates meant for a 160x144 one. Two of the four
+  forks, every wild battle. It now asks whether the HUDs are on the canvas,
+  which answers no unless something said yes -- so a fork without the
+  handshake, a platform where the handshake declined (iOS does), and the
+  frames before a battle's first snap are all the ordinary in-frame draw.
+
+- The follower's billboard hook missed `potato_voxel` for the same reason,
+  and a follower there kept the engine's own mount size instead of its
+  scaled one.
+
+- The forks are declared as optional dependencies, which is what puts a voxel
+  mod ahead of this bundle in the load order without any of them becoming
+  required.
+
 ## [0.31.33] - 2026-08-31
 
 - No changes; released alongside the UI mod.

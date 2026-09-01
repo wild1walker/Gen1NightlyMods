@@ -6,6 +6,44 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.0] - 2026-09-01
+
+- **The XP bar has its 3D-battle path back**, and this time with the half that
+  was missing.
+
+  The bar sits under the player's HUD. A voxel mod of the Dramatic Shape
+  lineage lifts that HUD out of the flat 160x144 frame and composites it into
+  its own window-sized world canvas, so a bar left behind is a blue line on a
+  frame the HUD has gone from.
+
+  `1.0.0` dropped the path rather than carry it half-way, and that was right:
+  the half that decides whether to take it **at all** is a handshake with the
+  voxel mod -- and two of the four forks do not have it, because they leave the
+  HUDs where the engine drew them. Taken whenever a voxel mod is merely loaded,
+  the bar lands nowhere near the HUD, which is worse than not having a bar.
+
+  The handshake is in place now. Where the bar goes is read out of the fork's
+  **own** published geometry rather than copied from it -- `HUD_RECT` is the
+  block in GB pixels, `snapRects` is where that block was put on the canvas,
+  and one is the other transformed -- so it keeps landing on the HUD when the
+  fork retunes its own layout, which it does: its `HUD SCALE` row gives the HUD
+  a scale the rest of the battle does not share. A fork that snaps the HUDs but
+  publishes no geometry gets no bar rather than a guessed one.
+
+  Nothing is marked true colour on that path. The zone list belongs to the
+  160x144 pass and the world canvas is not in it.
+
+- **Every voxel mod, and none of them required.** The bundle knew one of the
+  six ids -- the defunct original -- and now knows all of them:
+  `BATTLE_ART_VOXEL_FORK`, `DRAMALESS_SHAPE`, `potato_voxel`, and the original
+  lineage's three. They are optional dependencies, so a voxel mod loads ahead
+  of this bundle without any of them becoming required, and nothing changes if
+  you have none.
+
+- Either half of the suite can now be installed without the other and still
+  get a straight answer about the HUDs: both install the same one wrap, and
+  whichever arrives second finds it there and adds nothing.
+
 ## [0.31.33] - 2026-08-31
 
 - The pale box with the black ring, round the character on the way into a

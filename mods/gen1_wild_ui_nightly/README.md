@@ -178,6 +178,65 @@ feature here except `BACKDROPS` is in that category: their upstream mods have
 no off switch of their own, so the bundle gates them at load rather than
 pretending to switch something already installed.
 
+## Standing beside a voxel mod
+
+A [voxel mod][voxel] redraws the overworld as a 3D diorama and can draw the
+battle over the map instead of over white paper. **None of them is required
+here and nothing changes if you have none** — which is almost everybody, and is
+why this is worth writing down: the work is invisible until it is wrong.
+
+There is not one of them. The original Dramatic Shape is defunct and three
+maintained forks have grown out of it, each under an id of its own because only
+one may run at a time:
+
+| Mod | Id | The battle HUDs |
+|---|---|---|
+| [DramaticShapeVoxelMod][fork] (absol89) | `BATTLE_ART_VOXEL_FORK` | onto its world canvas |
+| [DRAMALESS_SHAPE][dramaless] (artyrambles) | `DRAMALESS_SHAPE` | left in the frame |
+| [potato_voxel][potato] (ShaneMcGovernIE) — tuned for low-end devices | `potato_voxel` | left in the frame |
+| Dramatic Shape, defunct | `DRAMATIC_SHAPE`, `dramatic_shape_brick`, `ds_fp_ceiling` | onto its world canvas |
+
+All six ids are optional dependencies, so a voxel mod loads ahead of this
+bundle without any of them becoming required, and all four forks are reached
+the same way — `exports.lib.require(name)`, which every one of them publishes.
+So the id list is only about *finding* the mod; nothing downstream branches on
+which one was found. A fifth fork appearing is one line in
+[`runtime/voxel.lua`](runtime/voxel.lua).
+
+### The one thing they disagree about
+
+The right-hand column. The Dramatic Shape lineage lifts the battle HUDs out of
+the flat 160x144 frame and composites them into its world canvas at the
+battle's own scale; the other two override the world *behind* the frame and
+leave the HUDs, the text box and the menus exactly where the engine drew them.
+
+That decides where anything drawn **next to** a HUD has to go, and it is not a
+property of the mod — the snapping lineage declines on iOS, and has not
+snapped anything on the frames before a battle's first one. So it is asked per
+frame, through the fork's own `snapHUDs`, and **the answer is no unless
+something said yes**. A fork with no handshake at all never reports snapped,
+which is exactly right for it.
+
+Getting that default the wrong way round is not a subtle failure: the world
+canvas is window-sized, so an overlay drawn onto it at 160x144 coordinates
+lands nowhere near the HUD.
+
+[voxel]: https://gen1recomp.org/voxel-mod
+[fork]: https://github.com/absol89/DramaticShapeVoxelMod
+[dramaless]: https://github.com/artyrambles/DRAMALESS_SHAPE
+[potato]: https://github.com/ShaneMcGovernIE/potato_voxel
+
+### What it costs here
+
+The XP bar. It sits under the player's HUD, so when that HUD moves onto the
+world canvas the bar goes with it — at the HUD's own scale, which the fork
+gives its own setting (`HUD SCALE`) and which the rest of the battle does not
+share. Where it lands is read out of the fork's published `HUD_RECT` and
+`snapRects` rather than copied from its arithmetic: one is the other
+transformed, so the bar keeps finding the HUD when the fork retunes its layout.
+A fork that snaps the HUDs but publishes no geometry gets no bar rather than a
+guessed one.
+
 ## What is different from the standalone mods
 
 Nothing about what they do. The source is vendored unmodified from each mod's

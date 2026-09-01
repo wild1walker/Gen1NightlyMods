@@ -5,6 +5,18 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.0] - 2026-09-01
+
+- A `VOXEL` row: which voxel mod is installed, and whether that one moves the
+  battle HUDs onto its world canvas.
+
+  Two facts because they are different questions, and only the second decides
+  anything. `SNAP` means the XP bar and the caught marker should be following
+  the HUDs there; `FRAME` means they should not, which is what two of the four
+  forks want and is not a fault. `NONE` is almost everybody. The row asks both
+  bundles and shows both readings if they disagree -- only one voxel mod can be
+  installed at a time, so a disagreement is itself the finding.
+
 ## [0.31.33] - 2026-08-31
 
 - No changes; released alongside the UI mod.

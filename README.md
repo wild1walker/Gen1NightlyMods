@@ -76,6 +76,38 @@ each fork stands on.
 
 Everything below is written up properly in each mod's own `CHANGELOG.md`.
 
+### Every voxel mod, and none of them required
+
+A [voxel mod][voxel] redraws the overworld as a 3D diorama and can draw the
+battle over the map instead of over white paper. Nothing in this channel
+requires one and nothing changes if you have none.
+
+There is not one of them. The original Dramatic Shape is defunct and three
+maintained forks have grown out of it — absol89's `BATTLE_ART_VOXEL_FORK`,
+`DRAMALESS_SHAPE`, and `potato_voxel` for low-end devices — each under an id of
+its own, because only one may run at a time. The suite knew one of the six ids.
+
+**The forks disagree about one thing, and it is the thing that matters.** The
+Dramatic Shape lineage lifts the battle HUDs out of the flat 160x144 frame and
+composites them into its world canvas; the other two override the world
+*behind* the frame and leave the HUDs where the engine drew them. That decides
+where anything drawn next to a HUD has to go, and it is asked per frame now,
+through the fork's own `snapHUDs` — with **no** as the default, so a fork with
+no handshake at all never reports snapped.
+
+It read the other way round before, so under those two forks the caught marker
+was drawn onto a window-sized canvas at coordinates meant for a 160x144 one.
+
+### The XP bar has its 3D-battle path back
+
+Dropped in the move into Gen1WildUI rather than carried half-way, because the
+half that decides whether to take it at all is that handshake. It is in place
+now, and where the bar lands is read out of the fork's *own* published
+geometry rather than copied from its arithmetic — so the bar keeps finding the
+HUD when the fork retunes its layout, which its `HUD SCALE` row does.
+
+[voxel]: https://gen1recomp.org/voxel-mod
+
 ### The title screen is the right colour in every display mode
 
 `WILD GREEN VERSION` read yellow-green on pale yellow, half the POKE BALL was

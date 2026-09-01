@@ -21,12 +21,30 @@
 -- else underneath -- and a panel that changes width takes the bar's clip with
 -- it because there is no clip, only an order.
 --
--- The numbers, the level-up fill and the burst are ported as they were.  What
--- is deliberately NOT ported is the 3D-battle path: that one drew into
--- another mod's canvas and depended on a handshake with its snapHUDs, and the
--- handshake decided whether the path was taken at all.  Ported half-way it
--- would take that path whenever the other mod was loaded, which is worse than
--- not having it.  See CHANGELOG.
+-- The numbers, the level-up fill and the burst are ported as they were.
+--
+-- ------- and the bar when the HUD is not on this screen
+--
+-- A voxel mod draws the battle over the map instead of over white paper, and
+-- the Dramatic Shape lineage lifts the battle HUDs out of the flat 160x144
+-- frame and composites them into the world canvas at the battle's own scale.
+-- A bar that stayed behind is then a blue line on a frame the HUD it belongs
+-- under has left.
+--
+-- This path was dropped in the port rather than carried half-way, because the
+-- half that decides whether to take it AT ALL is a handshake with the voxel
+-- mod -- `snapHUDs`, which reports per frame whether it managed it, and which
+-- two of the four forks do not have at all because they leave the HUDs where
+-- the engine drew them.  Taken whenever a voxel mod is merely loaded, the path
+-- is worse than not having it: the world canvas is window-sized, so the bar
+-- lands nowhere near the HUD.
+--
+-- It is back now with that half in place.  runtime/voxel.lua owns the
+-- handshake and answers no unless the HUDs are genuinely on the canvas this
+-- frame, and the transform below is read out of the fork's OWN published
+-- geometry rather than copied from it.  Everything else -- the guards, the
+-- animation, the colour -- is the classic path's, unchanged: only where the
+-- rectangle lands moves.
 
 local EXP_X, EXP_Y, EXP_WIDTH = 80, 89, 67
 local WIDE_EXP_X, WIDE_EXP_Y, WIDE_EXP_SEGMENTS = 208, 88, 10
@@ -62,6 +80,9 @@ local EXP_BURST_TILE_ROWS = {
 }
 
 return function(mod, C)
+  -- nil when no voxel mod is installed, which is the ordinary case, and nil
+  -- on a tree built before runtime/voxel.lua existed.  Every use is guarded.
+  local voxel = mod.voxel
   local Font = require("src.render.Font")
   local Growth = require("src.pokemon.Growth")
   local HudTiles = require("src.render.HudTiles")
@@ -362,6 +383,43 @@ return function(mod, C)
     end
   end
 
+  -- ------- the bar on the voxel mod's world canvas
+  --
+  -- Same bar, same arithmetic, one coordinate change: every GB point goes
+  -- through `toWorld`, and every LENGTH is multiplied by the scale the HUD was
+  -- snapped at -- which is the HUD's own and not the battle's, because the
+  -- fork gives the HUD a scale of its own (its HUD SCALE row) and the bar has
+  -- to sit under the numbers rather than under the zoom.
+  --
+  -- Nothing here marks true colour.  The zone list belongs to the 160x144
+  -- pass, and this canvas is not in it -- it reaches the screen a pixel to a
+  -- pixel.  A mark taken here would not exempt this rectangle from anything;
+  -- it would re-blit a region of the FRAME, at these coordinates, which is
+  -- somewhere else entirely.
+  --
+  -- The canvas is put back even when the paint raises, so a bar that fails on
+  -- one frame cannot leave the rest of the battle drawing into the world
+  -- image.  The error still travels: this mod's overlay link reports it.
+  local function drawSnappedExpBar(state, px, color, sx, sy, shot, toWorld,
+                                   scale)
+    local g = love.graphics
+    local previous = g.getCanvas and g.getCanvas() or nil
+    if g.setCanvas then g.setCanvas(shot.canvas) end
+    local ok, problem = pcall(function()
+      local x, y = toWorld(EXP_X + EXP_WIDTH - px + sx, EXP_Y + sy)
+      g.setShader()
+      g.setColor(color[1], color[2], color[3], color[4])
+      g.rectangle("fill", x, y, px * scale, 2 * scale)
+      -- The burst takes no shake here for the same reason it takes none in
+      -- the classic path: it is thrown from where the bar ENDS, which is a
+      -- fixed point of the HUD, not from where the bar is standing this frame.
+      local bx, by = toWorld(EXP_X, EXP_Y + 1)
+      drawExpBurst(state.expBurstFrame, bx, by, scale, color, false)
+    end)
+    if g.setCanvas then g.setCanvas(previous) end
+    if not ok then error(problem, 0) end
+  end
+
   -- ------- the shake
   --
   -- battle.overlay runs after BattleState:draw has popped the shake it pushed
@@ -413,6 +471,28 @@ return function(mod, C)
     local state = stateFor(battle)
     local px = animatedExpPixels(battle, state)
     local sx, sy = shakeOf(battle)
+
+    -- Set only while the HUDs really are on the voxel mod's canvas: not with
+    -- no voxel mod, not under a fork that leaves them in the frame, and not
+    -- on a platform where the fork declined.  Every one of those is the
+    -- classic path below, unchanged.
+    local shot = voxel and voxel.snappedShot(battle) or nil
+    if shot then
+      -- Asked before the wide branch and not inside it, because a snapped
+      -- battle is never wide: the fork pins the layout to OG while it is
+      -- drawing the battle in 3D (its own forceOG), so the two cannot meet.
+      if px <= 0 then return end
+      local toWorld, scale = voxel.hudTransform(shot, "player")
+      if not toWorld then
+        -- The fork snapped the HUDs but does not publish where it put them.
+        -- Nothing here can be guessed -- a bar in the wrong place on a
+        -- window-sized canvas is the loudest failure this file has -- so it
+        -- stands down for the frame and the battle simply has no XP bar.
+        return
+      end
+      drawSnappedExpBar(state, px, color, sx, sy, shot, toWorld, scale)
+      return
+    end
 
     if battle:wideLayout() then
       drawWideExpBar(px, color, sx, sy)

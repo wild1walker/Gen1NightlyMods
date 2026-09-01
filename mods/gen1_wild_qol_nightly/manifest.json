@@ -1,7 +1,7 @@
 {
   "id": "gen1_wild_qol_nightly",
   "name": "Gen1WildQOL Nightly",
-  "version": "0.31.33",
+  "version": "0.32.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -13,7 +13,12 @@
     "gen1_wild_ui_nightly",
     "gen1_wild_ui",
     "CRYSTAL_251",
+    "BATTLE_ART_VOXEL_FORK",
+    "DRAMALESS_SHAPE",
+    "potato_voxel",
     "DRAMATIC_SHAPE",
+    "dramatic_shape_brick",
+    "ds_fp_ceiling",
     "unique_menu_icons"
   ],
   "conflicts": [

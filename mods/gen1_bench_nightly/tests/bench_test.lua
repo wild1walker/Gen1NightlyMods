@@ -296,6 +296,56 @@ do
   ok(last.step == nil, "it is a readout, not a setting")
 end
 
+-- ------- the voxel row
+--
+-- Two facts and three shapes: no voxel mod, one that moves the battle HUDs
+-- onto its world canvas, and one that leaves them in the flat frame.  The
+-- third is the one the row exists for -- it is most of the forks, it is not a
+-- fault, and it is invisible from anywhere else on this screen.
+io.write("the voxel row reports which fork, and whether it snaps the HUDs\n")
+do
+  local function bundles(id, snaps)
+    local exports = { voxelProbe = function() return id, snaps end }
+    return finder({
+      gen1_wild_ui_nightly = { id = "gen1_wild_ui_nightly", exports = exports },
+      gen1_wild_qol_nightly = { id = "gen1_wild_qol_nightly", exports = exports },
+    })
+  end
+
+  local rows = rowsBy({ find = bundles(nil, false) })
+  eq(rows.voxel.value(), "NONE", "no voxel mod installed says so plainly")
+
+  rows = rowsBy({ find = bundles("BATTLE_ART_VOXEL_FORK", true) })
+  eq(rows.voxel.value(), "BATTLE_ART_VOXEL_FORK SNAP",
+     "a fork that moves the HUDs is named and marked")
+
+  rows = rowsBy({ find = bundles("potato_voxel", false) })
+  eq(rows.voxel.value(), "POTATO_VOXEL FRAME",
+     "and one that leaves them in the frame is marked as that, not as absent")
+
+  -- Both halves resolve independently and only one voxel mod can be installed
+  -- at a time, so the two agreeing collapses to one reading rather than being
+  -- printed twice.
+  eq(#rows.voxel.value():gsub("[^/]", ""), 0,
+     "the two bundles agreeing reads once")
+
+  rows = rowsBy({ find = finder({
+    gen1_wild_ui_nightly = { id = "u",
+      exports = { voxelProbe = function() return "potato_voxel", false end } },
+    gen1_wild_qol_nightly = { id = "q",
+      exports = { voxelProbe = function() return nil, false end } },
+  }) })
+  eq(rows.voxel.value(), "POTATO_VOXEL FRAME / NONE",
+     "and the halves disagreeing is the finding, so both are shown")
+
+  rows = rowsBy({ find = finder({}) })
+  eq(rows.voxel.value(), Rows.DASH, "neither bundle installed reads as absent")
+
+  rows = rowsBy({ find = finder({ gen1_wild_ui_nightly = { id = "u",
+    exports = { voxelProbe = function() error("boom") end } } }) })
+  eq(rows.voxel.value(), Rows.DASH, "and a probe that raises is not believed")
+end
+
 io.write("a mod that answers with nonsense is not believed\n")
 do
   local liar = {

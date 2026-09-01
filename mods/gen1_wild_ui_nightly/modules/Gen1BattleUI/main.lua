@@ -259,6 +259,7 @@ return function(mod)
   -- panel that changes width takes the covering with it.
   mod.hooks:wrap("battle.overlay", function(next, battle)
     next(battle)
+    hookHudSnap()
     local okBar, barProblem = pcall(XP.draw, battle)
     if not okBar then
       warn("Gen1BattleUI could not draw the XP bar: %s", tostring(barProblem))
@@ -292,6 +293,34 @@ return function(mod)
   else
     warn("Gen1BattleUI has no event bus to hear level-ups on; the stat box "
          .. "keeps the engine's timing")
+  end
+
+  -- Whether a voxel mod has moved the battle HUDs onto its world canvas is a
+  -- question only that mod can answer, and it answers it by being asked to
+  -- record the answer: one wrap of its own `snapHUDs`.  The XP bar reads the
+  -- result to decide where it is drawing -- see xpbar.lua.
+  --
+  -- Installed from here rather than left to the QOL half, which installs the
+  -- same wrap for its own overlays: either bundle may be running without the
+  -- other, and both must get a straight answer.  The wrap tags the table it is
+  -- on, so whichever half arrives second finds it already there and adds
+  -- nothing.  With no voxel mod installed -- the ordinary case -- this finds
+  -- nothing and says nothing.
+  --
+  -- Tried on mods.loaded, which is the earliest a voxel mod can be found, and
+  -- again on the first battle frame if that did not take.  The second is not
+  -- belt and braces: a subscription made while an event is already being
+  -- dispatched may never be called, and this file is not the only thing
+  -- deciding when it is installed.  Both are one flag apart from free.
+  local hookedHudSnap = false
+  local function hookHudSnap()
+    if hookedHudSnap or not mod.voxel then return end
+    local ok, result = pcall(mod.voxel.installHudSnapHook)
+    if ok and result then hookedHudSnap = true end
+  end
+  if mod.voxel and type(mod.events) == "table"
+     and type(mod.events.once) == "function" then
+    mod.events:once("mods.loaded", hookHudSnap)
   end
 
   -- The priority is the second one in this file that means something, and it

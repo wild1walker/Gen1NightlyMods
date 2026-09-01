@@ -434,6 +434,52 @@ local function skirtRow(context)
   }
 end
 
+-- ------- which voxel mod is out there, if any
+--
+-- Nothing in the suite requires a voxel mod and almost nobody has one, which
+-- is exactly why this row is worth having: the compatibility work is invisible
+-- until it is wrong, and "wrong" here means an overlay drawn several hundred
+-- pixels from the HUD it belongs to.
+--
+-- Two facts, because they are different questions and only the second decides
+-- anything.  The id says which of the forks is installed.  `SNAP` says whether
+-- that one lifts the battle HUDs onto its world canvas -- the Dramatic Shape
+-- lineage does, DRAMALESS_SHAPE and potato_voxel leave them in the flat frame
+-- -- and so whether the XP bar and the caught marker should be following them
+-- there.  `FRAME` beside a voxel mod is not a fault; it is most of them.
+--
+-- Asked of both bundles because either may be installed without the other, and
+-- they resolve independently.  They should never disagree -- only one voxel
+-- mod can be installed at a time -- so a disagreement is itself the finding
+-- and is shown rather than hidden behind a preference.
+local function voxelRow(context)
+  return {
+    id = "voxel",
+    label = "VOXEL",
+    help = "WHICH VOXEL MOD, AND WHETHER IT MOVES THE BATTLE HUDS.",
+    value = function()
+      local seen = {}
+      for _, bundle in ipairs({ "gen1_wild_ui_nightly", "gen1_wild_qol_nightly" }) do
+        local exports = exportsOf(context.find, bundle)
+        if exports and type(exports.voxelProbe) == "function" then
+          local ok, id, snaps = pcall(exports.voxelProbe)
+          if ok then
+            local said = id and (tostring(id):upper() .. " "
+              .. (snaps and "SNAP" or "FRAME")) or "NONE"
+            local already = false
+            for _, previous in ipairs(seen) do
+              if previous == said then already = true end
+            end
+            if not already then seen[#seen + 1] = said end
+          end
+        end
+      end
+      if #seen == 0 then return DASH end
+      return table.concat(seen, " / ")
+    end,
+  }
+end
+
 function Rows.build(context)
   context.species = context.species or BENCH_SPECIES[1]
   context.level = context.level or 5
@@ -456,6 +502,7 @@ function Rows.build(context)
     probeRow(context),
     lastBattleRow(context),
     skirtRow(context),
+    voxelRow(context),
   }
 end
 
