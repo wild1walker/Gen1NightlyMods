@@ -5,6 +5,10 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.9] - 2026-09-01
+
+- No changes; released alongside the UI mod.
+
 ## [0.32.8] - 2026-09-01
 
 - A `SAVE AFTER` row: **did the post-battle save land after the defeat was

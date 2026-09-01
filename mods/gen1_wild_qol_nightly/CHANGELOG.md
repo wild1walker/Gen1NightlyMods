@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.9] - 2026-09-01
+
+- No changes; released alongside the UI mod.
+
 ## [0.32.8] - 2026-09-01
 
 - Two counts published for the bench's `SAVE AFTER` row: how many trainers the

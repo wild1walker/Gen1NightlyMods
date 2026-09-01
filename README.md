@@ -131,6 +131,23 @@ landing on its first pixel row: ink mapped to black on a black page. The marked
 row is a pixel shorter now, which puts the ring in the blank row that already
 separates the two lines.
 
+### Backdrops stand down under a voxel mod
+
+A voxel mod draws the battle over the map, so a backdrop painted into the field
+is a second background — and under `DRAMALESS_SHAPE` a genuine fight, because
+it suppresses the engine's field fill through the same `love.graphics.rectangle`
+shim the backdrop uses to replace it. The test is the renderer rather than a
+list of ids: every fork presents its battle through `setWorldOverride`, which
+the engine clears every frame. A fork with its 3D battles switched off never
+sets it, and then the backdrop is drawn as usual.
+
+### `DARK` lands in the right place over a wide battle
+
+A classic screen opened over a wide battle is centred by the engine before the
+theme sees it, so its whole-screen zone arrives at x=72. The theme demanded
+x=0, threw the real list away and synthesised one at x=0 — so the page was
+themed at 0..160 while drawn at 72..232.
+
 ### Every voxel mod, and none of them required
 
 A [voxel mod][voxel] redraws the overworld as a 3D diorama and can draw the

@@ -6,6 +6,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.9] - 2026-09-01
+
+- **Backdrops stand down while a voxel mod is drawing the battle.** A
+  [voxel mod][voxel] draws the fight over the *map*, so there is already a
+  world behind it — a backdrop painted into the field is a second background
+  nobody asked for.
+
+  Worse than redundant, in one case: `DRAMALESS_SHAPE` suppresses the engine's
+  field fill by shimming `love.graphics.rectangle`, which is the same call this
+  mod shims to *replace* that fill. Two mods swapping one function for the
+  length of one draw is a coin toss decided by load order.
+
+  The test is the **renderer**, not a list of mod ids. Every fork presents its
+  battle through `Renderer:setWorldOverride`, and the renderer clears that in
+  `beginFrame` — so a non-nil `worldOverride` is exactly "something replaced
+  the world image on this frame", asked of the engine with no mod named. A fork
+  this suite has never heard of is handled; a fork with its 3D battles switched
+  **off** never sets it, and then the backdrop is wanted and drawn, which is
+  the point of asking per frame rather than per install. The bars go with it —
+  nothing painted the field, so there is no edge to stretch into them.
+
+- **`DARK` no longer lands in the wrong place over a wide battle.** A classic
+  160x144 screen opened over a wide battle is *centred* by the engine before
+  the theme sees anything — `classicOffset = (uiWidth - 160) / 2`, applied to
+  the zone owner's list — so a page's own whole-screen zone arrives at x=72,
+  not x=0.
+
+  `isWhole` demanded x=0. Every such page failed the test, `pageZones` threw
+  the real list away, and the zone it synthesised in its place was built at
+  x=0 because nothing told it otherwise. The page was themed at 0..160 while it
+  was drawn at 72..232: its right third left light, and a dark strip laid over
+  the battle beside it. It asks where the frame is now rather than whether it
+  is at the origin, and the fallback is built at the same offset.
+
+[voxel]: https://gen1recomp.org/voxel-mod
+
 ## [0.32.8] - 2026-09-01
 
 - No changes; released alongside the bench and QOL mods.
