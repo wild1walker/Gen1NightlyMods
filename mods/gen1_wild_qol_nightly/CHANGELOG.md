@@ -7,6 +7,35 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.5] - 2026-09-01
+
+- **Autosave saving a trainer battle as un-won, properly this time.** 0.32.2
+  fixed half of it and the half it fixed was the rarer one.
+
+  That release delayed the *request*: `battle.ended` no longer marks a save due
+  until the battle's `onFinish` has run, which is what writes
+  `save.defeatedTrainers[npc.id]`. True, and not enough. `due` is very often
+  **already** true when a battle ends -- a catch, an evolution, a map entered
+  on the way to the fight -- and the covered-screen write asks only for `due`
+  and `dirty`. The battle's return hold is the most covered screen this mod
+  ever sees, so a save that was already owed landed there regardless of what
+  `battle.ended` asked for: in the gap between the last hit and the defeat
+  being recorded.
+
+  So the guard is on the **write** now, where it should have been. From
+  `battle.ended` until that `onFinish` returns, neither write path will spend a
+  frame -- the same refusal `state.inBattle` already earns, extended over the
+  gap where the fight is over and its outcome is not written yet.
+
+  A wild battle carries no `onFinish`, has no outcome pending, and holds
+  nothing -- holding every battle would push every post-battle save off the one
+  window this mod was built around.
+
+  And a dead man's handle: control being back for a second releases the hold
+  anyway. If a teardown ever reaches the overworld without running `onFinish`,
+  the failure that leaves is "one save may be early", not "autosave silently
+  stopped for the session".
+
 ## [0.32.4] - 2026-09-01
 
 - No changes; released alongside the UI mod.

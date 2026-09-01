@@ -82,6 +82,11 @@ return function(mod)
     dirty = false,
     due = false,
     inBattle = false,
+    -- Set from battle.ended until the battle's own onFinish has returned --
+    -- the window in which the fight is over and its OUTCOME is not written
+    -- yet.  See requestAfterOutcome.
+    outcomePending = false,
+    outcomeClear = 0,
     saving = false,
     syncWaitUntil = 0,
     syncWasBusy = false,
@@ -420,7 +425,7 @@ return function(mod)
   local function writeWindow(game)
     local ow = game and game.overworld
     if not (ow and ow.player) then return false end
-    if state.inBattle then return false end
+    if state.inBattle or state.outcomePending then return false end
     if scriptRunning(ow) then return false end
     if ow.engaging or ow.emote then return false end
     -- Ahead of screenOver, for the reason quietFrame gives above: a
@@ -457,6 +462,32 @@ return function(mod)
                                 or ow.teleportOut)) or false
     if state.wasHeld and not held then state.settledAt = state.clock end
     state.wasHeld = held and true or false
+
+    -- ------- and the dead man's handle on outcomePending
+    --
+    -- That flag is cleared by the battle's own onFinish, which is the only
+    -- thing that can say the outcome is written.  If a teardown ever reaches
+    -- the overworld WITHOUT running it -- a path that returns early, another
+    -- mod driving the exit and dropping the call -- the flag would stay set
+    -- and autosave would be off for the rest of the session, silently.
+    --
+    -- So control being back for a second releases it anyway.  A second is far
+    -- longer than the gap it guards (onFinish runs on the frame control
+    -- returns) and far shorter than a player notices, and the failure it
+    -- converts is "autosave stopped forever" into "one save may be early".
+    if state.outcomePending then
+      if held then
+        state.outcomeClear = 0
+      else
+        state.outcomeClear = (state.outcomeClear or 0) + dt
+        if state.outcomeClear >= 1 then
+          state.outcomePending = false
+          state.outcomeClear = 0
+          mod.log:warn("a battle handed control back without recording its "
+                       .. "outcome; releasing the autosave hold")
+        end
+      end
+    end
 
     if ow and ow.player and not held and not ow.player.moving
         and not walking(game, ow) then
@@ -1151,11 +1182,20 @@ return function(mod)
     local inner = type(battle) == "table" and battle.onFinish or nil
     if type(inner) ~= "function" then return request() end
     if rawget(battle, OUTCOME_HOOK) then return end
+    -- Held from here until that call returns.  Asking later is not enough on
+    -- its own: `due` is very often ALREADY true when a battle ends -- a catch,
+    -- an evolution, a map entered on the way to the fight -- and the write
+    -- path only wants `due and dirty` plus a covered screen.  The battle's
+    -- return hold is a covered screen, so a save that was already owed lands
+    -- there whatever this asks for, which is the bug wearing its other face.
+    state.outcomePending = true
+    state.outcomeClear = 0
     battle.onFinish = function(...)
       -- The save is asked for whatever the outcome did, including raising:
       -- a teardown that failed half way is still a teardown the player will
       -- be loading, and the raise goes on to whoever called it either way.
       local ok, err = pcall(inner, ...)
+      state.outcomePending = false
       request()
       if not ok then error(err, 0) end
     end
@@ -1341,7 +1381,14 @@ return function(mod)
     -- this costs one table read and buys the guarantee outright rather than
     -- depending on that staying true.  The veil counter is dropped with it,
     -- so a count left over from before the battle cannot be spent after it.
-    if state.inBattle then
+    -- Never inside a battle, and never in the gap after one where the fight
+    -- is over and its outcome is not recorded yet.  The battle's return hold
+    -- is the most covered screen this mod ever sees, so without this the
+    -- likeliest save in the game is the one taken between the last hit and
+    -- `save.defeatedTrainers[npc.id] = true` -- load it and the trainer you
+    -- just beat walks up and challenges you again.  The veil counter goes
+    -- with it, so a count from before cannot be spent after.
+    if state.inBattle or state.outcomePending then
       state.veiled = 0
       return
     end
@@ -1381,6 +1428,7 @@ return function(mod)
       dirty = state.dirty and true or false,
       veiled = state.veiled or 0,
       inBattle = state.inBattle and true or false,
+      outcomePending = state.outcomePending and true or false,
       sinceWrite = state.clock - state.lastWriteAt,
     }
   end

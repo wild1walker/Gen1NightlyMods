@@ -92,8 +92,12 @@ trainer wanted to fight again. `battle.ended` fires while the battle is still
 tearing down; what writes the *win* is the battle's `onFinish`, which runs as
 the return transition's onDone, well after. The covered frames the save aims at
 are all before the win exists, which is why it happened every time rather than
-sometimes. The save waits for the outcome now, and lands on the frame the game
-hands control back — a window in its own right.
+sometimes.
+
+Neither write path will spend a frame between the two now. Delaying the
+*request* — which is all 0.32.2 did — was not enough on its own: a save is very
+often already owed when a battle ends, and the return hold is the most covered
+screen this mod ever sees, so it got spent there anyway.
 
 ### The battle UI came back
 

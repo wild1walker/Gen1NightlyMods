@@ -176,5 +176,47 @@ do
   eq(calls, 1, "so the battle's own onFinish runs once, not twice")
 end
 
+-- ------------------- the half 0.32.2 missed: a save that was ALREADY owed
+--
+-- Delaying the request is not enough on its own.  `due` is very often already
+-- true when a battle ends -- a catch, an evolution, a map entered on the way
+-- to the fight -- and the covered-screen write wants only `due and dirty`.
+-- The battle's return hold is the most covered screen this mod ever sees, so
+-- a save that was already owed lands there regardless of what battle.ended
+-- asked for: between the last hit and the defeat being recorded.
+--
+-- What has to be true is that the WRITE stands down, not the request.
+io.write("a save already owed does not spend the battle's return hold\n")
+
+do
+  local mod = install()
+  local status = mod.exports.autosaveStatus
+
+  -- something earlier already asked for a save
+  mod.exports.autosaveRequest()
+  eq(status().due, true, "a save is owed before the battle even ends")
+
+  local battle = { onFinish = function() end }
+  mod.fire("battle.ended", { battle = battle, result = "win" })
+
+  eq(status().inBattle, false, "the battle is over as far as the mod knows")
+  eq(status().outcomePending, true,
+     "but its outcome is not written yet, and the mod is holding for that")
+
+  battle.onFinish("win")
+  eq(status().outcomePending, false, "the hold is released once it is")
+  eq(status().due, true, "and the save is still owed, to be taken after")
+end
+
+do
+  -- A wild battle has no outcome to wait for, so it must not hold at all --
+  -- holding every battle would push every post-battle save off the one window
+  -- the mod was built around.
+  local mod = install()
+  mod.fire("battle.ended", { battle = {}, result = "run" })
+  eq(mod.exports.autosaveStatus().outcomePending, false,
+     "a battle carrying no onFinish holds nothing")
+end
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
