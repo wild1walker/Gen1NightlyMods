@@ -76,6 +76,17 @@ each fork stands on.
 
 Everything below is written up properly in each mod's own `CHANGELOG.md`.
 
+### No line across the move panel's `PP` row
+
+Reported on a dark battle menu, and the theme is not the cause. The XP bar sits
+two rows below where the panel prints `PP`, and the panel is drawn after it and
+covers it — but a true-colour mark re-blits its region *raw* after the pass is
+composed, so the bar came back on top of the panel that had just covered it,
+with `DARK`'s one-pixel skirt landing exactly on the top row of `PP`.
+
+Covering settles the pixels, not the mark. The bar stops at the panel's edge
+now, and marks only what it drew.
+
 ### Every voxel mod, and none of them required
 
 A [voxel mod][voxel] redraws the overworld as a 3D diorama and can draw the

@@ -6,6 +6,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.1] - 2026-09-01
+
+- **The XP bar no longer draws a line across the move panel's `PP` row.**
+  `DARK` is where it was reported and where it is worst, but the cause is not
+  the theme's.
+
+  The bar sits at rows 89 and 90 and the panel prints `PP` at row 88, three
+  rows tall, so the two overlap. That was supposed to be settled by order: the
+  panel is drawn after the bar and covers it, which is the whole reason the bar
+  was moved into this mod. Covering settles the **pixels**. It does not settle
+  the **mark**.
+
+  `markTrueColor` splices a rect onto the pass's zone list and re-blits its
+  region **raw** once the pass is composed — after everything drawn over it in
+  the meantime — so the strip came back on top of the panel. Two things came
+  back with it: the bar's own two rows as a line across the `PP` row, and,
+  under `DARK`, the one-pixel skirt this theme paints around every UI-pass
+  mark, whose top edge is row 88 exactly. That skirt is the line along the top
+  of `PP`.
+
+  No order could have fixed it, because the re-blit is after all of them. The
+  bar stops at the panel's right edge now and marks only what it drew — asked
+  of `Grid.panelRect`, which is this exact question and already existed for a
+  neighbouring mod asking it from outside. The neighbour is this file now.
+
+  The level-up burst is thrown from the bar's left end, which is the end that
+  runs under the panel, and is clipped to the same edge dot by dot.
+
+  `onTop` did not cover this: it asks whether another *state* is standing on
+  the battle, and the move menu is not one. It is this mod drawing over itself.
+
 ## [0.32.0] - 2026-09-01
 
 - **The XP bar has its 3D-battle path back**, and this time with the half that

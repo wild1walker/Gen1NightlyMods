@@ -173,7 +173,11 @@ return function(mod)
     error("grid.lua did not build the button grid", 0)
   end
 
-  local XP = makeXP(mod, C)
+  -- The bar is handed the panel's geometry, not the panel: it has to stop
+  -- where this mod's own move panel starts.  Covering it settles the pixels
+  -- and not the mark -- see xpbar.lua -- and Grid is built above, so the
+  -- question is already answerable here.
+  local XP = makeXP(mod, C, Grid.panelRect)
   if not (type(XP) == "table" and type(XP.draw) == "function") then
     error("xpbar.lua did not build the XP bar", 0)
   end

@@ -79,7 +79,7 @@ local EXP_BURST_TILE_ROWS = {
   "oooooooo",
 }
 
-return function(mod, C)
+return function(mod, C, panelRect)
   -- nil when no voxel mod is installed, which is the ordinary case, and nil
   -- on a tree built before runtime/voxel.lua existed.  Every use is guarded.
   local voxel = mod.voxel
@@ -311,7 +311,12 @@ return function(mod, C)
   -- Eight particles thrown out from the end of a full bar, on the frame it
   -- fills: four on the axes at 2px a frame, four on the diagonals at a
   -- hand-picked sequence, which is how the original reads.
-  local function drawExpBurst(frame, centerX, centerY, scale, color, mark)
+  -- `minX` is the move panel's right edge when one is up -- see clearOfPanel.
+  -- The burst is thrown from the bar's left end, which is the end that runs
+  -- under the panel, so most of it lands there.  Dropped dot by dot rather
+  -- than as a whole: a dot is `scale` square and either clears the edge or
+  -- does not, so there is nothing to round.
+  local function drawExpBurst(frame, centerX, centerY, scale, color, mark, minX)
     if frame == nil then return end
     local g = love.graphics
     local radius = frame * 2 * scale
@@ -325,8 +330,10 @@ return function(mod, C)
           if row:sub(px, px) == "x" then
             local dotX = x + (px - 1) * scale
             local dotY = y + (py - 1) * scale
-            g.rectangle("fill", dotX, dotY, scale, scale)
-            if mark then PaletteFX.markTrueColor(dotX, dotY, scale, scale) end
+            if not (minX and dotX < minX) then
+              g.rectangle("fill", dotX, dotY, scale, scale)
+              if mark then PaletteFX.markTrueColor(dotX, dotY, scale, scale) end
+            end
           end
         end
       end
@@ -420,6 +427,57 @@ return function(mod, C)
     if not ok then error(problem, 0) end
   end
 
+  -- ------- and out from under this mod's own move panel
+  --
+  -- The panel is drawn after the bar and covers it, and that covering is the
+  -- whole reason the bar lives in this file rather than in the mod it came
+  -- from.  It settles the PIXELS.  It does not settle the MARK.
+  --
+  -- `PaletteFX.markTrueColor` splices a rect onto the pass's zone list and
+  -- RE-BLITS ITS REGION RAW once the pass is composed -- after everything
+  -- drawn over it in the meantime.  So a marked strip lying under the panel
+  -- comes back on top of it, and both halves of the mark do:
+  --
+  --   * the bar's own two rows, 89 and 90, as a blue line across the panel's
+  --     PP row -- which is printed at y=88 and is three rows tall.
+  --   * under DARK, the theme's one-pixel skirt around every UI-pass mark
+  --     (runtime/theme.lua, watchArt), whose top edge is row 88 exactly: a
+  --     dark line along the top of the PP line, which is what it looks like.
+  --
+  -- Drawing later cannot fix that and neither can any order -- the re-blit is
+  -- after all of them -- so the mark has to not be there.  The bar stops where
+  -- the panel starts.
+  --
+  -- `onTop` does not cover this: it asks whether another STATE is standing on
+  -- the battle, and the move menu is not one.  It is this mod, drawing inside
+  -- the battle, over itself.
+  --
+  -- Asked of Grid.panelRect, which is this exact question and already had to
+  -- exist -- it was written for a neighbouring mod asking it from outside,
+  -- and the neighbour is this file now.  nil means no panel of ours is up,
+  -- and then there is nothing to clip to: MOVE PANEL off, a phase with no
+  -- panel, a battle this mod does not own.
+  --
+  -- Both panels start at x=0, so this only ever trims the bar's LEFT end,
+  -- which is the end that runs under them.  A panel that started further in
+  -- would be over-clipped rather than mis-marked, and for a mark that is the
+  -- safe direction to be wrong in.
+  -- The panel's right edge when one is up and it lies across these rows, and
+  -- NIL when there is nothing to clip to.  Nil rather than the caller's own x,
+  -- because the burst reaches left of where it is thrown and "no panel" has to
+  -- be distinguishable from "a panel that happens to end here".
+  local function panelEdge(battle, y, height)
+    if type(panelRect) ~= "function" then return nil end
+    local ok, panel = pcall(panelRect, battle)
+    if not ok or type(panel) ~= "table" then return nil end
+    if type(panel.x) ~= "number" or type(panel.y) ~= "number"
+       or type(panel.w) ~= "number" or type(panel.h) ~= "number" then
+      return nil
+    end
+    if y + height <= panel.y or y >= panel.y + panel.h then return nil end
+    return panel.x + panel.w
+  end
+
   -- ------- the shake
   --
   -- battle.overlay runs after BattleState:draw has popped the shake it pushed
@@ -507,13 +565,24 @@ return function(mod, C)
     -- numbers, which is where Gen 2 puts its own.
     local x = EXP_X + EXP_WIDTH - px + sx
     local y = EXP_Y + sy
+    -- The panel is a menu and does not shake, so the edge is taken as it is
+    -- drawn rather than as the bar is moved.
+    local edge = panelEdge(battle, y, 2)
+    local left = (edge and edge > x) and edge or x
+    local width = px - (left - x)
+    if width <= 0 then return end
     love.graphics.setShader()
     love.graphics.setColor(color[1], color[2], color[3], color[4])
-    love.graphics.rectangle("fill", x, y, px, 2)
+    love.graphics.rectangle("fill", left, y, width, 2)
     -- Exempt from the palette pass, or a colourised boot quantises the blue
-    -- back into the zone's own four shades.
-    PaletteFX.markTrueColor(x, y, px, 2)
-    drawExpBurst(state.expBurstFrame, EXP_X, EXP_Y + 1, 1, color, true)
+    -- back into the zone's own four shades.  The rect MARKED is the rect
+    -- DRAWN, always: a mark over ground this bar did not paint re-blits
+    -- whatever is there raw, which is the same bug pointed the other way.
+    PaletteFX.markTrueColor(left, y, width, 2)
+    -- The same edge, asked on the bar's own rows: the burst is thrown from one
+    -- pixel under them and the panel is forty rows tall, so a panel lying
+    -- across the bar lies across the burst too.
+    drawExpBurst(state.expBurstFrame, EXP_X, EXP_Y + 1, 1, color, true, edge)
   end
 
   -- Published for the same reason the geometry is: a mod that wants to know

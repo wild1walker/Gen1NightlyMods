@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.1] - 2026-09-01
+
+- No changes; released alongside the UI mod.
+
 ## [0.32.0] - 2026-09-01
 
 - **Every voxel mod, and none of them required.** A voxel mod redraws the
