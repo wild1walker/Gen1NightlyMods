@@ -6,6 +6,17 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.10] - 2026-09-01
+
+- **Reverted both of 0.32.9's changes.** They made battles unplayable — the
+  field greyscale and garbled, no text box, no move menu — and a broken battle
+  is not worth carrying while I work out which of the two did it.
+
+  Both go back in once I can show which one, and with a test that would have
+  caught it. Neither was urgent: one is a feature (backdrops standing down
+  under a voxel mod) and one is a latent bug in a layout most players never
+  open a suite page in.
+
 ## [0.32.9] - 2026-09-01
 
 - **Backdrops stand down while a voxel mod is drawing the battle.** A

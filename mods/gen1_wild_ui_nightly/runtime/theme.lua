@@ -271,33 +271,9 @@ end
 -- and it is the paper everything after it sits on -- which is why it has to
 -- be the FIRST zone: a whole-screen zone further down the list is a panel
 -- laid over a page rather than the page itself.
--- ------- the GB frame, WHEREVER it has been put
---
--- A classic 160x144 screen drawn over a WIDE battle is CENTRED by the engine
--- before this hook ever sees the list: Game.lua computes
--- `classicOffset = (uiWidth - 160) / 2` and runs `centerClassicZones` over the
--- zone owner's list, unless that owner is itself a wide battle.  So a page's
--- own whole-screen zone arrives at x = 72, not x = 0.
---
--- Demanding x == 0 made every such page fail this test.  pageZones then threw
--- the real list away and synthesised a whole-screen zone of its own -- at
--- x = 0, because nothing told it otherwise -- so the page was THEMED at
--- 0..160 while it was DRAWN at 72..232: its right third left light, and a
--- dark strip laid over the battle to its left.  Every suite page opened over a
--- wide battle, in DARK.
---
--- `wholeAt` answers where the frame is rather than whether it is at the
--- origin, and hands the offset back so the fallback can be built in the same
--- place as the thing it is standing in for.
-local function wholeAt(zone)
-  if type(zone) ~= "table" then return nil end
-  if type(zone.x) ~= "number" then return nil end
-  if zone.y ~= 0 or zone.w ~= 160 or zone.h ~= 144 then return nil end
-  return zone.x
-end
-
 local function isWhole(zone)
-  return wholeAt(zone) ~= nil
+  return type(zone) == "table" and zone.x == 0 and zone.y == 0
+    and zone.w == 160 and zone.h == 144
 end
 
 -- The third way in, kept from this file's first version: a list that opens on
@@ -1091,12 +1067,7 @@ function Theme.new(context)
         and isWhole(zones[1]) and type(zones[1].colors) == "table" then
       return zones
     end
-    -- Built at the same x the list it replaces was centred to, so a page that
-    -- declares no palettes over a wide battle is themed where it is drawn.
-    -- Falling back to 0 is right for every classic frame, which is every
-    -- frame the engine did not centre.
-    local x = (type(zones) == "table" and wholeAt(zones[1])) or 0
-    return { { colors = GREYS, x = x, y = 0, w = 160, h = 144 } }
+    return { { colors = GREYS, x = 0, y = 0, w = 160, h = 144 } }
   end
 
   -- ------- the matte
@@ -1575,7 +1546,6 @@ end
 -- For the tests, which have no engine to require classes out of.
 Theme.isGreys = isGreys
 Theme.isWhole = isWhole
-Theme.wholeAt = wholeAt
 Theme.basePage = basePage
 Theme.luma = luma
 Theme.reversed = reversed
