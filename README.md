@@ -76,6 +76,25 @@ each fork stands on.
 
 Everything below is written up properly in each mod's own `CHANGELOG.md`.
 
+### The white block over the party screen's message box
+
+Pick the POKéMON already out when a trainer offers you the switch and the "is
+already out!" box came up with a hole punched through it. A true-colour mark is
+blitted *raw*, and the engine's message box stands at `y=96` — which is under
+the engine's own last party row and, since this suite added a header box, a row
+and a half *into* ours. The sixth icon's mark was blitting the box's own paper
+back un-inverted. A covered row loses its matte and its mark together now.
+
+### Autosave no longer saves a trainer battle as un-won
+
+Beat a trainer, let the autosave take its window, load that save — and the
+trainer wanted to fight again. `battle.ended` fires while the battle is still
+tearing down; what writes the *win* is the battle's `onFinish`, which runs as
+the return transition's onDone, well after. The covered frames the save aims at
+are all before the win exists, which is why it happened every time rather than
+sometimes. The save waits for the outcome now, and lands on the frame the game
+hands control back — a window in its own right.
+
 ### No line across the move panel's `PP` row
 
 Reported on a dark battle menu, and the theme is not the cause. The XP bar sits

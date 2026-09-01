@@ -7,6 +7,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.2] - 2026-09-01
+
+- **Autosave no longer saves a trainer battle as un-won.** Beat a trainer, let
+  the autosave take the window at the end of the battle, then load that save:
+  the trainer was standing there wanting to fight again.
+
+  `battle.ended` is emitted while the battle is still tearing down, and the
+  thing that writes the **outcome** runs later -- `BattleState` hands the
+  battle's `onFinish` to the battle-return transition as its *onDone*, and a
+  trainer's `onFinish` is what sets `save.defeatedTrainers[npc.id]` and the
+  map's event flag.
+
+  So the ten covered frames at the front of that return -- which is exactly
+  the window a post-battle save aims at, and the reason it lands reliably --
+  are frames on which the win does not exist yet. The good window is what made
+  this happen every time instead of sometimes.
+
+  The save now waits for the outcome call to return. Nothing is lost by
+  waiting: `onFinish` **is** the return's onDone, so the frame it runs on is
+  the frame the game hands control back, which is already a window in its own
+  right -- the player standing where the battle left them, not yet moved. A
+  wild battle carries no `onFinish`, has no outcome pending, and is due at once
+  as before.
+
 ## [0.32.1] - 2026-09-01
 
 - No changes; released alongside the UI mod.

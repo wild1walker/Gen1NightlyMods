@@ -6,6 +6,33 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.2] - 2026-09-01
+
+- **The white block over the message box on the party screen.** Pick the
+  POKéMON already out when a trainer offers you the switch, and the "is
+  already out!" box came up with a 16x16 hole of raw white page punched
+  through it, black ink and all.
+
+  A marked rectangle is blitted **raw** -- whatever is in those pixels when
+  the frame is composed, exempt from the palette pass. That is right while the
+  icon is the last thing drawn there and a lie the moment anything covers it.
+
+  `PartyMenu:refuse` pushes a TextBox for that line, and every message box in
+  this game stands at tile row 12, `y=96`. On the *engine's* party screen the
+  six rows run `0..96`, so `y=96` is exactly under the last of them and the
+  engine never had this. This screen has a header box, so every row moved down
+  24: `y=96` lands a row and a half into the body, slot 6's icon sits at
+  `104..120` squarely beneath the box, and its mark blitted the box's own
+  paper back un-inverted.
+
+  A covered row now loses its matte and its mark together -- together because
+  a black rectangle that is *not* marked is shade-3 pixels, which the theme
+  maps to the page's ink and puts a hole in the page instead. It keeps its
+  icon, drawn through the palette pass like everything else and then covered,
+  which is what a row under a box should look like. Where the covering starts
+  is read off the covering state's own geometry, so a caller that passes its
+  own box -- the battle switch does -- is taken at its word.
+
 ## [0.32.1] - 2026-09-01
 
 - **The XP bar no longer draws a line across the move panel's `PP` row.**

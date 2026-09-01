@@ -1084,9 +1084,11 @@ return function(mod)
   end
 
   local CHECKPOINTS = {
-    "battle.ended", "pokemon.caught", "pokemon.evolved",
+    "pokemon.caught", "pokemon.evolved",
     "egg.hatched", "trade.completed", "world.blacked_out",
   }
+  -- battle.ended is not in that list.  It is a checkpoint, but not YET -- see
+  -- requestAfterOutcome below.
   -- map.entered is not in that list.  It is a checkpoint only sometimes, and
   -- the engine is the one that knows when -- see enteredBehindAScreen below.
 
@@ -1113,7 +1115,57 @@ return function(mod)
   mod.events:on("battle.started", function()
     state.inBattle = true
   end)
-  mod.events:on("battle.ended", function() state.inBattle = false end)
+  -- ---------- and a battle's outcome is committed AFTER battle.ended
+  --
+  -- The event is emitted while the battle is still tearing down, and the thing
+  -- that writes the OUTCOME into the save runs later.  BattleState hands
+  -- `onFinish` to the battle-return transition as its onDone, and a trainer's
+  -- onFinish is what sets `save.defeatedTrainers[npc.id]` and the map's event
+  -- flag (src/world/OverworldController.lua, the trainer_encounter branch).
+  --
+  -- So the ten covered frames at the front of that return -- which is exactly
+  -- the window a post-battle save aims at, and the reason it lands reliably --
+  -- are frames on which the win DOES NOT EXIST YET.  A save taken there is a
+  -- save of the battle not won: load it and the trainer is standing there
+  -- wanting to fight again, having already been beaten.  The good window is
+  -- what made it happen every time.
+  --
+  -- Waiting costs no window.  `onFinish` IS the return's onDone, so the frame
+  -- it runs on is the frame the game hands control back -- which is
+  -- `settledAt`, a window in its own right and the one directly under the
+  -- player: standing where the battle left them, not yet moved.  The write
+  -- moves a few frames later and becomes true.
+  --
+  -- Wrapped rather than delayed by a count, because "committed" is not a
+  -- duration.  The engine reads `self.onFinish` AFTER emitting battle.ended,
+  -- so a wrap put on here is the one it runs -- whichever route the teardown
+  -- takes: the win's transition, a blackout's synchronous call, or the one
+  -- Oak's lab has of its own.
+  --
+  -- A battle with no onFinish has no outcome waiting to be written -- a wild
+  -- encounter carries none -- so that one is due immediately, as it was.
+  local OUTCOME_HOOK = "__qolAutoSaveOutcome"
+
+  local function requestAfterOutcome(battle)
+    if not mod.options:get("events") then return end
+    local inner = type(battle) == "table" and battle.onFinish or nil
+    if type(inner) ~= "function" then return request() end
+    if rawget(battle, OUTCOME_HOOK) then return end
+    battle.onFinish = function(...)
+      -- The save is asked for whatever the outcome did, including raising:
+      -- a teardown that failed half way is still a teardown the player will
+      -- be loading, and the raise goes on to whoever called it either way.
+      local ok, err = pcall(inner, ...)
+      request()
+      if not ok then error(err, 0) end
+    end
+    battle[OUTCOME_HOOK] = true
+  end
+
+  mod.events:on("battle.ended", function(event)
+    state.inBattle = false
+    requestAfterOutcome(event and event.battle)
+  end)
 
   -- ---------- which map changes had a screen in front of them
   --
