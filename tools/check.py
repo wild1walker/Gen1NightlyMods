@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -165,6 +166,32 @@ def check_packed():
           [sys.executable, str(ROOT / "tools" / "pack.py"), "--check"], ROOT)
 
 
+# ------- and a local that is read before it is declared
+#
+# `luac -p` and `luajit -bl` both accept it: a name used above its `local` is
+# valid syntax, it is just not that local.  It compiles to a GLOBAL read, which
+# is nil, and calling nil raises at run time on whatever frame reaches it.
+# That shipped once and took a whole battle UI with it; see the same block in
+# each bundle's own tools/check.py.
+GGET = re.compile(r'\bGGET\b[^;]*;\s*"([A-Za-z_][A-Za-z0-9_]*)"')
+DECLARES = re.compile(
+    r'^[ \t]*local[ \t]+(?:function[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$', re.M)
+
+
+def forward_locals(listing, source):
+    """Names this file reads as globals and also declares as locals."""
+    read = set(GGET.findall(listing))
+    if not read:
+        return []
+    declared = set()
+    for name, rest in DECLARES.findall(source):
+        # `local x = x or ...` reads the global on purpose and is not this.
+        if name in read and re.search(r'\b' + re.escape(name) + r'\b', rest):
+            continue
+        declared.add(name)
+    return sorted(read & declared)
+
+
 def lua_binary():
     for candidate in ("luajit", "lua5.1", "lua"):
         if shutil.which(candidate):
@@ -196,6 +223,14 @@ def check_lua(directory, quiet):
             fail(directory.name, "%s: %s"
                  % (path.relative_to(directory),
                     (run.stderr or run.stdout).strip()))
+            continue
+        if binary == "luajit":
+            source = path.read_text(encoding="utf-8", errors="replace")
+            for name in forward_locals(run.stdout, source):
+                fail(directory.name,
+                     "%s: `%s` is read above the `local` that declares it, so "
+                     "it is a global there and nil at run time"
+                     % (path.relative_to(directory), name))
     if not quiet:
         print("  %-22s %d lua file(s) compile" % (directory.name, len(files)))
 

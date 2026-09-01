@@ -6,6 +6,35 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.4] - 2026-09-01
+
+- **The battle UI came back.** 0.32.3 shipped with no battle UI at all -- no
+  move buttons, no panel, no XP bar, and no vanilla menu underneath either.
+
+  `battle.overlay` called `hookHudSnap()` fifty lines above the
+  `local function hookHudSnap` that declares it. A name used above its `local`
+  is valid Lua -- it is simply not that local, it is a **global**, and that
+  global is nil. So every frame of every battle called nil and raised, on the
+  one line of that hook not wrapped in a `pcall`; the raise took the rest of
+  the hook with it. And this mod had already told the engine it owns the battle
+  menu, so nothing drew the vanilla one in its place.
+
+  Introduced in 0.32.2 by a change made *for* robustness -- retrying the voxel
+  handshake on the first battle frame in case the `mods.loaded` subscription
+  never fired. The declaration is above its use now, and the call carries a
+  `pcall` like the two draws beside it: nothing in that hook is worth the rest
+  of the battle's UI.
+
+- **`tools/check.py` now fails on a local read above its own declaration.**
+  Nothing could have caught the above: it compiles, and no test stood the file
+  up to run a frame. `luajit -bl` shows it plainly -- the read is a `GGET`, a
+  global fetch -- so the check compares the globals a file reads against the
+  locals it declares, and a name in both is a forward reference. There is no
+  judgement in the rule: legitimate global use is not also a local, and a local
+  that shadows nothing is never read as a global. The capture idiom
+  (`local unpack = unpack or table.unpack`) reads the global on its own
+  declaration line and is excluded.
+
 ## [0.32.3] - 2026-09-01
 
 - **The top of the move panel's `PP` line, actually this time.** 0.32.1 went

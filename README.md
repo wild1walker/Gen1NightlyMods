@@ -95,6 +95,20 @@ are all before the win exists, which is why it happened every time rather than
 sometimes. The save waits for the outcome now, and lands on the frame the game
 hands control back — a window in its own right.
 
+### The battle UI came back
+
+0.32.3 shipped with no battle UI at all — no buttons, no panel, no XP bar, and
+no vanilla menu underneath either. `battle.overlay` called a function fifty
+lines above the `local` that declares it, which in Lua is not that local but a
+*global*, and that global is nil: every frame of every battle called nil and
+raised, on the one line of the hook not wrapped in a `pcall`. The mod had
+already claimed the battle menu, so nothing drew the vanilla one instead.
+
+It compiled, and no test ran a frame. `tools/check.py` now fails on a local
+read above its own declaration — `luajit -bl` shows the read as a global fetch,
+so a name a file both reads as a global and declares as a local is a forward
+reference, always.
+
 ### The top of the move panel's `PP` line
 
 Two bugs on one line, found one at a time.

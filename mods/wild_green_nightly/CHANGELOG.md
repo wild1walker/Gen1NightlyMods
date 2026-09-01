@@ -6,6 +6,10 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.4] - 2026-09-01
+
+- No changes; released alongside the UI mod.
+
 ## [0.32.3] - 2026-09-01
 
 - No changes; released alongside the UI mod.

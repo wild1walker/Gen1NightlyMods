@@ -234,6 +234,41 @@ return function(mod)
     return upstream
   end)
 
+  -- Whether a voxel mod has moved the battle HUDs onto its world canvas is a
+  -- question only that mod can answer, and it answers it by being asked to
+  -- record the answer: one wrap of its own `snapHUDs`.  The XP bar reads the
+  -- result to decide where it is drawing -- see xpbar.lua.
+  --
+  -- Installed from here rather than left to the QOL half, which installs the
+  -- same wrap for its own overlays: either bundle may be running without the
+  -- other, and both must get a straight answer.  The wrap tags the table it is
+  -- on, so whichever half arrives second finds it already there and adds
+  -- nothing.  With no voxel mod installed -- the ordinary case -- this finds
+  -- nothing and says nothing.
+  --
+  -- Tried on mods.loaded, which is the earliest a voxel mod can be found, and
+  -- again on the first battle frame if that did not take.  The second is not
+  -- belt and braces: a subscription made while an event is already being
+  -- dispatched may never be called, and this file is not the only thing
+  -- deciding when it is installed.  Both are one flag apart from free.
+  local hookedHudSnap = false
+  local function hookHudSnap()
+    if hookedHudSnap or not mod.voxel then return end
+    local ok, result = pcall(mod.voxel.installHudSnapHook)
+  --
+  -- DECLARED HERE, above the overlay that calls it.  It was below, and a
+  -- local declared after its use is not an upvalue -- it is a GLOBAL read,
+  -- which is nil, and calling nil raised on every frame of every battle.
+  -- That call site was the one line in the hook not inside a pcall, so the
+  -- raise took the whole overlay with it: no bar, no panel, no buttons --
+  -- and no vanilla menu either, because this mod had already claimed it.
+    if ok and result then hookedHudSnap = true end
+  end
+  if mod.voxel and type(mod.events) == "table"
+     and type(mod.events.once) == "function" then
+    mod.events:once("mods.loaded", hookHudSnap)
+  end
+
   -- Draw-only, and last.  A throw here is a frame with no menu on it rather
   -- than a crash into the boot feed, so unlike the load above it is caught:
   -- there is no version of "the battle stops" that is better than "the
@@ -263,7 +298,9 @@ return function(mod)
   -- panel that changes width takes the covering with it.
   mod.hooks:wrap("battle.overlay", function(next, battle)
     next(battle)
-    hookHudSnap()
+    -- pcall for the same reason the two draws below carry one: this hook is
+    -- the battle's whole UI and no one thing in it may take the rest down.
+    pcall(hookHudSnap)
     local okBar, barProblem = pcall(XP.draw, battle)
     if not okBar then
       warn("Gen1BattleUI could not draw the XP bar: %s", tostring(barProblem))
@@ -297,34 +334,6 @@ return function(mod)
   else
     warn("Gen1BattleUI has no event bus to hear level-ups on; the stat box "
          .. "keeps the engine's timing")
-  end
-
-  -- Whether a voxel mod has moved the battle HUDs onto its world canvas is a
-  -- question only that mod can answer, and it answers it by being asked to
-  -- record the answer: one wrap of its own `snapHUDs`.  The XP bar reads the
-  -- result to decide where it is drawing -- see xpbar.lua.
-  --
-  -- Installed from here rather than left to the QOL half, which installs the
-  -- same wrap for its own overlays: either bundle may be running without the
-  -- other, and both must get a straight answer.  The wrap tags the table it is
-  -- on, so whichever half arrives second finds it already there and adds
-  -- nothing.  With no voxel mod installed -- the ordinary case -- this finds
-  -- nothing and says nothing.
-  --
-  -- Tried on mods.loaded, which is the earliest a voxel mod can be found, and
-  -- again on the first battle frame if that did not take.  The second is not
-  -- belt and braces: a subscription made while an event is already being
-  -- dispatched may never be called, and this file is not the only thing
-  -- deciding when it is installed.  Both are one flag apart from free.
-  local hookedHudSnap = false
-  local function hookHudSnap()
-    if hookedHudSnap or not mod.voxel then return end
-    local ok, result = pcall(mod.voxel.installHudSnapHook)
-    if ok and result then hookedHudSnap = true end
-  end
-  if mod.voxel and type(mod.events) == "table"
-     and type(mod.events.once) == "function" then
-    mod.events:once("mods.loaded", hookHudSnap)
   end
 
   -- The priority is the second one in this file that means something, and it

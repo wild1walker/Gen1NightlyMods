@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.4] - 2026-09-01
+
+- No changes; released alongside the UI mod.
+
 ## [0.32.3] - 2026-09-01
 
 - No changes; released alongside the UI mod.
