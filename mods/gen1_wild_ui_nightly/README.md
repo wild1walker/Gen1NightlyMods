@@ -239,9 +239,9 @@ guessed one.
 
 ## Gold, Silver and Crystal
 
-The bundle claims `gen1` and `gen2`, and on a Gen 2 boot three of its eleven
-features install: **PARTY MENU**, **MENU LAYOUT** and **MOD MANAGER**, plus
-**UI THEME**.
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot four of its eleven
+features install: **BACKDROPS**, **PARTY MENU**, **MENU LAYOUT** and **MOD
+MANAGER**, plus **UI THEME**.
 
 The other eight stand down, and for the most part that is the honest answer
 rather than a shortfall. This bundle exists to give Red the screens Gold
@@ -255,16 +255,75 @@ already shipped:
 | **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
 | **BATTLE INTRO** | Gold's battle already draws edge to edge, and its intro is the cart's animated wipe. |
 
-Three are gaps rather than duplicates, and are named as gaps:
+Two are gaps rather than duplicates, and are named as gaps:
 
 | feature | what is actually missing |
 |---|---|
 | **POKEDEX** | Gold's dex has the area screen and the search but no base stats, evolutions or learnset. The largest of the three; a screen port rather than an adapter, over 251 entries with Gen 2 evolution methods. |
 | **BAG** | Gold's PACK has the pockets and the descriptions. Sorting, favourites, pinned items and search are not there. |
-| **BACKDROPS** | The code would attach cleanly: Gold's battle field is one `Chrome.clear()` call. What is missing is a Johto tileset table — research, not code. |
+
 
 Each verdict is written next to its feature in `features.lua`, with what was
 checked to reach it.
+
+### BACKDROPS on Gold
+
+The seam is cleaner than Red's. Gold's battle field is one `Chrome.clear()`
+call — the first line of `BattleState:drawPanel`, and the only one in the file
+— so the backdrop goes in ahead of that instead of behind Red's
+geometry-matched `love.graphics.rectangle` shim. There is no wide arm either:
+Gold's battle is 160x144 inside `Chrome.withPanel` whatever the window does.
+
+**No new art was needed, and the reason is that there never was any Kanto
+art.** All twenty backdrops are FireRed *terrain* scenes. Six carry Kanto boss
+names only because FireRed assigned them that way, and Giovanni, Lorelei and
+Agatha are not in this game — so their snowfield, ice cave and desert are free,
+and Johto has an immediate use for them:
+
+| scene | Kanto | here |
+|---|---|---|
+| 14 Snow | Giovanni | RED, on Mt Silver |
+| 15 Snow Cave | Lorelei | KAREN, and the **ICE PATH** |
+| 16 Snow Mountain | Bruno | Bruno, in both games |
+| 17 Desert | Agatha | KOGA |
+| 18 Volcano | Lance | Lance, the Champion here |
+| 19 Space | the Champion | WILL |
+
+Nineteen of the twenty are reached. The museum is the exception, because Gold
+has no museum.
+
+Two of the three selection inputs are also *better* here than on Red, because
+Gold's map header carries what Red made this mod guess:
+
+- **`environment`** — TOWN / ROUTE / INDOOR / CAVE / GATE / DUNGEON, straight
+  off the header. Red has no such field, so its arm has to infer from the
+  tileset whether an unmapped map is a room. Here an unmapped tileset still
+  gets a right answer.
+- **the roofs** — in the data, so a town variant is generated rather than
+  hand-listed.
+
+One thing the header cannot say is which maps are gyms: Gold has no GYM
+tileset, so a gym sits on its town's tileset and the sixteen are named
+explicitly. So are the S.S. Aqua's decks and `SILVER_CAVE_OUTSIDE`, each of
+which is the wrong shape for its tileset — the same class of override the Gen 1
+arm keeps for the S.S. Anne.
+
+#### Town colours
+
+Generated, not drawn — as they always have been. Gold's `RoofPals` is indexed
+by **map group** (Red's `roofByMapIndex` is per city map), so every map in a
+group shares one roof pair and a group is a town's colour. Twenty-one of Gold's
+twenty-six groups contain a town, which is every town in both regions:
+
+```sh
+python3 tools/make_gen2_towns.py <save-dir>/data/generated/palettes.lua
+```
+
+`palettes.lua` comes from your own cartridge import, so it is not in this
+repository and `og/gen2/` is not committed. Without it every town takes the
+plain scene; with it each takes its own roofs. Kanto is regenerated rather than
+shared with Red's eleven folders, because Gold repaints Kanto — its Cerulean is
+not Red's Cerulean.
 
 ### PARTY MENU on Gold
 

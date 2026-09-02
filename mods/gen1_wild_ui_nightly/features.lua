@@ -123,26 +123,29 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen1Arena", "gen1arena" },
-      -- Gen 1 only, and the reason is content rather than code.
+      -- Runs on Gold, Silver and Crystal.
       --
-      -- The seam is there on Gold and is if anything cleaner than Red's: the
-      -- battle field is literally `Chrome.clear()`, the first line of
-      -- `BattleState:drawPanel` (src/ui/gen2/BattleState.lua:4246), so a
-      -- backdrop would go in ahead of one call instead of behind the
-      -- letterbox surgery this mod does to Red.
+      -- The seam there is cleaner than Red's: the battle field is one
+      -- `Chrome.clear()` call, the first line of `BattleState:drawPanel`
+      -- (src/ui/gen2/BattleState.lua:4246) and the only one in the file, so
+      -- the backdrop goes in ahead of that instead of behind Red's
+      -- geometry-matched `love.graphics.rectangle` shim.
       --
-      -- What does not move is the thing that decides WHICH backdrop.  That is
-      -- a table of Kanto tilesets with per-map overrides for the maps whose
-      -- tileset lies about them -- the S.S. Anne's decks, the sea routes that
-      -- fish differently -- and every row of it was chosen by looking at a
-      -- Kanto map.  Johto has its own tilesets under its own names and its
-      -- own maps that lie about them, and none of that is derivable from this
-      -- table; it is a second piece of research, against the same art or
-      -- against art nobody has drawn yet.
+      -- What made this look like a content problem is that the art is named
+      -- after Kanto.  It is not drawn for Kanto.  All twenty backdrops are
+      -- FireRed TERRAIN scenes -- grass, forest, cave, sea, pond, beach,
+      -- craggy, snow, ice cave, desert, volcano -- and Johto is made of the
+      -- same terrain.  What was Kanto-specific was the ASSIGNMENT, and that
+      -- is a table.
       --
-      -- So this is the one gate here that is a genuine to-do rather than a
-      -- verdict.  It is the code that is ready, not the answer.
-      gen1_only = true,
+      -- Two of the three inputs are better here than on Red, because Gold's
+      -- map header carries what Red made this mod guess: `environment` says
+      -- whether a map is a town, a route, a cave or a room, so an unmapped
+      -- tileset still lands somewhere right; and the roof colours are in the
+      -- data, so a town variant is generated rather than hand-listed.
+      --
+      -- See modules/Gen1Arena/main.lua for the three tables and
+      -- tools/make_gen2_towns.py for the town recolours.
     },
 
     {

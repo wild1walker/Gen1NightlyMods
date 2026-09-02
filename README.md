@@ -283,16 +283,56 @@ in place, once a frame, before the frame draws. Same two themes, same stored
 row, same promise that a theme which cannot move a glyph cannot move one off
 the screen.
 
-Three things are gaps rather than duplicates, and are named as gaps:
+`BACKDROPS` runs there too, and needed no new art — see below.
+
+Two things are gaps rather than duplicates, and are named as gaps:
 
 | | what is missing on Gold |
 |---|---|
 | **`POKEDEX`** | Gold's dex has the area screen and the search, but no base stats, evolutions or learnset. The biggest of the three, and a screen port rather than an adapter. |
 | **`BAG`** | Gold's PACK has the pockets and the descriptions; sorting, favourites, pinned items and search are still missing. |
-| **`BACKDROPS`** | The code would attach cleanly — Gold's battle field is one `Chrome.clear()` call. What is missing is a Johto tileset table. |
+
 
 Every one of those verdicts is written next to the feature it belongs to in
 each bundle's `features.lua`, with what was checked to reach it.
+
+### The backdrops were never Kanto art
+
+This one is worth its own note, because the name misleads. Every backdrop in
+the pack is a FireRed **terrain** scene — grass, forest, cave, sea, pond,
+beach, craggy, snow, ice cave, desert, volcano — and Johto is made of the same
+terrain. What was Kanto-specific was the *assignment*, and that is a table.
+
+Six of the twenty are named after Kanto bosses only because FireRed assigned
+them that way, and three of those six belong to people who are not in this
+game at all. So they are re-dealt:
+
+| scene | Kanto | Gold, Silver and Crystal |
+|---|---|---|
+| 14 Snow | Giovanni | **RED**, at the top of Mt Silver |
+| 15 Snow Cave | Lorelei | **KAREN** — and the **ICE PATH**, which is what it is a painting of |
+| 16 Snow Mountain | Bruno | Bruno, who is in both |
+| 17 Desert | Agatha | **KOGA** |
+| 18 Volcano | Lance | Lance, who is the Champion here |
+| 19 Space | the Champion | **WILL**, the psychic |
+
+Nineteen of the twenty are reached on a Gen 2 boot. The one that is not is the
+museum, because Gold has no museum.
+
+**Town colours are generated, not drawn.** A town variant has always been a
+recolour: the art's only two saturated warm colours are the roof browns, and a
+variant remaps them onto that town's own roof pair out of the game's data.
+Gold keeps the same two colours one level up — `RoofPals`, indexed by map
+group — so all twenty-one towns across both regions come out of the same two
+passes:
+
+```sh
+python3 tools/make_gen2_towns.py <save-dir>/data/generated/palettes.lua
+```
+
+That file comes from your own Gold, Silver or Crystal import, so it is not in
+this repository and the generated folders are not committed. Until you run it,
+towns take the plain scene; run it and each takes its own roofs.
 
 ## Licence
 

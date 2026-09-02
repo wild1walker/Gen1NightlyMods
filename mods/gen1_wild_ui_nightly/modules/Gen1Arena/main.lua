@@ -112,6 +112,61 @@ local function devOption(key)
   return mod.options:get(key) and true or false
 end
 
+-- ------- which generation
+--
+-- Asked once and cached: a boot cannot change generation.  Declared up here
+-- rather than beside the selection tables because `loadImage` below reads it,
+-- and a local read above its own declaration is not that local at all -- it
+-- is a global fetch, and nil.
+local isGen2
+local function gen2()
+  if isGen2 == nil then
+    isGen2 = false
+    local okV, GameVersion = pcall(require, "src.core.GameVersion")
+    if okV and type(GameVersion) == "table"
+        and type(GameVersion.generation) == "function" then
+      local okCall, generation = pcall(GameVersion.generation)
+      isGen2 = okCall and generation == 2
+    end
+  end
+  return isGen2
+end
+
+-- ------------------------------------------------- the same art, renamed
+--
+-- Every one of the twenty backdrops in this pack is a FireRed TERRAIN scene.
+-- FireRed itself assigns six of them to Kanto bosses -- and that assignment,
+-- not the art, is what is Kanto-specific:
+--
+--     14 Snow          -> Giovanni      17 Desert   -> Agatha
+--     15 Snow Cave     -> Lorelei       18 Volcano  -> Lance
+--     16 Snow Mountain -> Bruno         19 Space    -> Champion
+--
+-- Giovanni, Lorelei and Agatha are not in Gold, Silver or Crystal at all, so
+-- on a Gen 2 boot three finished scenes -- a snowfield, an ice cave and a
+-- desert -- would otherwise sit in the package unreachable.  Johto has a use
+-- for two of them immediately, and one of those is exact: the ICE PATH is an
+-- ice cave, which is what 15 is a painting of.
+--
+-- So a Gen 2 slot may name a file drawn for something else.  The alias is
+-- here rather than in the tables so that the tables can say what a place IS
+-- ("ice_path") instead of which Kanto character happens to own the picture of
+-- it, and so the provenance is recorded in one place.
+--
+-- Nothing is copied and no file is renamed on disk: the credit in CREDITS.md
+-- is for the art, and the art has not changed.
+local GEN2_SLOT_FILE = {
+  -- places
+  ice_path = "lorelei",        -- 15 Snow Cave -- the Ice Path, exactly
+  -- the Elite Four, the Champion, and the fight on Mt Silver
+  will = "champion",           -- 19 Space -- Will is the psychic
+  koga = "agatha",             -- 17 Desert
+  karen = "lorelei",           -- 15 Snow Cave -- shares with the Ice Path
+  red = "giovanni",            -- 14 Snow -- Mt Silver's summit is snow
+  -- BRUNO keeps 16 Snow Mountain and LANCE keeps 18 Volcano: both are in this
+  -- game, and both keep the scene the art was drawn for them.
+}
+
 -- ---------------------------------------------------------------- assets
 
 local BACKDROP_DIR = "assets/backdrops/"
@@ -123,6 +178,10 @@ local images = {}
 local loaded = false
 
 local function loadImage(layout, name)
+  -- On Gold a slot may be an alias for a file drawn under another name; see
+  -- GEN2_SLOT_FILE below.  Resolved here so every caller in the chain --
+  -- variant, place, water, boss, fallback -- gets it without asking.
+  if gen2() and GEN2_SLOT_FILE[name] then name = GEN2_SLOT_FILE[name] end
   local key = layout .. "/" .. name
   if images[key] ~= nil then return images[key] or nil end
   local path = mod.path .. "/" .. BACKDROP_DIR .. key .. ".png"
@@ -245,13 +304,370 @@ local BOSS_CLASS = {
   OPP_RIVAL3 = "champion",
 }
 
+-- ---------------------------------------------------------------- Gold
+--
+-- Gold, Silver and Crystal pick a backdrop the same way, out of different
+-- facts.  Everything below replaces the four INPUTS to `pickBackdrop`; the
+-- chain itself -- kind narrows, then place, then the town's colour, with
+-- water and a boss outranking the room -- is the same code and is not
+-- duplicated.
+--
+-- Three of the inputs are better here than on Red, because Gold's map header
+-- carries what Red made this file guess:
+--
+--   `tileset`      the same idea, different names and twenty-eight of them
+--                  (thirty-six on Crystal).
+--   `environment`  TOWN / ROUTE / INDOOR / CAVE / GATE / DUNGEON, straight
+--                  off the header.  Red has no such field, which is why its
+--                  arm needs NOT_A_BUILDING to guess whether an unmapped
+--                  tileset is a room; here an unmapped tileset still gets a
+--                  right answer.
+--   `landmark`     which town you are in, by name.  Red's arm hand-lists the
+--                  eleven city maps and tests a map index against them; Gold
+--                  says so itself, so a town variant is a table lookup and a
+--                  romhack's new town is one row.
+
+local TILESET_SLOT_GEN2 = {
+  -- The three overworld tilesets.  Routes and towns share them exactly as
+  -- OVERWORLD is shared on Red, so `environment` is what separates the two
+  -- below -- Red has to use a map index for the same job.
+  TILESET_JOHTO = "field",
+  TILESET_JOHTO_MODERN = "field",
+  TILESET_KANTO = "field",
+
+  -- Buildings.  All of these route to `indoor`, which gets the wild scene and
+  -- the Indoor Trainer scene together, because `trainer_indoor` outranks
+  -- `indoor` in the lookup -- the same trick the Gen 1 arm plays with
+  -- FACILITY and the rest.
+  TILESET_HOUSE = "indoor",
+  TILESET_PLAYERS_HOUSE = "indoor",
+  TILESET_PLAYERS_ROOM = "indoor",
+  TILESET_TRADITIONAL_HOUSE = "indoor",
+  TILESET_POKECENTER = "indoor",
+  TILESET_MART = "indoor",
+  TILESET_LAB = "indoor",
+  TILESET_GATE = "indoor",
+  TILESET_FACILITY = "indoor",
+  TILESET_TRAIN_STATION = "indoor",
+  TILESET_RADIO_TOWER = "indoor",
+  TILESET_LIGHTHOUSE = "indoor",
+  -- The rooms the Elite Four and the Champion stand in.  A boss outranks the
+  -- room (BOSS_KIND, below), so these only decide what a battle in one of
+  -- those rooms that is NOT the boss looks like -- which on the cart is
+  -- nothing, and on a romhack is a hallway rather than a grass field.
+  TILESET_ELITE_FOUR_ROOM = "indoor",
+  TILESET_CHAMPIONS_ROOM = "indoor",
+
+  TILESET_PORT = "port",
+  TILESET_MANSION = "mansion",
+  -- Goldenrod's and Celadon's Game Corners.  `club` is the Fighting Dojo art
+  -- on Red, which is the closest thing in the pack to a room full of people.
+  TILESET_GAME_CORNER = "club",
+  -- Sprout Tower, the Tin Tower and the Burned Tower.  `tower` is Lavender's
+  -- Pokemon Tower, which is the same idea -- a tall wooden interior -- and is
+  -- what a Gastly in Sprout Tower should stand in front of.
+  TILESET_TOWER = "tower",
+
+  TILESET_CAVE = "cave",
+  TILESET_DARK_CAVE = "cave",
+  -- The Ice Path takes 15 Snow Cave rather than the plain cave: the art is
+  -- an ice cave, and on this cart nobody else is using it.
+  TILESET_ICE_PATH = "ice_path",
+  TILESET_UNDERGROUND = "cave",
+  TILESET_RUINS_OF_ALPH = "cave",
+
+  -- The National Park, which is outdoors and has grass in it.
+  TILESET_PARK = "field",
+  TILESET_FOREST = "forest",
+
+  -- Crystal's eight extra tilesets.  The five WORD_ROOMs are the Ruins of
+  -- Alph puzzle chambers, which are underground.
+  TILESET_BATTLE_TOWER_OUTSIDE = "town",
+  TILESET_BATTLE_TOWER_INSIDE = "indoor",
+  TILESET_POKECOM_CENTER = "indoor",
+  TILESET_BETA_WORD_ROOM = "cave",
+  TILESET_HO_OH_WORD_ROOM = "cave",
+  TILESET_KABUTO_WORD_ROOM = "cave",
+  TILESET_OMANYTE_WORD_ROOM = "cave",
+  TILESET_AERODACTYL_WORD_ROOM = "cave",
+}
+
+-- Per-map overrides, checked before the tileset -- Gold's twin of MAP_SLOT.
+--
+-- Four things the header cannot say, each of which left a finished backdrop
+-- with nothing pointing at it:
+--
+--   the gyms       Gold has no GYM tileset.  A gym sits on whatever tileset
+--                  its town uses, so without this a gym TRAINER got the
+--                  town's field and the Gym scene went unreached.  (The
+--                  LEADER was always fine: a boss outranks the room.)
+--   the Fast Ship  the S.S. Aqua, which is the S.S. Anne's counterpart and
+--                  the reason a `ship` and a `deck` scene exist at all.
+--   Mt Silver      `SILVER_CAVE_OUTSIDE` is the mountainside, not a cave --
+--                  which is what 6 Craggy is a painting of, and the only
+--                  outdoor crag in the game now that Indigo Plateau has no
+--                  outdoor map of its own.
+--   the Den        Clair's second test is a cave with water in it.
+--
+-- Gym names are listed rather than matched on a `_GYM` suffix: Blackthorn's
+-- two floors are `BLACKTHORN_GYM_1F` / `_2F` and Blaine's is `SEAFOAM_GYM`,
+-- so a suffix rule would miss three of the sixteen and silently.
+local MAP_SLOT_GEN2 = {
+  -- Johto's eight
+  VIOLET_GYM = "gym", AZALEA_GYM = "gym", GOLDENROD_GYM = "gym",
+  ECRUTEAK_GYM = "gym", CIANWOOD_GYM = "gym", OLIVINE_GYM = "gym",
+  MAHOGANY_GYM = "gym",
+  BLACKTHORN_GYM_1F = "gym", BLACKTHORN_GYM_2F = "gym",
+  -- Kanto's eight.  Blaine's gym moved to the Seafoam Islands.
+  PEWTER_GYM = "gym", CERULEAN_GYM = "gym", VERMILION_GYM = "gym",
+  CELADON_GYM = "gym", FUCHSIA_GYM = "gym", SAFFRON_GYM = "gym",
+  SEAFOAM_GYM = "gym", VIRIDIAN_GYM = "gym",
+
+  -- The S.S. Aqua.  1F is the deck level -- open air, and the reason the
+  -- Gen 1 arm gives the S.S. Anne's bow and top walkway their own slot --
+  -- while the cabins and the hold below are the panelled interior.
+  FAST_SHIP_1F = "deck",
+  FAST_SHIP_B1F = "ship",
+  FAST_SHIP_CABINS_NNW_NNE_NE = "ship",
+  FAST_SHIP_CABINS_SW_SSW_NW = "ship",
+  FAST_SHIP_CABINS_SE_SSE_CAPTAINS_CABIN = "ship",
+
+  -- The mountainside outside Silver Cave, where RED is.
+  SILVER_CAVE_OUTSIDE = "plateau",
+
+  -- Water in a cave, which is neither sea nor pond.
+  DRAGONS_DEN_B1F = "water_cave",
+}
+
+-- The header's own classification, used when the tileset is not in the table
+-- above -- a romhack's tileset, or one a later engine adds.  Red has nothing
+-- like this: its arm falls back to NOT_A_BUILDING, which is a guess.
+local ENVIRONMENT_SLOT_GEN2 = {
+  TOWN = "town",
+  ROUTE = "field",
+  INDOOR = "indoor",
+  CAVE = "cave",
+  GATE = "indoor",
+  DUNGEON = "cave",
+}
+
+-- Which town's colour a map takes.
+--
+-- Keyed on the map's GROUP, not on its landmark, and that is not an
+-- implementation detail -- it is what the cart does.  A town variant is a
+-- roof recolour (see recolor.py), and Gold's roofs come from
+-- `RoofPals[group]`: one morn/day pair and one night pair per map group,
+-- copied over PAL_BG_ROOF's colours 1 and 2
+-- (src/import/RomExtractorGen2.lua:718-726, Palettes.bgSet's roof block).
+-- So a group IS a roof colour, and every map in it -- the town, its gym, its
+-- routes -- shares one.
+--
+-- Red does the same thing one level down: `roofByMapIndex` is per city map,
+-- because Red's eleven cities are eleven maps.  Gold has 26 groups, 22 of
+-- which contain a named town, and those 22 are these.
+--
+-- The four groups with no town in them (9, 15, 19, 20 -- route and dungeon
+-- groups) have no entry and take the plain scene, which is right: there is no
+-- town there to be the colour of.
+local GROUP_VARIANT_GEN2 = {
+  -- Johto
+  [24] = "new_bark",     [26] = "cherrygrove",  [10] = "violet",
+  [8]  = "azalea",       [11] = "goldenrod",    [4]  = "ecruteak",
+  [1]  = "olivine",      [22] = "cianwood",     [2]  = "mahogany",
+  [5]  = "blackthorn",
+  -- Kanto
+  [13] = "pallet",       [23] = "viridian",     [14] = "pewter",
+  [7]  = "cerulean",     [12] = "vermilion",    [21] = "celadon",
+  [17] = "fuchsia",      [25] = "saffron",      [6]  = "cinnabar",
+  [18] = "lavender",     [16] = "indigo",
+}
+
+-- Where a Gen 2 town's recoloured art lives.
+--
+-- Under `gen2/` rather than beside Red's eleven folders, because the roofs
+-- really are different colours: Gold repaints Kanto, so its Cerulean is not
+-- Red's Cerulean, and a shared folder would put Red's roof pair on Gold's
+-- town.  recolor.py writes this set from a Gold import's own palette data.
+--
+-- Absent is the ordinary case and is handled rather than guarded: a folder
+-- that is not there loads nothing, the variant block falls through, and the
+-- town gets the plain scene.  Dropping the folders in is then the whole
+-- change -- no edit here.
+local GEN2_VARIANT_DIR = "gen2/"
+
+-- Sea or pond, by landmark, and hand-classified from the geography exactly as
+-- the Gen 1 arm's OCEAN_MAP is -- nothing in the map data distinguishes a sea
+-- tile from a lake tile on either cart.  Everything not named here is inland
+-- and gets the Lake.
+--
+-- Johto's coast is the west and the south: Olivine and Cianwood face the open
+-- water, Routes 40 and 41 are the crossing between them, and Routes 26 to 28
+-- run along the sea back to Kanto.  Kanto's is the same south and east coast
+-- the Gen 1 arm names, because it is the same coast.
+local OCEAN_LANDMARK_GEN2 = {
+  -- Johto
+  LANDMARK_OLIVINE_CITY = true,
+  LANDMARK_ROUTE_40 = true,
+  LANDMARK_ROUTE_41 = true,
+  LANDMARK_CIANWOOD_CITY = true,
+  LANDMARK_ROUTE_27 = true,
+  LANDMARK_ROUTE_28 = true,
+  LANDMARK_FAST_SHIP = true,
+  -- Kanto -- the same coast OCEAN_MAP names, by landmark instead of by map
+  LANDMARK_PALLET_TOWN = true,
+  LANDMARK_VERMILION_CITY = true,
+  LANDMARK_CINNABAR_ISLAND = true,
+  LANDMARK_FUCHSIA_CITY = true,
+  LANDMARK_ROUTE_12 = true,
+  LANDMARK_ROUTE_13 = true,
+  LANDMARK_ROUTE_19 = true,
+  LANDMARK_ROUTE_20 = true,
+  LANDMARK_ROUTE_21 = true,
+}
+
+-- The bosses, by trainer class.
+--
+-- Sixteen gym leaders take the Leader scene and their town's colour, which is
+-- the whole point of a town variant: Falkner's gym is Violet's and Whitney's
+-- is Goldenrod's, the same way Misty's is Cerulean's on Red.
+--
+-- The Elite Four is a different four people, and the six boss scenes are six
+-- FireRed TERRAIN paintings that FireRed happened to hand to Kanto's -- so
+-- they are simply re-dealt.  Bruno and Lance are in both games and keep the
+-- scene each was drawn for; the three whose owners do not exist here
+-- (Giovanni's snowfield, Lorelei's ice cave, Agatha's desert) are free, and
+-- go to the three fights that had none.  See GEN2_SLOT_FILE for which file
+-- each of these names.
+--
+--     WILL      Space          the psychic gets the starfield
+--     KOGA      Desert
+--     BRUNO     Snow Mountain  his own, in both games
+--     KAREN     Snow Cave
+--     CHAMPION  Volcano        Lance's own; he is the Champion here
+--     RED       Snow           the summit of Mt Silver
+--
+-- So every one of the twenty backdrops has a home on a Gen 2 boot, exactly as
+-- it does on a Gen 1 one, and no new art was needed for any of it.
+local BOSS_CLASS_GEN2 = {
+  -- Johto's eight
+  FALKNER = "leader", BUGSY = "leader", WHITNEY = "leader",
+  MORTY = "leader", CHUCK = "leader", JASMINE = "leader",
+  PRYCE = "leader", CLAIR = "leader",
+  -- Kanto's eight.  BLUE is one of them: he has Viridian's gym here.
+  BROCK = "leader", MISTY = "leader", LT_SURGE = "leader",
+  ERIKA = "leader", JANINE = "leader", SABRINA = "leader",
+  BLAINE = "leader", BLUE = "leader",
+  -- the Elite Four, then the Champion
+  WILL = "will", KOGA = "koga", BRUNO = "bruno", KAREN = "karen",
+  CHAMPION = "lance",
+  -- the fight at the top of Mt Silver
+  RED = "red",
+}
+
+-- A boss slot whose file is missing falls to the Leader scene rather than to
+-- the room behind them -- a hallway would read as the mod having missed them.
+--
+-- Nothing reaches this today: every boss slot on both generations resolves to
+-- a file that ships. It is the guard for a partial pack, which the asset
+-- loader is built to allow.
+local BOSS_FALLBACK = {
+  will = "leader", koga = "leader", karen = "leader", red = "leader",
+  lorelei = "leader", bruno = "leader", agatha = "leader",
+  lance = "leader", giovanni = "leader", champion = "leader",
+}
+
 -- A boss's own scene outranks the room, the same way water does.
 local BOSS_KIND = {
   leader = true, giovanni = true, lorelei = true, bruno = true,
   agatha = true, lance = true, champion = true,
+  -- Gen 2's own four, plus the fight on Mt Silver.
+  will = true, koga = true, karen = true, red = true,
 }
 
+-- Gold's live world.  `game.overworld` is Red's singleton and does not exist
+-- here; `game.world` is the World instance, and it is read fresh every time
+-- because a battle outlives none of it.
+local function gen2World(battle)
+  local game = battle and battle.game
+  return game and game.world or nil
+end
+
+-- What the world was doing when the battle STARTED, recorded there rather
+-- than asked here.
+--
+-- Both facts are stable for the length of a fight and neither is readable
+-- once it has begun: `playerState` keeps saying "surfing" (which is right --
+-- you resume surfing afterwards) but a fished encounter leaves no trace at
+-- all, because Gold's fishing goes through `World:startBattle({ wild = ... })`
+-- with nothing to say it was fished.  This is the same thing the Gen 1 arm
+-- does by stashing `kaHooked` on the battle at `newWild` time, moved to the
+-- one call Gold builds every battle through.
+local ARENA_ENCOUNTER = "__gen1ArenaEncounter"
+
+local function gen2Encounter(battle)
+  local world = gen2World(battle)
+  return world and rawget(world, ARENA_ENCOUNTER) or nil
+end
+
+local function kindSlotGen2(battle)
+  local model = battle and battle.battle
+  local encounter = gen2Encounter(battle)
+
+  if model and model.trainer then
+    local class = model.trainer.class or model.trainer.classId
+    local boss = class and BOSS_CLASS_GEN2[class]
+    if boss then return boss end
+    if encounter and encounter.surfing then return "trainer_surf" end
+    return "trainer"
+  end
+
+  -- Gold has no Safari Zone and no link battle on this path, so the two kinds
+  -- the Gen 1 arm answers for them cannot arise and are not tested for.
+  if encounter then
+    if encounter.fished then return "fishing" end
+    if encounter.surfing then return "surf" end
+    -- A battle the world started without rolling one -- a script's Sudowoodo,
+    -- the roamers, a legendary -- is the same thing Red calls `static`.
+    if not encounter.rolled then return "static" end
+  end
+  return "wild"
+end
+
+local function currentMapDefGen2(battle)
+  local world = gen2World(battle)
+  local map = world and world.map
+  return map and map.def or nil
+end
+
+local function currentLandmarkGen2(battle)
+  local world = gen2World(battle)
+  if not (world and type(world.currentLandmarkId) == "function") then
+    return nil
+  end
+  local ok, id = pcall(world.currentLandmarkId, world)
+  return ok and id or nil
+end
+
+-- The place slot, from the header rather than from a guess.  Tileset first,
+-- because it is the more specific of the two; the environment behind it, so
+-- an unmapped tileset still lands somewhere sensible instead of on `default`.
+local function slotForGen2(def)
+  if not def then return nil end
+  local override = def.id and MAP_SLOT_GEN2[def.id]
+  if override then return override end
+  local slot = def.tileset and TILESET_SLOT_GEN2[def.tileset]
+  if slot then
+    -- Routes and towns share the three overworld tilesets exactly as they
+    -- share OVERWORLD on Red.  Red separates them with a map index; Gold's
+    -- header says which it is.
+    if slot == "field" and def.environment == "TOWN" then return "town" end
+    return slot
+  end
+  return def.environment and ENVIRONMENT_SLOT_GEN2[def.environment] or nil
+end
+
 local function kindSlot(battle)
+  if gen2() then return kindSlotGen2(battle) end
   local kind = battle and battle.kind
   if kind == "trainer" then
     local boss = battle.oppClass and BOSS_CLASS[battle.oppClass]
@@ -281,6 +697,10 @@ end
 -- with it the map you walked in from -- is game.overworld. Getting this wrong
 -- is silent: every battle just resolves to `default`.
 local function currentTileset(battle)
+  if gen2() then
+    local def = currentMapDefGen2(battle)
+    return def and def.tileset or nil
+  end
   local game = battle and battle.game
   local overworld = game and game.overworld
   local map = overworld and overworld.map
@@ -352,6 +772,10 @@ end
 local NUM_CITY_MAPS = 11
 
 local function currentMapId(battle)
+  if gen2() then
+    local def = currentMapDefGen2(battle)
+    return def and def.id or nil
+  end
   local game = battle and battle.game
   local overworld = game and game.overworld
   local map = overworld and overworld.map
@@ -375,10 +799,16 @@ local function tilesetSlot(battle)
   local tileset = currentTileset(battle)
   if not tileset then return nil end
   local mapId = currentMapId(battle)
-  local game = battle.game
-  local overworld = game and game.overworld
-  local def = overworld and overworld.map and overworld.map.def
-  local slot = slotFor(mapId, def)
+  local def, slot
+  if gen2() then
+    def = currentMapDefGen2(battle)
+    slot = slotForGen2(def)
+  else
+    local game = battle.game
+    local overworld = game and game.overworld
+    def = overworld and overworld.map and overworld.map.def
+    slot = slotFor(mapId, def)
+  end
   if devOption("diagnostic") and not seen[mapId or tileset] then
     seen[mapId or tileset] = true
     mod.log:info("map %s (tileset %s) -> %s", tostring(mapId), tileset,
@@ -400,7 +830,17 @@ local NOT_A_BUILDING = {
 local function pickBackdrop(battle, layout)
   local kind = kindSlot(battle)
   local place = tilesetSlot(battle)
-  local variant = MAP_VARIANT[currentMapId(battle) or ""]
+  -- Which town's colour, if any.  Red asks the map id; Gold asks the header's
+  -- landmark, which answers for every map in the town rather than for the two
+  -- that were hand-listed.
+  local variant
+  if gen2() then
+    local def = currentMapDefGen2(battle)
+    local tag = def and def.group and GROUP_VARIANT_GEN2[def.group]
+    variant = tag and (GEN2_VARIANT_DIR .. tag) or nil
+  else
+    variant = MAP_VARIANT[currentMapId(battle) or ""]
+  end
   local img
 
   -- A gym leader DOES take their town's colour -- the whole point is that
@@ -442,12 +882,26 @@ local function pickBackdrop(battle, layout)
       img = loadImage(layout, "water_cave")
       if img then return img end
     end
-    local body = OCEAN_MAP[currentMapId(battle) or ""] and "sea" or "lake"
-    img = loadImage(layout, body)
+    local open
+    if gen2() then
+      open = OCEAN_LANDMARK_GEN2[currentLandmarkGen2(battle) or ""]
+    else
+      open = OCEAN_MAP[currentMapId(battle) or ""]
+    end
+    img = loadImage(layout, open and "sea" or "lake")
     if img then return img end
   elseif BOSS_KIND[kind] then
     img = loadImage(layout, kind)
     if img then return img end
+    -- A boss whose own scene has not been drawn takes the Leader scene rather
+    -- than the room behind them.  Nothing on Red reaches this -- every boss
+    -- slot there has a file -- but Will, Koga, Karen and RED have none yet,
+    -- and a hallway would read as the mod having missed them.
+    local instead = BOSS_FALLBACK[kind]
+    if instead then
+      img = loadImage(layout, instead)
+      if img then return img end
+    end
   end
 
   if place then
@@ -456,10 +910,25 @@ local function pickBackdrop(battle, layout)
   end
   img = loadImage(layout, kind)
   if img then return img end
-  local tileset = currentTileset(battle)
-  if tileset and not NOT_A_BUILDING[tileset] then
-    img = loadImage(layout, "indoor")
-    if img then return img end
+  -- The last guess before `default`: is this the inside of a building?
+  --
+  -- Red has to infer it from the tileset, because nothing in its map data
+  -- says.  Gold's header does say -- so on a Gen 2 boot this asks the
+  -- environment and gets an answer rather than a guess, and a tileset nobody
+  -- has mapped still puts a wild encounter in the right kind of room.
+  if gen2() then
+    local def = currentMapDefGen2(battle)
+    local env = def and def.environment
+    if env == "INDOOR" or env == "GATE" then
+      img = loadImage(layout, "indoor")
+      if img then return img end
+    end
+  else
+    local tileset = currentTileset(battle)
+    if tileset and not NOT_A_BUILDING[tileset] then
+      img = loadImage(layout, "indoor")
+      if img then return img end
+    end
   end
   return loadImage(layout, "default")
 end
@@ -713,6 +1182,19 @@ end
 mod.exports.worldTaken = worldTaken
 mod.exports.bleedRects = bleedRects
 mod.exports.bleedCover = coverFit
+
+-- The Gen 2 selection, for tests.  All of it is pure -- a map header and a
+-- battle in, a slot name out -- which is exactly the part that can be wrong
+-- and exactly the part a headless harness can drive.
+mod.exports.gen2SlotFor = slotForGen2
+mod.exports.gen2KindSlot = kindSlotGen2
+mod.exports.gen2Tilesets = TILESET_SLOT_GEN2
+mod.exports.gen2Environments = ENVIRONMENT_SLOT_GEN2
+mod.exports.gen2GroupVariant = GROUP_VARIANT_GEN2
+mod.exports.gen2SlotFile = GEN2_SLOT_FILE
+mod.exports.gen2BossClass = BOSS_CLASS_GEN2
+mod.exports.gen2Ocean = OCEAN_LANDMARK_GEN2
+mod.exports.gen2MapSlots = MAP_SLOT_GEN2
 
 -- ------------------------------------------------------- the paper behind
 
@@ -1016,10 +1498,205 @@ local function wrap(original, surfaceW, surfaceH, layout)
   end
 end
 
+-- ------------------------------------------- what started this battle, on Gold
+--
+-- Red keeps three of these facts on the battle already: `kind`, `oppClass`
+-- and a `checkpointOrigin` that says whether the encounter was rolled, plus
+-- the surfing flag still set on the player underneath.  This mod only has to
+-- add the fourth, which it does by stashing `hooked` on the way through
+-- `newWild`.
+--
+-- Gold keeps none of them past the moment the battle opens.  `World:
+-- startBattle({ wild = ... })` is the one call every wild encounter goes
+-- through -- rolled, fished, scripted and roaming alike -- and it is handed a
+-- built Mon and nothing about where it came from.  So the facts are recorded
+-- there, at the one instant all of them are still true, and read back off the
+-- world for the length of the fight.
+--
+-- Two are read directly at that instant:
+--   surfing  `FieldMoves.isSurfing(world.playerState)`, which is Gold's own
+--            test and the one its field-move code uses.
+--   rolled   whether the world got here through its own encounter roll.
+--
+-- The third has to be caught earlier.  A fished encounter is indistinguishable
+-- at `startBattle` -- both the animated cast (`useRod` -> `beginFishing`) and
+-- the direct path (`tryFishing`) call it with a plain wild Mon -- so
+-- `rollFishing`, which both go through and nothing else does, leaves a flag
+-- for the next battle to claim.
+local function installGen2Encounter()
+  local okWorld, World = pcall(require, "src.world.gen2.World")
+  if not (okWorld and type(World) == "table") then
+    mod.log:warn("no src.world.gen2.World -- every battle will read as a "
+      .. "plain wild one")
+    return
+  end
+  if rawget(World, "__gen1arenaEncounter") then return end
+  World.__gen1arenaEncounter = true
+
+  local FieldMoves
+  do
+    local okFM, found = pcall(require, "src.world.gen2.FieldMoves")
+    if okFM and type(found) == "table" then FieldMoves = found end
+  end
+
+  local function surfing(world)
+    if not (FieldMoves and type(FieldMoves.isSurfing) == "function") then
+      return false
+    end
+    local ok, yes = pcall(FieldMoves.isSurfing, world.playerState)
+    return ok and yes or false
+  end
+
+  -- The fishing flag.  Set on the roll, claimed by the next battle to start,
+  -- and cleared either way -- so a cast that hooks nothing, or one the player
+  -- walks away from, cannot colour a battle they walk into afterwards.
+  local PENDING_FISH = "__gen1ArenaFished"
+
+  local rollFishing = World.rollFishing
+  if type(rollFishing) == "function" then
+    World.rollFishing = function(self, ...)
+      local outcome, wild = rollFishing(self, ...)
+      rawset(self, PENDING_FISH, outcome == "battle")
+      return outcome, wild
+    end
+  end
+
+  -- Whether the world rolled this encounter itself, rather than a script or a
+  -- roamer handing it one.  `tryWildEncounter` is Gold's roll, and it is the
+  -- only caller that means "you walked into this".
+  local PENDING_ROLL = "__gen1ArenaRolled"
+
+  local tryWild = World.tryWildEncounter
+  if type(tryWild) == "function" then
+    World.tryWildEncounter = function(self, ...)
+      rawset(self, PENDING_ROLL, true)
+      local ok, a, b = pcall(tryWild, self, ...)
+      rawset(self, PENDING_ROLL, nil)
+      if not ok then error(a, 0) end
+      return a, b
+    end
+  end
+
+  local startBattle = World.startBattle
+  if type(startBattle) ~= "function" then
+    mod.log:warn("src.world.gen2.World has no startBattle -- every battle "
+      .. "will read as a plain wild one")
+    return
+  end
+
+  World.startBattle = function(self, opts, ...)
+    rawset(self, ARENA_ENCOUNTER, {
+      fished = rawget(self, PENDING_FISH) == true,
+      surfing = surfing(self),
+      -- A trainer battle is never "rolled", and never asks.
+      rolled = rawget(self, PENDING_ROLL) == true,
+    })
+    rawset(self, PENDING_FISH, nil)
+    return startBattle(self, opts, ...)
+  end
+end
+
+-- ------------------------------------------------------- the patch, on Gold
+--
+-- Simpler than Red's by a long way, and worth saying why rather than leaving
+-- the asymmetry looking like an oversight.
+--
+-- Red's field is a `love.graphics.rectangle` fill buried inside a draw that
+-- may or may not be going to a canvas the zone pass will re-shade, so this
+-- mod shims `rectangle` itself, matches the fill by its exact geometry, and
+-- has two arms for where the paint has to land.  Gold's field is one call:
+--
+--     function BattleState:drawPanel()
+--       Chrome.clear()                       -- src/ui/gen2/BattleState.lua:4246
+--
+-- and it is the ONLY `Chrome.clear()` in the file.  Gold's colour is already
+-- in the picture too, so there is no shade pass to dodge and no second canvas
+-- to choose between: paint over the cleared field and it stays painted.
+--
+-- So the shim is on `Chrome.clear`, and only for the length of one
+-- `drawPanel` call.  Chrome is shared furniture -- every Gold screen clears
+-- through it -- so it is put back before the call returns, on the raising
+-- path too.  That is the same discipline the Red arm keeps with
+-- `love.graphics.rectangle`.
+--
+-- There is no WIDE arm here.  `src.battle.WideBattle` is Gen 1's, and Gold's
+-- battle is 160x144 inside `Chrome.withPanel` whatever the window is doing --
+-- so the `og` art is the only art a Gen 2 boot asks for.
+local function installGen2()
+  local okChrome, Chrome = pcall(require, "src.ui.gen2.Chrome")
+  if not (okChrome and type(Chrome) == "table"
+          and type(Chrome.clear) == "function") then
+    mod.log:warn("no src.ui.gen2.Chrome to patch -- backdrops will not appear")
+    return
+  end
+
+  local basePanel = BattleState.drawPanel
+  if type(basePanel) ~= "function" then
+    mod.log:warn("src.ui.gen2.BattleState has no drawPanel -- backdrops will "
+      .. "not appear")
+    return
+  end
+
+  local realClear = Chrome.clear
+
+  local function clearShim(...)
+    if active and not consumed and pendingImage then
+      consumed = true
+      paintField()
+      return
+    end
+    return realClear(...)
+  end
+
+  BattleState.drawPanel = function(self, ...)
+    -- A battle with no sides yet draws "NO BATTLE" on a cleared screen; there
+    -- is nothing to put a backdrop behind, and picking one would ask the
+    -- world for a map that is halfway through changing.
+    if not (self and self.battle) then return basePanel(self, ...) end
+
+    local wanted = mod.options:get("enabled") ~= false
+    if not wanted then return basePanel(self, ...) end
+
+    local chosen
+    local okPick, problem = pcall(function()
+      chosen = pickBackdrop(self, "og")
+    end)
+    if not okPick then
+      mod.log:warn("no backdrop this frame: %s", tostring(problem))
+    end
+
+    active, consumed = true, false
+    pendingImage = chosen
+    pendingW, pendingH = OG_W, OG_H
+
+    Chrome.clear = clearShim
+    local okDraw, err = pcall(basePanel, self, ...)
+    Chrome.clear = realClear
+
+    -- Only when a backdrop actually replaced the field: with BACKDROPS off,
+    -- or on a battle no slot answered, Gold's own white field is still there
+    -- and the bars around it are the right colour for it.
+    if consumed then
+      bleedImage, bleedW, bleedH = pendingImage, OG_W, OG_H
+    end
+    active, pendingImage = false, nil
+
+    if not okDraw then error(err, 0) end
+  end
+
+  mod.log:info("patched Gold's battle field (og)")
+end
+
 local function install()
   if not (ok_bs and BattleState) then return end
   if BattleState.__gen1arena then return end
   BattleState.__gen1arena = true
+
+  if gen2() then
+    installGen2()
+    installGen2Encounter()
+    return
+  end
 
   -- goFishing passes { hooked = true } but newWild only uses it to choose
   -- introText, so the fact is lost by the time we draw. Keep it.
