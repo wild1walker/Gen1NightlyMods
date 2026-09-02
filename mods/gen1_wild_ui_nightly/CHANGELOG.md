@@ -6,6 +6,33 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.15] - 2026-09-02
+
+- **Oak's speech gets a dark background, and its portraits lose the white
+  box.** The whole intro stayed white through `DARK` -- the first thing a new
+  game shows, and the one screen the theme never reached.
+
+  It was left out on purpose, and the rule was right at the time: it owns the
+  frame (`sgbPalettes` returns `wholeNamed "MEWMON"`) and draws pictures on
+  it, which is the definition of a screen the theme keeps its hands off.
+
+  That is also why 0.32.14's matte did nothing. The matte asks "is there a
+  themed page here?" before it paints, and on Oak's speech the answer was no,
+  so it never ran. The box stayed.
+
+  So the screen is a page now, and the two things that follow are the whole
+  fix: the background is themed dark, and the matte runs -- painting the page
+  colour under the portrait's mark, which is what stops the raw re-blit
+  bringing the old white page back inside it. Neither half works alone.
+  Without the matte this is a white box on a dark page, which is worse than
+  what it replaced; without the page there is nothing for the matte to match.
+
+  Its portraits keep the skirt, which is correct here and was never the
+  problem: on a shaded page the ring is the seam guard it was written to be,
+  and it is invisible against the page it guards. The black rings reported
+  earlier were that ring on a WHITE screen, and that screen is not white any
+  more.
+
 ## [0.32.14] - 2026-09-02
 
 - **No white box behind the portrait on the naming screen.** See the note

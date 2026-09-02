@@ -162,6 +162,21 @@ Theme.PAGES = {
   "src.ui.Diploma",
   "src.ui.TownMap",
   "src.ui.NamingScreen",
+  -- Oak's speech, and it is the one entry here that is a PICTURE by the rule
+  -- above -- it owns the frame and draws portraits on it.  It is a page
+  -- anyway, and asked for as one: a white screen behind Oak, the rival and
+  -- the NIDORINO is the one place DARK stayed light all the way through, and
+  -- it is the first thing a new game shows.
+  --
+  -- What makes it safe to reverse is that the pictures on it are exempt from
+  -- the reversal already.  A full-colour portrait is `trueColor` and the
+  -- engine marks it (OakSpeech.lua:726), so the shade pass never touches it;
+  -- runtime/matte.lua then paints the page colour under that mark, which is
+  -- what stops the mark's raw re-blit bringing the old white page back inside
+  -- it.  Both halves are needed and neither works alone: without the matte
+  -- this is a white box on a dark page, and without the page there is nothing
+  -- for the matte to match.
+  "src.ui.OakSpeech",
   "src.ui.LeaguePC",
   "src.ui.OptionsMenu",
   "src.mods.ManagerState",

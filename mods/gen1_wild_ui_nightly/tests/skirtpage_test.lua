@@ -50,6 +50,12 @@ package.preload["src.render.PaletteFX"] = function()
   }
 end
 
+-- The theme matches a page by its CLASS, so the test needs the same table the
+-- theme will resolve `src.ui.OakSpeech` to.
+local OakSpeech = {}
+OakSpeech.__index = OakSpeech
+package.preload["src.ui.OakSpeech"] = function() return OakSpeech end
+
 local Theme = load_("runtime/theme.lua")
 
 -- `render.zones` is where the theme is handed the game, and the skirt reads
@@ -131,6 +137,30 @@ do
   -- than a ring on a guess.
   local t = theme("dark")
   ok(t.skirt() == nil, "and no ring before the first frame is understood")
+end
+
+-- ------------------------------------------- Oak's speech is a page now
+do
+  -- The screen the whole intro is: it owns the frame (sgbPalettes returns
+  -- wholeNamed "MEWMON") and draws portraits on it, so by the picture rule it
+  -- was left white all the way through DARK -- the first thing a new game
+  -- shows, and the one screen the theme never reached.
+  --
+  -- It is a page now, and the two things that follow from that are the whole
+  -- fix.  A page is themed, so the background goes dark; and `onPage` answers
+  -- yes, which is what lets runtime/matte.lua paint the page colour under the
+  -- portrait's mark.  Without the second the first is a white box on a dark
+  -- page, which is worse than what it replaced.
+  local oak = { sgbPalettes = function() end }
+  setmetatable(oak, OakSpeech)
+
+  local t, runFrame = theme("dark")
+  runFrame(gameWith({ oak }))
+  ok(t.onPage(), "Oak's speech counts as a page, so the matte will run on it")
+
+  -- and the ring, which is wanted here: on a dark page it is the seam guard
+  -- it was written to be, and it is invisible against the page it guards.
+  ok(t.skirt() ~= nil, "and its portrait keeps the skirt a shaded page needs")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
