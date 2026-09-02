@@ -6,6 +6,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.17] - 2026-09-02
+
+- **Bag icons stop punching through the pop-up on top of them.** Open `SORT`,
+  the item actions or the TM/HM list and the icons underneath came back over
+  the box, each carrying its own dark cell with it.
+
+  A marked rectangle re-blits **raw** once the pass composes -- after
+  everything drawn over it in the meantime. The bag keeps drawing its rows
+  while a menu is open on them, so a marked icon under that menu reappears on
+  top of it. Draw order cannot reach it: the re-blit happens after all of it.
+
+  So an icon a pop-up covers drops its mark, and its matte with it. They go as
+  a pair on purpose -- a matte with no mark is a dark rectangle the palette
+  pass reads as the page's ink, which is a hole where the icon was, the same
+  bug pointing the other way. The party list has made that same pairing since
+  Gen1Party 1.8.1; this is the bag's version of it.
+
+  Carried into `Gen1ItemInfo`'s copy of `icons.lua` as well, which its own
+  header asks for.
+
 ## [0.32.16] - 2026-09-02
 
 - **The white boxes in the intro, actually gone this time.** 0.32.15 made
