@@ -6,6 +6,41 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.20] - 2026-09-02
+
+The item PC's three screens -- `WITHDRAW ITEM`, `DEPOSIT ITEM`, `TOSS ITEM`
+-- redrawn properly. Gen1ItemInfo takes these lists over and paints a page of
+its own, and three things about that were wrong at once.
+
+- **The header box came up empty.** `C.header` prints `list.title`, and the
+  engine passes **nil** for it: `PlayerPC` opens all three lists with
+  `ListMenu.new(game, nil, ...)` and `ShopMenu` does the same for `BUY` and
+  `SELL`. Nobody saw it at a mart, where the header still carries the money on
+  the right; at a PC it was a border with nothing in it. The name lives with
+  the kind now, word for word off the PC menu's own rows, so the header says
+  which of those four you are standing in.
+
+- **The white plate behind the count, and the white band under the list.**
+  These lists are opened with `messageBox = true`, which `ListMenu.new` reads
+  as `itemBox`: `isOpaque = false` and `sgbPalettes = false`. Both are true of
+  the partial window the *engine* draws, with the map showing round it. Neither
+  is true of this one, which opens with a fill of the whole 160x144.
+
+  Leaving those two flags alone said the opposite to everything that reads
+  them. The stack went on drawing the map underneath a screen that covers it,
+  and `DARK` -- which stopped counting an item box as a page in 1.26.2 /
+  0.32.18, correctly, because the bag's really is a box on somebody else's
+  screen -- themed the boxes here and left the cleared page between them white.
+  The screen says what it is now, and is themed as the page it draws.
+
+- **`CANCEL` is gone from all three.** The row is the `$ff` terminator, and it
+  is on the cartridge for a reason that stopped applying the moment
+  `home/list_menu.asm` watched `PAD_B` as well as `PAD_A`: B has always left
+  one of these lists, and the engine's `leftOnCancel` does nothing but
+  `list:close()`. On a PC holding three things the row was a quarter of the
+  list saying what the button already does. The mart keeps its `CANCEL` --
+  leaving a shop through the list is how the counter works.
+
 ## [0.32.19] - 2026-09-02
 
 - **The white hairline down the right of every item icon, and beside every
