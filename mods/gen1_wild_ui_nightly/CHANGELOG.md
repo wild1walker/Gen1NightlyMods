@@ -6,6 +6,81 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.23] - 2026-09-02
+
+- **The visual half runs on Gold, Silver and Crystal**, and most of it by
+  standing down. `manifest.json` claims `gen1` and `gen2`; three of the eleven
+  features install there and the other eight are `gen1_only` with the reason
+  written next to each in `features.lua`.
+
+  The reason is nearly always the same one and it is worth saying plainly: this
+  bundle exists to give Red the screens Gold already shipped. Gold's battle
+  menu is a 2x2 grid and its battle has an XP bar; its Bill's PC is a real box
+  with the mon, the level and the gender beside the list; its PACK has pockets
+  and prints an item's description under them; its lift is a small panel with
+  the car still on screen behind it. BATTLE MENUS, POKEMON BOX, ITEM INFO and
+  ELEVATOR PANEL would each draw a second one of something the cart has.
+
+  Two are gaps rather than duplicates and are named as such. **POKEDEX** is the
+  big one -- Gold's dex has the area screen and the search but not base stats,
+  evolutions or the learnset -- and **BAG** is the smaller one, where sorting,
+  favourites, pinned items and search are still missing on Gold. Both are
+  screen ports rather than adapters, and neither is done. **BACKDROPS** is a
+  third kind again: the code would attach cleanly (Gold's battle field is one
+  `Chrome.clear()` call) and what is missing is the Johto tileset table.
+
+- **PARTY MENU keeps its species colours on Gold**, which is the one feature
+  here that Gold needs as much as Red does. `PartyMenu:drawIcon` colours every
+  row out of `palettes.partyMenu[1]`, so six mons share one palette -- Red's
+  single MEWMON zone over all six rows, written in CGB instead of SGB. The Gold
+  arm hands `drawIcon` a palettes table whose `partyMenu[1]` is that mon's own
+  pair from `Palettes.monColors`, for the length of one call, so a CHARMANDER
+  in the party is the orange it is in a fight. Nothing is redrawn: the icon,
+  the bob, the held-item marker and the cursor offset are all still Gold's.
+
+  `START: PARTY` comes with it, because `ui.start_menu.items` is raised on both
+  carts. `RULED ICONS` and `MOVE NOT SWITCH` do not: they are settings for the
+  Gen 1 screen, and a row that cannot do anything is worse than a missing one.
+
+- **`UI THEME` works on Gold, through Gold's own colour.** Red draws a page in
+  four DMG shades and the colour arrives afterwards from the SGB pass, so the
+  Gen 1 theme rewrites that pass's zone list. Gold is a CGB game whose colour
+  is already in the picture; `render.zones` is still raised but carries nothing
+  to reverse, so a theme built on it would never fire -- the exact failure the
+  Gen 1 file's own history warns about.
+
+  So the Gold arm moves one step earlier, to the four colours every box, every
+  string and every fill reads when it is handed none:
+  `Chrome.DEFAULT_BOX_PALETTE`. They are rewritten in place, once a frame, from
+  `core.update`. Same two themes, same stored row, same promise that a theme
+  which cannot move a glyph cannot move a glyph off the screen.
+
+  In place rather than replaced because `TrainerCard` passes that exact table
+  to seventeen calls, so identity has to keep holding. And scoped to pages the
+  way the Gen 1 arm is, which here takes real work rather than none: Gold's
+  battle field is `Chrome.clear()`, reading this same table, so an unscoped
+  DARK would paint every battle black. The topmost state decides, over an
+  allow-list of Gold's own page classes plus anything this suite registered.
+
+- **The mattes do not load on Gold, and that is not a gap.** A matte paints the
+  page colour under a true-colour rectangle because Red blits one raw past the
+  shade pass and brings the white page back with it. Gold has no such pass and
+  no such re-blit, so there is nothing to repair.
+
+- `src.ui.OptionRows` is now named in exactly one place in `runtime/menu.lua`,
+  behind a lazy pcall. It is on the loader's Gen 1-only list with no adapter,
+  so a require for it from a mod's chunk on a Gold boot puts a line on the boot
+  error feed the player reads in MODS. Nothing on the Gold arm reaches it --
+  `screen.draw` is the Chrome drawer there -- and the pcall is so that a future
+  edit which does reach it degrades to a blank page instead of a red line.
+
+- `tests/theme2_test.lua`, `tests/partygen2_test.lua` and
+  `tests/gen2gate_test.lua`. The last one is the important one: it asserts that
+  a `gen1_only` feature's entry chunk is never *read* on a Gold boot, not
+  merely that it is not installed. That is what keeps eleven features' worth of
+  Gen 1-only reaches off the boot error feed.
+
+
 ## [0.32.22] - 2026-09-02
 
 - No changes; the channel ships as one version.

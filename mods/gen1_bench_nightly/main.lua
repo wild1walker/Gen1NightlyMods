@@ -29,7 +29,50 @@
 
 local ROWS = "rows.lua"
 
+-- ------- the two chromes
+--
+-- Red's OPTION screen is four 20x4 boxes and Gold's is one 18x16 one, so the
+-- bench draws itself twice rather than drawing Red's over Gold.  Which arm is
+-- picked is decided once, at build, and `screen.draw` is set to it.
+--
+-- `src.ui.OptionRows` is named in exactly one place below and reached lazily
+-- through a pcall, because a Gold boot must never resolve it: it is on the
+-- loader's Gen 1-only list with no Gen2Compat adapter
+-- (src/mods/Loader.lua:115-117), and a require for one of those from a mod's
+-- chunk puts a line on the boot error feed the player sees in MODS.  Nothing
+-- on the Gold arm reaches it; the pcall is there so that a future edit that
+-- does degrades to a blank page instead of a red line.
+--
+-- `modkit gen2check` still reports that literal as MK402.  It scans every
+-- file in the package, so a branch it can see is never taken is still a
+-- branch it can see; the finding is expected.
+local GEN2_VISIBLE_ROWS = 7
+-- Gold's own OptionsMenu puts its value column at 11, which suits ON and
+-- STEREO.  The bench's values are longer, so they start earlier -- the same
+-- number the suite's own menus use, for the same reason.
+local GEN2_VALUE_TX = 4
+
+local optionRows, optionRowsAsked
+
+local function engineOptionRows()
+  if optionRowsAsked then return optionRows end
+  optionRowsAsked = true
+  local ok, module = pcall(require, "src.ui.OptionRows")
+  optionRows = (ok and type(module) == "table") and module or nil
+  return optionRows
+end
+
+local function detectGen2()
+  local ok, GameVersion = pcall(require, "src.core.GameVersion")
+  if not ok or type(GameVersion) ~= "table" then return false end
+  if type(GameVersion.generation) ~= "function" then return false end
+  local okCall, generation = pcall(GameVersion.generation)
+  return okCall and generation == 2
+end
+
 return function(mod)
+  local isGen2 = detectGen2()
+
   -- A mod cannot require its own files; mod:read + load is the supported
   -- route, and this one file is the whole of it.
   local Rows
@@ -139,24 +182,66 @@ return function(mod)
           return
         end
 
-        local ok, OptionRows = pcall(require, "src.ui.OptionRows")
-        if ok and OptionRows and OptionRows.clampScroll then
-          self.scroll = OptionRows.clampScroll(
-            self.index, self.scroll, #self.rows, nil)
+        if isGen2 then
+          -- Gold's chrome has no clampScroll of its own -- every Gen 2 screen
+          -- keeps its own window -- so the bench keeps one too, on the seven
+          -- rows a full-screen textbox has room for.
+          if self.index <= self.scroll then
+            self.scroll = self.index - 1
+          elseif self.index > self.scroll + GEN2_VISIBLE_ROWS then
+            self.scroll = self.index - GEN2_VISIBLE_ROWS
+          end
+          self.scroll = math.max(0, math.min(self.scroll,
+            math.max(0, #self.rows - GEN2_VISIBLE_ROWS)))
+        else
+          local OptionRows = engineOptionRows()
+          if OptionRows and OptionRows.clampScroll then
+            self.scroll = OptionRows.clampScroll(
+              self.index, self.scroll, #self.rows, nil)
+          end
         end
       end
 
-      function screen:draw()
-        local ok, OptionRows = pcall(require, "src.ui.OptionRows")
-        if not (ok and OptionRows and OptionRows.draw) then return end
+      -- The bottom line is the help for the row the cursor is on, or what the
+      -- last press said.  A bench with no explanation on it is a bench you
+      -- have to read the source of.
+      local function footerFor(self)
         local row = self.rows[self.index]
-        -- The bottom line is the help for the row the cursor is on, or what
-        -- the last press said.  A bench with no explanation on it is a bench
-        -- you have to read the source of.
-        local footer = context.said or (row and row.help) or "B:BACK"
-        OptionRows.draw(self.game, drawable(), self.index, self.scroll,
-                        footer, nil)
+        return context.said or (row and row.help) or "B:BACK"
       end
+
+      local function drawGen1(self)
+        local OptionRows = engineOptionRows()
+        if not (OptionRows and OptionRows.draw) then return end
+        OptionRows.draw(self.game, drawable(), self.index, self.scroll,
+                        footerFor(self), nil)
+      end
+
+      -- The same rows in Gold's own idiom: one full-screen textbox, a label
+      -- and its value two tiles apart, the cart's own cursor glyph.  The
+      -- bench is a testing tool and it is tested THROUGH, so it reads in the
+      -- game it is standing in rather than painting Red's four 20x4 option
+      -- boxes over a Gold screen -- which is what src.ui.OptionRows would do
+      -- if the loader let a Gold boot have it (src/mods/Loader.lua:115-117
+      -- says so in as many words).
+      local function drawGen2(self)
+        local Chrome = require("src.ui.gen2.Chrome")
+        Chrome.textbox(0, 0, Chrome.SCREEN_W - 2, Chrome.SCREEN_H - 2)
+        local rows = drawable()
+        for slot = 1, math.min(GEN2_VISIBLE_ROWS, #rows) do
+          local row = rows[slot + self.scroll]
+          if row then
+            local labelY = 2 + (slot - 1) * 2
+            Chrome.print(row.label, 2, labelY)
+            Chrome.print(":", GEN2_VALUE_TX - 1, labelY + 1)
+            Chrome.print(row.value() or "", GEN2_VALUE_TX, labelY + 1)
+          end
+        end
+        Chrome.cursor(1, 2 + (self.index - self.scroll - 1) * 2)
+        Chrome.print(footerFor(self), 1, Chrome.SCREEN_H - 2)
+      end
+
+      screen.draw = isGen2 and drawGen2 or drawGen1
 
       return screen
     end,

@@ -7,6 +7,55 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.23] - 2026-09-02
+
+- **The quality-of-life half runs on Gold, Silver and Crystal**, and nearly all
+  of it runs unchanged. `manifest.json` claims `gen1` and `gen2`; fourteen of
+  the seventeen features install there.
+
+  Most of them needed nothing at all, because they were already written against
+  hooks rather than modules and Gold raises the same hooks under the same
+  names. SPRINT is the clearest case: `movement.speed` is raised from
+  `src/world/gen2/World.lua` as well as `src/world/Player.lua`, so holding B to
+  run works on Gold with not one line changed. AUTOSAVE, AUTO CONTINUE, SOUND,
+  EXP SHARE and the MOVE REMINDER are the same story.
+
+- **Three are Gen 1 only, each for its own reason.**
+
+  **ALL 151** is a Gen 1 fact, not a Gen 1 implementation. It is a researched
+  placement table -- species, Kanto map, method, level, rarity and a
+  justification per row -- written against the version-exclusive and
+  trade-evolution gaps Red and Blue actually have. Gold's dex is 251, its maps
+  are Johto, and its gaps close by breeding, time of day and the phone. The
+  honest Gen 2 answer is a Johto placement table, which is somebody's research
+  rather than a port.
+
+  **TRAINER REMATCH** is a feature Gold shipped. A rematch there is the
+  POKéGEAR: the trainer takes your number and calls when they are ready. Both
+  of this mod's seams are Red's anyway -- `world.talk` is raised from
+  `OverworldController` and nowhere else, and `BattleState.newTrainer` has no
+  Gen 2 backing.
+
+  **NPC WALK** is one number, and Gold already has the right one. Red's NPC
+  crosses a cell in 32 frames against the player's 16, so its walk cycle fits
+  twice in a tile and an escort hops; Gold's is 16, the same as its player's.
+  Installing it there would not have been a no-op: `src.world.NPC` is an
+  *alias* to Gold's real class rather than a facade over it, so the replacement
+  would have landed, swapped a correct `walkPhase` for one derived for a cell
+  twice the length, and -- because `textBoxUp` reads `top.isOverworld` off a
+  stack Gold's world is not on -- stopped every NPC on the map animating.
+
+- The two features that already carried `games = { "gen1" }` internally, FORGET
+  HM and REUSABLE TMS, are unchanged; the bundle's own gate now says the same
+  thing one level up, where the menu can read it.
+
+- The `src.ui.OptionRows` consolidation in `runtime/menu.lua`, as described in
+  the visual half's entry for this version -- the two runtimes are kept in step
+  deliberately.
+
+- `tests/gen2gate_test.lua`, shared with the visual half.
+
+
 ## [0.32.22] - 2026-09-02
 
 Two rules about machines, as two rows of their own. Both ship **on**, both are

@@ -217,7 +217,7 @@ the bars above and below it are the biggest thing on the screen. The backdrop's
 own edge is now stretched into them, so the picture runs off the screen instead
 of stopping at a rectangle. `EDGE TO EDGE` turns it off.
 
-### `UI THEME`: `LIGHT`, `DARK`, `COLORFUL*`
+### `UI THEME`: `LIGHT`, `DARK`
 
 `START > OPTION > UI THEME`. `LIGHT` is the default and is what every build
 before this one looked like.
@@ -229,11 +229,70 @@ Nothing is redrawn, no screen is edited, and a theme that cannot move a glyph
 cannot move a glyph off the screen.
 
 **`DARK`** reverses every zone on the page: paper black, ink white, the shades
-between them exchanged. **`COLORFUL`** tints each page by what the screen is —
-the Pokédex red, the box blue, the party green, the bag leather — and colours
-the suite's own cards by what they open. It wears an asterisk because it is not
-finished: the battle command grid's four buttons sit over a battle rather than
-over a black-and-white page, which is a different mechanism, and they are next.
+between them exchanged.
+
+There were three. `COLORFUL` — a saturated tint per screen, a band across a
+header, a card per Pokémon in its own species colour — was taken out at 0.8.0
+rather than finished, and this page went on describing it for rather longer
+than that. The history has it if it is ever wanted back.
+
+On Gold, Silver and Crystal the same two themes arrive by a different route;
+see below.
+
+## Gold, Silver and Crystal
+
+The two bundles run on Gen 2 as of 0.32.23. Install either from the index on a
+Gold, Silver or Crystal boot and it loads in full.
+
+The **cart** does not move. Wild Green Nightly is a Red cart (`"base": "red"`)
+and stays one, because Wild Green itself is Red's player, Red's names and Red's
+title screen. What claims Gen 2 is `Gen1WildUI Nightly`, `Gen1WildQOL Nightly`
+and the test bench, installed on their own.
+
+**Nearly all of the quality-of-life half runs there unchanged**, because it was
+written against hooks rather than modules and Gold raises the same hooks under
+the same names. Sprinting is the clearest case: `movement.speed` is raised by
+both worlds, so holding B to run needed not one line. Three features are Gen 1
+only — `ALL 151`, whose placement table is Kanto research; `TRAINER REMATCH`,
+which on Gold is the POKéGEAR; and `NPC WALK`, because Gold's NPCs already walk
+at the player's pace.
+
+**Most of the visual half stands down there, and that is the honest answer
+rather than a shortfall.** This bundle exists to give Red the screens Gold
+already shipped. Gold's battle menu is a 2x2 grid and its battle has an XP bar.
+Its Bill's PC is a real box with the mon, the level and the gender beside the
+list. Its PACK has pockets and prints an item's description under them. Its
+lift is a small panel with the car still on screen behind it. Drawing our
+versions of those over the cart's would be work spent to arrive back where Gold
+started.
+
+What does run there is `PARTY MENU`, `MENU LAYOUT`, `MOD MANAGER` and
+`UI THEME`.
+
+`PARTY MENU` is there because Gold has the same bug Red does: `drawIcon`
+colours every row out of one palette, so six Pokémon share one set of colours.
+Each one wears its own on Gold now, out of the cart's own `monColors` — so a
+CHARMANDER in the party is the orange it is in a fight.
+
+`UI THEME` gets there by a different mechanism, because Gold gives it no
+choice. Red colours a page *after* it is drawn, by blitting the frame through
+an SGB zone's four colours; Gold is a CGB game whose colour is already in the
+picture. So on Gold the theme rewrites `Chrome.DEFAULT_BOX_PALETTE` — the four
+colours every box, every string and every fill reads when it is handed none —
+in place, once a frame, before the frame draws. Same two themes, same stored
+row, same promise that a theme which cannot move a glyph cannot move one off
+the screen.
+
+Three things are gaps rather than duplicates, and are named as gaps:
+
+| | what is missing on Gold |
+|---|---|
+| **`POKEDEX`** | Gold's dex has the area screen and the search, but no base stats, evolutions or learnset. The biggest of the three, and a screen port rather than an adapter. |
+| **`BAG`** | Gold's PACK has the pockets and the descriptions; sorting, favourites, pinned items and search are still missing. |
+| **`BACKDROPS`** | The code would attach cleanly — Gold's battle field is one `Chrome.clear()` call. What is missing is a Johto tileset table. |
+
+Every one of those verdicts is written next to the feature it belongs to in
+each bundle's `features.lua`, with what was checked to reach it.
 
 ## Licence
 

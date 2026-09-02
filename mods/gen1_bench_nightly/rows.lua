@@ -75,6 +75,18 @@ local function engine(name)
   return nil
 end
 
+-- Asked rather than captured: rows.lua is loaded from the entry chunk, which
+-- on Gold runs before the world exists, and this is only ever read from
+-- inside a row's own `activate`.
+local function isGen2()
+  local GameVersion = engine("src.core.GameVersion")
+  if not (GameVersion and type(GameVersion.generation) == "function") then
+    return false
+  end
+  local ok, generation = pcall(GameVersion.generation)
+  return ok and generation == 2
+end
+
 local function options(game)
   return game and game.save and game.save.options or nil
 end
@@ -286,31 +298,66 @@ local function levelRow(context)
   }
 end
 
+-- Red builds a battle and pushes it; Gold does both in one call.
+--
+-- That difference is the whole reason this row has two arms, and it is the
+-- one the migration guide leads with: `BattleState.newWild` has no Gen 2
+-- backing on purpose, because "Gold has no factory that returns an unpushed
+-- battle".  `World:startBattle` constructs and pushes together
+-- (src/world/gen2/World.lua:6721), taking a Mon rather than a species and a
+-- level, so the Gold arm builds the Mon first and hands it over.
+--
+-- Both arms leave the bench before the battle opens, for the same reason: the
+-- battle wants the overworld under it, not a menu.
+local function startBattleGen1(game, context)
+  local BattleState = engine("src.battle.BattleState")
+  local ow = game and game.overworld
+  if not (BattleState and BattleState.newWild and ow
+          and type(ow.pushBattle) == "function") then
+    context.said = "NO BATTLE FROM HERE"
+    return false
+  end
+  local ok, battle = pcall(BattleState.newWild, game,
+                           context.species, context.level)
+  if not ok or type(battle) ~= "table" or battle.dead then
+    context.said = "NO HEALTHY POKEMON"
+    return false
+  end
+  if game.stack and game.stack.pop then game.stack:pop() end
+  local pushed = pcall(ow.pushBattle, ow, battle)
+  if not pushed then context.said = "THE BATTLE DID NOT OPEN" end
+  return pushed
+end
+
+local function startBattleGen2(game, context)
+  local Mon = engine("src.battle.gen2.Mon")
+  local world = game and game.world
+  if not (Mon and type(Mon.new) == "function" and world
+          and type(world.startBattle) == "function") then
+    context.said = "NO BATTLE FROM HERE"
+    return false
+  end
+  local built, wild = pcall(Mon.new, game.data, context.species, context.level)
+  if not built or type(wild) ~= "table" then
+    context.said = "NO SUCH POKEMON"
+    return false
+  end
+  -- An empty or fainted party is Gold's own refusal rather than this row's:
+  -- startBattle takes the save's party and the battle says so itself.
+  if game.stack and game.stack.pop then game.stack:pop() end
+  local opened = pcall(world.startBattle, world, { wild = wild })
+  if not opened then context.said = "THE BATTLE DID NOT OPEN" end
+  return opened
+end
+
 local function battleRow(context)
   return {
     id = "battle",
     label = "START A BATTLE",
     help = "PRESS A. THE BENCH CLOSES AND THE BATTLE OPENS.",
     activate = function(game)
-      local BattleState = engine("src.battle.BattleState")
-      local ow = game and game.overworld
-      if not (BattleState and BattleState.newWild and ow
-              and type(ow.pushBattle) == "function") then
-        context.said = "NO BATTLE FROM HERE"
-        return false
-      end
-      local ok, battle = pcall(BattleState.newWild, game,
-                               context.species, context.level)
-      if not ok or type(battle) ~= "table" or battle.dead then
-        context.said = "NO HEALTHY POKEMON"
-        return false
-      end
-      -- The bench is over the overworld and the battle wants the overworld
-      -- under it, so this leaves before it pushes.
-      if game.stack and game.stack.pop then game.stack:pop() end
-      local pushed = pcall(ow.pushBattle, ow, battle)
-      if not pushed then context.said = "THE BATTLE DID NOT OPEN" end
-      return pushed
+      if isGen2() then return startBattleGen2(game, context) end
+      return startBattleGen1(game, context)
     end,
   }
 end

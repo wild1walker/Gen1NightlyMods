@@ -237,6 +237,77 @@ transformed, so the bar keeps finding the HUD when the fork retunes its layout.
 A fork that snaps the HUDs but publishes no geometry gets no bar rather than a
 guessed one.
 
+## Gold, Silver and Crystal
+
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot three of its eleven
+features install: **PARTY MENU**, **MENU LAYOUT** and **MOD MANAGER**, plus
+**UI THEME**.
+
+The other eight stand down, and for the most part that is the honest answer
+rather than a shortfall. This bundle exists to give Red the screens Gold
+already shipped:
+
+| feature | why not on Gold |
+|---|---|
+| **BATTLE MENUS** | Gold's battle menu is already a 2x2 grid, and its battle already has an XP bar with the cart's own fill sound. |
+| **POKEMON BOX** | Gold's Bill's PC is already a box — the name in its own panel, five nicknames down the right, and the mon, level, gender and species of whatever the cursor is on. |
+| **ITEM INFO** | Gold's PACK and MART already print an item's description under the list, with a TM showing the move's. The text is the cart's own. |
+| **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
+| **BATTLE INTRO** | Gold's battle already draws edge to edge, and its intro is the cart's animated wipe. |
+
+Three are gaps rather than duplicates, and are named as gaps:
+
+| feature | what is actually missing |
+|---|---|
+| **POKEDEX** | Gold's dex has the area screen and the search but no base stats, evolutions or learnset. The largest of the three; a screen port rather than an adapter, over 251 entries with Gen 2 evolution methods. |
+| **BAG** | Gold's PACK has the pockets and the descriptions. Sorting, favourites, pinned items and search are not there. |
+| **BACKDROPS** | The code would attach cleanly: Gold's battle field is one `Chrome.clear()` call. What is missing is a Johto tileset table — research, not code. |
+
+Each verdict is written next to its feature in `features.lua`, with what was
+checked to reach it.
+
+### PARTY MENU on Gold
+
+The one feature here that Gold needs as much as Red does.
+`PartyMenu:drawIcon` colours every row out of `palettes.partyMenu[1]`, so six
+Pokémon share one palette — which is Red's single MEWMON zone over all six
+rows, written in CGB instead of SGB.
+
+The Gold arm hands `drawIcon` a palettes table whose `partyMenu[1]` is that
+mon's own pair from `Palettes.monColors`, for the length of one call. Nothing
+is redrawn: the icon, the bob, the held-item marker and the cursor offset are
+all still the cart's. `START: PARTY` comes with it; `RULED ICONS` and `MOVE NOT
+SWITCH` do not, because they are settings for the Gen 1 screen and a row that
+cannot do anything is worse than a missing one.
+
+### UI THEME on Gold
+
+Red draws a page in four DMG shades and the colour arrives afterwards from the
+SGB pass, so the Gen 1 theme rewrites that pass's zone list. Gold is a CGB game
+whose colour is already in the picture — `render.zones` is still raised there,
+but it carries nothing to reverse, so a theme built on it would never fire.
+
+So the Gold arm moves one step earlier, to `Chrome.DEFAULT_BOX_PALETTE`: the
+four colours every box, every string and every fill reads when it is handed
+none, which fifty-two files under `src/` draw through. They are rewritten in
+place, once a frame, from `core.update` — before the frame draws. Same two
+themes, same stored row, same promise that a theme which cannot move a glyph
+cannot move a glyph off the screen.
+
+In place rather than replaced, because `TrainerCard` passes that exact table to
+seventeen calls and identity has to keep holding.
+
+And scoped to pages the way the Gen 1 arm is — which here takes real work
+rather than none. Gold's battle field is `Chrome.clear()`, reading this same
+table, so an unscoped `DARK` would paint every battle black. The topmost state
+decides, over an allow-list of Gold's own page classes plus anything this suite
+registered; the overworld is not a stack state on Gold, so a plain overworld
+frame finds nothing and is left alone.
+
+The mattes do not load on Gold, and that is not a gap either: a matte paints
+the page colour under a true-colour rectangle because Red blits one raw past
+the shade pass and brings the white page back with it. Gold has no such pass.
+
 ## What is different from the standalone mods
 
 Nothing about what they do. The source is vendored unmodified from each mod's

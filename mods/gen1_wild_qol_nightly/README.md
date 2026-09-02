@@ -257,6 +257,35 @@ not. The follower's billboard is built through the fork's own
 `SpriteBillboards` and `Voxel3D`, so a follower keeps its scaled mount size in
 a voxel overworld rather than falling back to the engine's.
 
+## Gold, Silver and Crystal
+
+The bundle claims `gen1` and `gen2`, and fourteen of its seventeen features
+install on a Gen 2 boot.
+
+Most needed nothing at all. They were written against hooks rather than
+modules, and Gold raises the same hooks under the same names — `movement.speed`,
+`battle.exp_award`, `ui.party.submenu`, `ui.title_menu.items`,
+`battle.low_health_alarm`, `save.writing`, `map.entered`. **SPRINT** is the
+clearest case: `movement.speed` is raised from `src/world/gen2/World.lua` as
+well as `src/world/Player.lua`, so holding B to run works on Gold with not one
+line changed.
+
+Three are Gen 1 only, each for its own reason:
+
+| feature | why not on Gold |
+|---|---|
+| **ALL 151** | A Gen 1 *fact*, not a Gen 1 implementation: a researched placement table of species, Kanto maps, methods and levels against the gaps Red and Blue actually have. Gold's dex is 251, its maps are Johto, and its gaps close by breeding, time of day and the phone. The Gen 2 answer is a Johto table — somebody's research, not a port. |
+| **TRAINER REMATCH** | Gold shipped this. A rematch there is the POKéGEAR: the trainer takes your number and calls when they are ready. Both of this mod's seams are Red's anyway. |
+| **NPC WALK** | One number, and Gold has the right one already. Red's NPC crosses a cell in 32 frames against the player's 16, so an escort hops; Gold's is 16. |
+
+`NPC WALK` is the one worth reading twice, because installing it on Gold would
+*not* have been a harmless no-op. `src.world.NPC` is an **alias** to Gold's own
+class on a Gen 2 boot rather than a facade over it, so the replacement really
+would land — swapping a correct `walkPhase` for one derived for a cell twice
+the length, and, because its text-box test reads `top.isOverworld` off a stack
+Gold's world is not on, stopping every NPC on the map from animating. That is
+what the gate is for.
+
 ## What is different from the standalone mods
 
 - **EXP SHARE defaults to GEN 5+.** The fighters keep their full experience and
