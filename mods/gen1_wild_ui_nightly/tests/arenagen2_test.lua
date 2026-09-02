@@ -119,8 +119,30 @@ do
   eq(slotFor(def({ tileset = "TILESET_PORT" })), "port", "Olivine's port")
   eq(slotFor(def({ tileset = "TILESET_GAME_CORNER" })), "club",
      "the Game Corner takes the one crowded-room scene in the pack")
-  eq(slotFor(def({ tileset = "TILESET_TOWER" })), "tower",
-     "Sprout Tower and the Tin Tower take the tower scene")
+  -- The tower, and why it is NOT the `tower` slot here.
+  --
+  -- `tower.png` is the same 10 Indoors art as `indoor` with GRAYMON baked
+  -- into it, and GRAYMON is Red's CEMETERY rule.  Gold has no CEMETERY, no
+  -- GRAYMON, and no per-tower palette at all -- every INDOOR map shares one
+  -- BG set -- so the plain room is the faithful answer and Lavender's
+  -- grey-violet on a Johto pagoda is not.
+  eq(slotFor(def({ tileset = "TILESET_TOWER" })), "indoor",
+     "Sprout Tower and the Tin Tower take the PLAIN interior, not Lavender's "
+     .. "mourning palette")
+  eq(slotFor(def({ id = "BURNED_TOWER_B1F", tileset = "TILESET_TOWER" })),
+     "cave", "...and the Burned Tower's basement is a collapsed pit")
+
+  -- 3 Underwater was reached by one map before this; Johto has rather more
+  -- water underground than Kanto does.
+  for _, id in ipairs({ "TOHJO_FALLS", "SLOWPOKE_WELL_B1F", "UNION_CAVE_B2F",
+                        "WHIRL_ISLAND_LUGIA_CHAMBER", "DRAGONS_DEN_B1F" }) do
+    eq(slotFor(def({ id = id, tileset = "TILESET_CAVE" })), "water_cave",
+       id .. " is water in a cave -- no sky, so neither the Sea nor the Lake")
+  end
+
+  eq(slotFor(def({ id = "RUINS_OF_ALPH_OUTSIDE",
+                   tileset = "TILESET_RUINS_OF_ALPH" })), "field",
+     "the Ruins' outside is a dig under open sky, not a chamber")
 
   -- A gym is a map, not a tileset: Gold has no GYM tileset at all, so a gym
   -- sits on whatever its town uses and has to be named.
@@ -300,8 +322,11 @@ do
   -- And the one that genuinely has nowhere to go, stated rather than left to
   -- look like an oversight.
   eq(asked.museum, nil,
-     "13's museum crop is the ONLY backdrop unreached on Gold, because Gold "
-     .. "has no museum -- there is no PEWTER_MUSEUM map in this game")
+     "the museum crop is unreached on Gold -- there is no museum in this "
+     .. "game -- but it is byte-identical to `indoor`, so no picture is lost")
+  eq(asked.tower, nil,
+     "and so is the GRAYMON'd tower, deliberately: it is Red's mourning "
+     .. "palette, and the art under it is `indoor`, which Gold's towers get")
 end
 
 io.write(("arena gen2: %d passed, %d failed\n"):format(passed, failed))

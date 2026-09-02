@@ -316,8 +316,14 @@ game at all. So they are re-dealt:
 | 18 Volcano | Lance | Lance, who is the Champion here |
 | 19 Space | the Champion | **WILL**, the psychic |
 
-Nineteen of the twenty are reached on a Gen 2 boot. The one that is not is the
-museum, because Gold has no museum.
+All twenty scenes are reached on a Gen 2 boot.
+
+The one thing that changed rather than moved is the **tower**. `tower.png` is
+not a picture of a tower — it is the generic interior with GRAYMON baked in,
+and GRAYMON is Red's rule for its CEMETERY tileset. Gold has no CEMETERY, no
+GRAYMON and no per-tower palette at all, so Sprout Tower and the Tin Tower take
+the plain interior. That is the transcription, not a downgrade: on Gold those
+walls really are the same palette a Poké Center's are.
 
 **Town colours are generated, not drawn.** A town variant has always been a
 recolour: the art's only two saturated warm colours are the roof browns, and a

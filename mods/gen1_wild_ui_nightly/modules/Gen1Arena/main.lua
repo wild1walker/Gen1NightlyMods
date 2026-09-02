@@ -363,10 +363,28 @@ local TILESET_SLOT_GEN2 = {
   -- Goldenrod's and Celadon's Game Corners.  `club` is the Fighting Dojo art
   -- on Red, which is the closest thing in the pack to a room full of people.
   TILESET_GAME_CORNER = "club",
-  -- Sprout Tower, the Tin Tower and the Burned Tower.  `tower` is Lavender's
-  -- Pokemon Tower, which is the same idea -- a tall wooden interior -- and is
-  -- what a Gastly in Sprout Tower should stand in front of.
-  TILESET_TOWER = "tower",
+  -- Sprout Tower, the Tin Tower and the Burned Tower -- and they take the
+  -- PLAIN interior, not the `tower` slot.
+  --
+  -- `tower.png` is not a picture of a tower.  It is the same 10 Indoors art
+  -- as `indoor`, `club`, `mansion`, `museum` and `ship` -- byte for byte --
+  -- with one thing done to it: GRAYMON, at 0.80 strength, baked in by
+  -- recolor.py.  And GRAYMON is a Gen 1 fact.  Red routes its tower by
+  -- `FieldDefaults.byTileset = { CEMETERY = "GRAYMON" }`, so the Pokemon
+  -- Tower wears a mourning palette rather than Lavender's roofs.
+  --
+  -- Gold has neither a CEMETERY tileset nor a GRAYMON, and does not give a
+  -- tower a palette of its own at all: its map colours come from
+  -- `environments[environment][daytime]` (RomExtractorGen2:678-701), which
+  -- is shared by every INDOOR map on the cart.  So the faithful answer for
+  -- Sprout Tower really is the same room a Pokemon Center gets -- and
+  -- Lavender's grey-violet on a Johto pagoda is just wrong.
+  --
+  -- Crystal's `specialTilesets` is the list of tilesets the cart DOES give
+  -- their own colours to, and it is six: the Ice Path, the mansion, the
+  -- Radio Tower, houses, the Battle Tower and the PokeCom Center.  No tower
+  -- is on it.
+  TILESET_TOWER = "indoor",
 
   TILESET_CAVE = "cave",
   TILESET_DARK_CAVE = "cave",
@@ -435,8 +453,30 @@ local MAP_SLOT_GEN2 = {
   -- The mountainside outside Silver Cave, where RED is.
   SILVER_CAVE_OUTSIDE = "plateau",
 
-  -- Water in a cave, which is neither sea nor pond.
+  -- Water in a cave, which is neither sea nor pond: no sky, so the Sea scene
+  -- (mostly sky) is wrong and the Lake is wrong for the same reason.  Red
+  -- reaches 3 Underwater through Seafoam and Cerulean Cave; Johto has rather
+  -- more of it, and it was going unused.
   DRAGONS_DEN_B1F = "water_cave",
+  TOHJO_FALLS = "water_cave",
+  SLOWPOKE_WELL_B1F = "water_cave",
+  SLOWPOKE_WELL_B2F = "water_cave",
+  UNION_CAVE_B2F = "water_cave",
+  -- The Whirl Islands are a sea cave throughout, and the chamber at the
+  -- bottom of them is where Lugia is.
+  WHIRL_ISLAND_B1F = "water_cave",
+  WHIRL_ISLAND_B2F = "water_cave",
+  WHIRL_ISLAND_LUGIA_CHAMBER = "water_cave",
+  WHIRL_ISLAND_CAVE = "water_cave",
+
+  -- The Ruins of Alph's outside is a walled dig under open sky, not a
+  -- chamber: `TILESET_RUINS_OF_ALPH` sends the whole landmark underground,
+  -- and this is the one map of it that is not.
+  RUINS_OF_ALPH_OUTSIDE = "field",
+
+  -- The Burned Tower's basement is where the three beasts are, and it is a
+  -- collapsed pit rather than a room -- the floor above it is the interior.
+  BURNED_TOWER_B1F = "cave",
 }
 
 -- The header's own classification, used when the tileset is not in the table

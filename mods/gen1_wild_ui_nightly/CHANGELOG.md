@@ -49,8 +49,29 @@ was taken from.
   keeps 18 Volcano, because both are here. And 15 Snow Cave gets a second home
   that is exactly what it is a painting of: the **ICE PATH**.
 
-  Nineteen of the twenty are reached on a Gen 2 boot. The twentieth is the
-  museum, and Gold has no museum.
+  All twenty scenes are reached on a Gen 2 boot.
+
+  The **tower** is the one that changed rather than moved, and it is worth the
+  paragraph. `tower.png` is not a picture of a tower: the pack's own Pokemon
+  Tower scene is slot 13, its author drew 13 as an outdoor plaza, so this mod
+  gave 13 to `town` and built the tower out of 10 Indoors -- the same art as
+  `indoor`, `club`, `mansion`, `museum` and `ship`, byte for byte -- with
+  GRAYMON baked in at 0.80 strength.
+
+  GRAYMON is Red's rule for its CEMETERY tileset
+  (`FieldDefaults.byTileset`). Gold has no CEMETERY, no GRAYMON, and no
+  per-tower palette at all -- its map colours come from
+  `environments[environment][daytime]`, shared by every INDOOR map, and
+  Crystal's `specialTilesets` list of tilesets that DO get their own colours
+  is six long with no tower on it. So Sprout Tower and the Tin Tower take the
+  plain interior here, which is the transcription rather than a downgrade.
+  The Burned Tower's basement takes the cave, being a collapsed pit rather
+  than a room.
+
+  3 Underwater was reached by one map and is now reached by ten: Tohjo Falls,
+  Slowpoke Well, Union Cave's bottom floor, the Whirl Islands throughout and
+  Lugia's chamber at the bottom of them. Johto has a great deal more water
+  underground than Kanto does, and it was all coming up as plain rock.
 
   Two of the three selection inputs are better here than on Red, because the
   map header carries what Red made this mod guess. `environment` says whether

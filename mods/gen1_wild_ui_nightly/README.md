@@ -289,8 +289,32 @@ and Johto has an immediate use for them:
 | 18 Volcano | Lance | Lance, the Champion here |
 | 19 Space | the Champion | WILL |
 
-Nineteen of the twenty are reached. The museum is the exception, because Gold
-has no museum.
+All twenty scenes are reached. Two *files* are not, and neither is a picture:
+`museum.png` is byte-identical to `indoor.png`, and `tower.png` is that same
+image with GRAYMON baked into it.
+
+#### The tower, and why it does not use the tower
+
+`tower.png` is not a picture of a tower. The pack's own Pokémon Tower scene is
+slot 13, and its author drew 13 as an outdoor plaza under open sky — so this
+mod gave 13 to `town` and built the tower out of **10 Indoors**, the same art
+as `indoor`, `club`, `mansion`, `museum` and `ship`, with one thing done to it:
+GRAYMON at 0.80 strength.
+
+And GRAYMON is a Gen 1 fact. Red routes its tower by
+`FieldDefaults.byTileset = { CEMETERY = "GRAYMON" }` — the Pokémon Tower wears
+a mourning palette rather than Lavender's roofs.
+
+Gold has no CEMETERY tileset, no GRAYMON, and no per-tower palette at all: its
+map colours come from `environments[environment][daytime]`, shared by every
+INDOOR map on the cart. Crystal's `specialTilesets` — the list of tilesets the
+game *does* give their own colours to — is six long and has no tower on it.
+
+So Sprout Tower, the Tin Tower and the Tin Tower's floors take the plain
+interior here. That is not a downgrade, it is the transcription: on Gold those
+walls really are the same palette a Poké Center's are. The Burned Tower's
+basement is the exception and takes the cave, because it is a collapsed pit
+rather than a room.
 
 Two of the three selection inputs are also *better* here than on Red, because
 Gold's map header carries what Red made this mod guess:
