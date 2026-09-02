@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.14] - 2026-09-02
+
+_Write what changed._
+
 ## [0.32.13] - 2026-09-02
 
 _Write what changed._

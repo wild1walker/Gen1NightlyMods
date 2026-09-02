@@ -6,6 +6,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.14] - 2026-09-02
+
+- **No white box behind the portrait on the naming screen.** See the note
+  under 0.32.13, which this completes: the black rings went there, the white
+  box goes here.
+
 ## [0.32.13] - 2026-09-02
 
 - **No black box round the sprites in the intro.** `DARK` was painting its
