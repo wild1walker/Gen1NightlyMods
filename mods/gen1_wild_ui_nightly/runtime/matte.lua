@@ -229,7 +229,39 @@ function Matte.new(context)
       if not rects[1] then return end     -- nothing marked; pass 1 IS the frame
 
       for _, rect in ipairs(rects) do paint(colour, rect) end
-      return base(state, ...)
+
+      -- ------- and again, if the screen clears its own page
+      --
+      -- The matte above goes down BEFORE the real draw, which is right for a
+      -- screen that inherits a page the engine already cleared: the art lands
+      -- on the matte and the mark re-blits the two together.
+      --
+      -- A screen that fills its own page wipes it on the way past.
+      -- `OakSpeech:draw` opens with setColor(1,1,1,1) and a 160x144 fill
+      -- (OakSpeech.lua:699-700), so the matte was painted, erased by that
+      -- fill, and the portrait drawn onto white paper again -- the white box,
+      -- with the matte running correctly the whole time and being undone.
+      --
+      -- So it is laid down a second time the moment that fill lands, before
+      -- the screen has drawn anything else. A screen that does not clear its
+      -- own page never triggers this and pays one comparison per rectangle.
+      -- Painting the same colour into the same rectangles twice is harmless.
+      local lg = love.graphics
+      local realRect = lg.rectangle
+      local relaid = false
+      lg.rectangle = function(mode, x, y, w, h, ...)
+        local result = realRect(mode, x, y, w, h, ...)
+        if not relaid and mode == "fill"
+            and x == 0 and y == 0 and w == 160 and h == 144 then
+          relaid = true
+          lg.rectangle = realRect
+          for _, rect in ipairs(rects) do paint(colour, rect) end
+        end
+        return result
+      end
+      local drew, drawProblem = pcall(base, state, ...)
+      lg.rectangle = realRect
+      if not drew then error(drawProblem, 0) end
     end
   end
 

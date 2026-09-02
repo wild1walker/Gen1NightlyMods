@@ -6,6 +6,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.16] - 2026-09-02
+
+- **The white boxes in the intro, actually gone this time.** 0.32.15 made
+  Oak's speech a page, which turned its background dark and made every one of
+  those boxes visible instead of hiding them on white paper -- worse than what
+  it replaced, and the matte that was supposed to prevent it had been running
+  correctly the whole time and being wiped.
+
+  `Matte.wrap` paints the matte BEFORE the real draw. That is right for a
+  screen handed a page the engine already cleared: the art lands on the matte
+  and the mark re-blits the two together. `OakSpeech:draw` opens with
+  `setColor(1,1,1,1)` and a 160x144 fill of its own, so the matte went down,
+  the fill erased it, and the portrait was drawn onto white paper again.
+
+  This file's own header names the trap -- it is why the title screen is done
+  the other way round, painting the page black rather than repairing the
+  rectangles afterwards. The matte is now laid a second time the moment that
+  full-screen fill lands, before the screen has drawn anything else. A screen
+  that does not clear its own page never triggers it.
+
 ## [0.32.15] - 2026-09-02
 
 - **Oak's speech gets a dark background, and its portraits lose the white

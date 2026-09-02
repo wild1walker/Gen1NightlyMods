@@ -117,15 +117,22 @@ do
     "and marks its rectangle exactly once -- the recording pass stands in "
     .. "for markTrueColor rather than doubling it")
 
-  -- page, matte, page again.  The matte is the middle one, and it is the
-  -- rectangle the screen marked rather than the whole page.
-  eq(#fills, 3, "two pages and one matte")
-  eq(fills[2].x, 104, "the matte is where the art is")
-  eq(fills[2].y, 4, "...both axes")
-  eq(fills[2].w, 40, "and the size the art is")
-  eq(fills[2].h, 40, "...both axes")
-  eq(fills[2].colour[1], 0, "under DARK it is black")
-  eq(fills[2].colour[3], 0, "...on every channel")
+  -- page, matte, page again, matte again.  `screenDraw` fills its own page,
+  -- and a screen that does that WIPES a matte laid before it -- so the matte
+  -- goes down a second time the moment that fill lands.  The last one is the
+  -- one the art is drawn onto and the one the mark re-blits; the first is
+  -- what a screen that inherits an engine-cleared page uses.
+  eq(#fills, 4, "two pages, and a matte for each")
+  eq(fills[3].w, 160, "the screen's own page fill comes third")
+  eq(fills[3].h, 144, "...the whole frame, which is what wipes a matte")
+
+  local last = fills[4]
+  eq(last.x, 104, "so the matte that survives is laid after it")
+  eq(last.y, 4, "...both axes")
+  eq(last.w, 40, "and the size the art is")
+  eq(last.h, 40, "...both axes")
+  eq(last.colour[1], 0, "under DARK it is black")
+  eq(last.colour[3], 0, "...on every channel")
 end
 
 io.write("and only in ADVANCED, because only ADVANCED honours the marks\n")
@@ -364,8 +371,9 @@ do
   reset()
   page = true
   Matte.new(gatedContext).wrap(screenDraw)({})
-  eq(#fills, 3, "under the naming screen the portrait gets its matte")
-  eq(fills[2].colour[1], 0, "...and it is the page colour")
+  eq(#fills, 4, "under the naming screen the portrait gets its matte")
+  eq(fills[4].colour[1], 0, "...and it is the page colour")
+  eq(fills[4].x, 104, "...laid after the screen's own page fill, not before")
 
   reset()
   page = false
