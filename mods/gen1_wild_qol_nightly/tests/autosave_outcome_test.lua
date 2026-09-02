@@ -231,5 +231,55 @@ do
      "and the save was taken rather than left owed past its window")
 end
 
+-- ------------------- the cap does not open the hatch inside the NEXT battle
+
+-- OUTCOME_CAP exists so a hold that never clears cannot switch autosave off
+-- for the rest of the session.  `held` is three things -- a battle, a screen
+-- over the map, a running script -- and the cap is the escape hatch for the
+-- two of those that can wedge.  A battle is not one of them: it ends on its
+-- own, and every battle end is another chance to release.
+--
+-- So the hatch must stay shut while a battle is up, and the case that proves
+-- it is a player who finishes one fight and walks straight into another that
+-- runs longer than the cap.  With the cap firing blind, the hold left over
+-- from the FIRST battle releases in the middle of the SECOND one and writes a
+-- save there, which is the one place a save must never land: mid-fight, with
+-- the party and the field in a state the overworld never sees.
+--
+-- Found by Gen1AutoSave's own test_on_load.lua when this change was ported
+-- down to the standalone mod -- this suite had no equivalent check and passed
+-- the whole time.
+do
+  local mod = install()
+  local wrote = false
+  local game = quietGame()
+  game.writeSave = function() wrote = true return true end
+  game.save = { options = {} }
+
+  run(mod, game, 21)                  -- clear MIN_GAP
+  wrote = false
+
+  mod.exports.autosaveRequest()
+  mod.fire("battle.ended", { battle = { onFinish = function() end },
+                             result = "win" })
+  eq(status(mod).outcomePending, true, "the first battle leaves a hold")
+
+  -- straight into another fight, longer than the cap
+  mod.fire("battle.started", {})
+  run(mod, game, 15)                  -- OUTCOME_CAP is 10
+
+  eq(status(mod).inBattle, true, "still in the second battle")
+  eq(status(mod).outcomePending, true,
+     "the hold survives the cap while a battle is up")
+  eq(wrote, false, "and nothing was written inside that battle")
+
+  -- and it lets go the moment that battle is over
+  mod.fire("battle.ended", { battle = { onFinish = function() end },
+                             result = "win" })
+  run(mod, game, 1.2)
+  eq(status(mod).outcomePending, false, "released once the battle ended")
+  ok(wrote, "and the save landed outside the fight")
+end
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

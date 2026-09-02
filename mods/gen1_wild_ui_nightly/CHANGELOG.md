@@ -6,6 +6,14 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.12] - 2026-09-02
+
+- **Voxel support is a work in progress.** It works best with **potato voxel**
+  right now. The other forks -- Battle Art Voxel, Dramatic Shape and its
+  variants, and Dramaless Shape -- run on the same code path and should work,
+  but are less proven. No voxel mod is required: with none installed, nothing
+  about the suite changes.
+
 ## [0.32.11] - 2026-09-01
 
 - **0.32.9's two changes are back, with the fault that broke battles found

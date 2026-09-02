@@ -1216,7 +1216,17 @@ return function(mod)
     -- The cap is not a second opinion about the outcome; it is the promise
     -- that a script which never ends cannot switch autosave off for the rest
     -- of the session.  It has never been reached in testing and should not be.
-    local capped = state.outcomeHeld >= OUTCOME_CAP
+    --
+    -- It does not apply inside a battle, though, and that is not a detail.
+    -- `held` covers a battle, a screen over the map and a running script, and
+    -- the cap is the escape hatch for the two that can wedge.  A battle is not
+    -- one of those: it ends on its own.  Letting the cap fire inside one is
+    -- how a hold left over from the LAST battle -- a player who finishes a
+    -- fight and walks straight into another that runs past OUTCOME_CAP --
+    -- would write a save in the middle of the new fight, which is the one
+    -- place a save must never land.  So the hatch stays shut while a battle
+    -- is up and opens again the moment it is over.
+    local capped = state.outcomeHeld >= OUTCOME_CAP and not state.inBattle
     if state.outcomeClear >= OUTCOME_QUIET or capped then
       state.holdSeconds = state.outcomeHeld
       state.outcomePending = false

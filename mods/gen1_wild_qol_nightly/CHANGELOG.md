@@ -7,6 +7,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.12] - 2026-09-02
+
+- **The autosave hold does not let go inside the next battle.** `OUTCOME_CAP`
+  is the promise that a hold which never clears cannot switch autosave off for
+  the rest of the session. It was firing blind, and `held` covers three things
+  -- a battle, a screen over the map, a running script -- of which only the
+  last two can wedge. A battle ends on its own.
+
+  So a player who finished one fight and walked straight into another that ran
+  longer than the cap had the hold from the FIRST battle release in the middle
+  of the SECOND one, and a save written there: mid-fight, with the party and
+  the field in a state the overworld never sees. The hatch now stays shut while
+  a battle is up and opens again the moment it is over.
+
+  Found by Gen1AutoSave's own `test_on_load.lua` while porting this change down
+  to the standalone mod. This channel's suite had no equivalent check and
+  passed the whole time; it has one now, and it fails against the blind cap.
+
+- **Voxel support is a work in progress.** It works best with **potato voxel**
+  right now. The other forks -- Battle Art Voxel, Dramatic Shape and its
+  variants, and Dramaless Shape -- run on the same code path and should work,
+  but are less proven. No voxel mod is required: with none installed, nothing
+  about the suite changes.
+
 ## [0.32.11] - 2026-09-01
 
 - No changes; released alongside the UI mod.
