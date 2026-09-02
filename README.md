@@ -343,9 +343,10 @@ passes:
 python3 tools/make_gen2_towns.py <save-dir>/data/generated/palettes.lua
 ```
 
-That file comes from your own Gold, Silver or Crystal import, so it is not in
-this repository and the generated folders are not committed. Until you run it,
-towns take the plain scene; run it and each takes its own roofs.
+All twenty-one are committed, the same as Red's eleven, so nothing has to be
+run to play. The script is here because the art is a function of the game's
+own numbers and ought to be rebuildable from them — `palettes.lua` comes from
+your own cartridge import and is the one thing that cannot be committed.
 
 ## Licence
 

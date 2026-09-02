@@ -336,11 +336,12 @@ twenty-six groups contain a town, which is every town in both regions:
 python3 tools/make_gen2_towns.py <save-dir>/data/generated/palettes.lua
 ```
 
-`palettes.lua` comes from your own cartridge import, so it is not in this
-repository and `og/gen2/` is not committed. Without it every town takes the
-plain scene; with it each takes its own roofs. Kanto is regenerated rather than
-shared with Red's eleven folders, because Gold repaints Kanto — its Cerulean is
-not Red's Cerulean.
+All twenty-one folders are committed under `og/gen2/`, so a Gen 2 boot has its
+town roofs with nothing to run. The script is kept because the art is a
+function of the game's own numbers and should be rebuildable from them;
+`palettes.lua` comes from your own cartridge import and is the one input that
+cannot live here. Kanto is regenerated rather than shared with Red's eleven
+folders, because Gold repaints Kanto — its Cerulean is not Red's Cerulean.
 
 ### BAG on Gold
 
