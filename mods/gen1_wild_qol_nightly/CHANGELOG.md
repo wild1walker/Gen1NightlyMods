@@ -7,6 +7,46 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.22] - 2026-09-02
+
+Two rules about machines, as two rows of their own. Both ship **on**, both are
+live -- the code reads its row on the frame it would act, so OFF is the
+cartridge back with nothing to relaunch -- and both are Gen 1 only.
+
+- **REUSABLE TMS** (`OPTION > GEN1WILD QOL > ITEMS`). A TM is kept when it is
+  used, the way an HM always has been.
+
+  The engine answers a machine with one of two verdicts and the only
+  difference between them is whether the bag spends the item: `learn`
+  consumes, `learnkept` does not, and `BagMenu` calls `consume` inside
+  `if result == "learn"` -- twice, because a POKeMON with four moves goes
+  through the forget list first and the TM is only spent if the swap actually
+  happened. So this answers the verdict an HM would have answered, and both
+  call sites are simply never reached. Nothing is re-implemented and no
+  purchase is refunded after the fact, which is the version of this that would
+  have got the forget-list case wrong.
+
+  Every refusal is still the engine's: a species that cannot learn the move is
+  still refused with its `SFX_DENIED`, and a POKeMON that already knows it is
+  still told so.
+
+- **FORGET HM MOVES** (`OPTION > GEN1WILD QOL > POKEMON`). An HM move can be
+  replaced when a POKeMON learns a fifth, which is the only way to remove a
+  move in this generation.
+
+  `MoveLearnMenu:update` checks the row against `IsMoveHM` before it swaps and
+  prints `HM techniques can't be deleted!` instead. That table is a file-local
+  in the engine, so the refusal cannot be switched off from outside -- but it
+  can be arrived at first. The wrapper answers the one frame the engine would
+  have refused and runs the engine's own three lines in its place, so a
+  forgotten HM reads exactly like a forgotten anything else. Every other frame
+  falls through untouched, and `REMEMBER MOVES` routes its relearn through the
+  same screen so it is covered without knowing about it.
+
+  It cannot strand a save. An HM is never used up -- which is the rule the row
+  above is named after -- so the move can always be taught back from the same
+  one.
+
 ## [0.32.21] - 2026-09-02
 
 - No changes; the channel ships as one version.

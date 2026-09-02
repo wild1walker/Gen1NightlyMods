@@ -6,6 +6,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.22] - 2026-09-02
+
+- No changes; the channel ships as one version.
+
 ## [0.32.21] - 2026-09-02
 
 - **The party row a message box cuts through keeps its colours**
