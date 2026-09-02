@@ -234,22 +234,20 @@ return {
       description = "THE POKEDEX WITH A POKEMON BESIDE EVERY ENTRY, BASE STATS, EVOLUTIONS, MOVES AND AN AREA SCREEN.",
       default = true,
       aliases = { "Gen1Dex" },
-      -- Gen 1 only for now, and this is the largest real gap of the set.
+      -- Runs on Gold, Silver and Crystal -- as three extra pages on the
+      -- cart's own entry screen rather than as a replacement dex.
       --
-      -- Gold's dex is genuinely better than Red's and already carries two of
-      -- the things this mod adds -- the area screen and a working search --
-      -- but it does not carry base stats, evolutions or the learnset, which
-      -- is most of why anyone opens this one.
+      -- Gold's Pokedex is good, and already carries two of the three things
+      -- this mod was built to add to Red's: an AREA screen with blinking
+      -- nests, and a working search with NEW / OLD / A-Z on SELECT.  What it
+      -- has no answer for is the third -- base stats, evolutions and the
+      -- learnset -- so that is all the Gold arm adds, and it adds it where
+      -- the cart already has a control that means "next page": PAGE counts on
+      -- past its two into STATS, EVOLVES and MOVES.
       --
-      -- It is gated rather than ported because the port is a screen and not
-      -- an adapter: `Gen2PokedexMenu` is its own 1500-line state drawn on
-      -- Gold's tile grid through Chrome, the entry pages are laid out from
-      -- the cart's own coordinates, and there are 251 of them with Gen 2
-      -- evolution methods (time of day, happiness, held item, trade-with-
-      -- item) that Red's evolution reader has no cases for.  Shipping a
-      -- half-drawn dex over the cart's working one is the outcome the whole
-      -- `games` key exists to prevent.
-      gen1_only = true,
+      -- Everything above the entry's divider stays the cart's on every page,
+      -- so they read as more of the same entry rather than a second screen
+      -- wearing its frame.  See modules/Gen1Dex/gen2.lua.
     },
 
     {

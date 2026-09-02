@@ -21,11 +21,69 @@ was taken from.
   the car still on screen behind it. BATTLE MENUS, POKEMON BOX, ITEM INFO and
   ELEVATOR PANEL would each draw a second one of something the cart has.
 
-  Two are gaps rather than duplicates and are named as such. **POKEDEX** is the
-  big one -- Gold's dex has the area screen and the search but not base stats,
-  evolutions or the learnset -- and **BAG** is the smaller one, where sorting,
-  favourites, pinned items and search are still missing on Gold. Both are
-  screen ports rather than adapters, and neither is done.
+  One is a gap rather than a duplicate and is named as such: **BAG**, where
+  sorting, favourites, pinned items and search are still missing on Gold.
+
+- **POKEDEX runs on Gold, Silver and Crystal** -- as three extra pages on the
+  cart's own entry screen, not as a replacement dex.
+
+  Gold's Pokedex already carries two of the three things this mod was built to
+  add to Red's: an AREA screen with blinking nests, and a working search with
+  NEW / OLD / A-Z on SELECT. Registering over `Gen2PokedexMenu` would mean
+  re-implementing both to stand still. What it has no answer for is the third
+  -- its entry is two pages of flavour text and nothing else -- so the Gold arm
+  adds **STATS**, **EVOLVES** and **MOVES** and nothing else.
+
+  They go where the cart already has a control that means "next page":
+  `DexEntryScreen_MenuActionJumptable`'s PAGE, which counts on past its two
+  into ours and back round to one. `A` is not intercepted to do it. PAGE is the
+  only one of the four entry actions that moves `self.page`, so the cart runs
+  the press and the page is read afterwards -- which also means AREA, CRY, PRNT
+  and B are untouched.
+
+  Everything above the entry's divider stays the cart's on every page, so these
+  read as more of the same entry rather than a second screen wearing its frame.
+  Only the description panel changes: five rows by eighteen columns, the first
+  of them the page's own name. Gold's page marker is two tiles of "P" over a
+  digit and its sheet has no digit past 2, so a word there is the only way to
+  tell STATS from EVOLVES.
+
+  **Six stats, and no bars.** Gen 2 split Special in two, so the page prints
+  six where Red's prints five -- two columns of three with the total
+  underneath, which is exactly what four content rows hold. No bars, for the
+  reason the Gen 1 page already gives for having none: a bar wide enough to
+  read costs room the column has not got, and a number you can compare is worth
+  more than a bar you cannot. On an eighteen-tile panel that argument is
+  stronger, not weaker.
+
+  **All five Gen 2 evolution methods**, each written from what the extractor
+  stores: a level, a stone, a trade with its held item named when there is one,
+  happiness with its time band, and TYROGUE's attack-versus-defence comparison
+  with the level it happens at. A content mod that adds a method and describes
+  it still wins, through `gen2EvolutionMethods`.
+
+  Three shape differences in the data, all in `dexdata.lua` and all found
+  rather than assumed: Gold's base-stat block has `specialAttack` where Red's
+  has `special`, its evolution rows name the target `into` where Red's name it
+  `species`, and its level-up list is `levelMoves` where Red's is `learnset`.
+  Which of the two a dataset wants is asked of the DATA rather than of the game
+  version, so a hand-built table gets the right answer without pretending to be
+  a cart.
+
+  The spoiler mask survives all of it: an evolution target you have never met
+  still reads `?????`, and the mask reads `into` as well as `species`.
+
+  `UP` and `DOWN` scroll the two pages that can outrun the panel -- the
+  movelist, and EEVEE's five evolutions. Both are unbound on Gold's entry view,
+  so nothing is taken away.
+
+  Ten of the mod's eleven option rows are settings for screens it replaces, and
+  on Gold it replaces none of them, so Gold gets one row -- EXTRA DEX PAGES --
+  and the other ten are not offered. A row that cannot do anything is worse
+  than a missing one.
+
+  `dexdata.lua` is published on both arms, before the branch: it is pure, it
+  reads both datasets, and it is this mod's public surface.
 
 - **BACKDROPS runs on Gold, Silver and Crystal, and needed no new art.**
 
@@ -148,7 +206,8 @@ was taken from.
   edit which does reach it degrades to a blank page instead of a red line.
 
 - `tests/theme2_test.lua`, `tests/partygen2_test.lua`,
-  `tests/arenagen2_test.lua` and `tests/gen2gate_test.lua`. The arena one
+  `tests/arenagen2_test.lua`, `tests/dexgen2_test.lua` and
+  `tests/gen2gate_test.lua`. The arena one
   checks, among other things, that every file the Gen 2 tables can ask for is
   actually in the package, and that the museum is the only backdrop with
   nowhere to go. The last one is the important one: it asserts that

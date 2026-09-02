@@ -239,9 +239,9 @@ guessed one.
 
 ## Gold, Silver and Crystal
 
-The bundle claims `gen1` and `gen2`, and on a Gen 2 boot four of its eleven
-features install: **BACKDROPS**, **PARTY MENU**, **MENU LAYOUT** and **MOD
-MANAGER**, plus **UI THEME**.
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot five of its eleven
+features install: **BACKDROPS**, **POKEDEX**, **PARTY MENU**, **MENU LAYOUT**
+and **MOD MANAGER**, plus **UI THEME**.
 
 The other eight stand down, and for the most part that is the honest answer
 rather than a shortfall. This bundle exists to give Red the screens Gold
@@ -255,11 +255,10 @@ already shipped:
 | **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
 | **BATTLE INTRO** | Gold's battle already draws edge to edge, and its intro is the cart's animated wipe. |
 
-Two are gaps rather than duplicates, and are named as gaps:
+One is a gap rather than a duplicate, and is named as one:
 
 | feature | what is actually missing |
 |---|---|
-| **POKEDEX** | Gold's dex has the area screen and the search but no base stats, evolutions or learnset. The largest of the three; a screen port rather than an adapter, over 251 entries with Gen 2 evolution methods. |
 | **BAG** | Gold's PACK has the pockets and the descriptions. Sorting, favourites, pinned items and search are not there. |
 
 
@@ -348,6 +347,56 @@ repository and `og/gen2/` is not committed. Without it every town takes the
 plain scene; with it each takes its own roofs. Kanto is regenerated rather than
 shared with Red's eleven folders, because Gold repaints Kanto — its Cerulean is
 not Red's Cerulean.
+
+### POKEDEX on Gold
+
+Three extra pages on the cart's own entry screen, not a replacement dex.
+
+Gold's Pokédex is good, and already carries two of the three things this mod
+was built to add to Red's: an AREA screen with blinking nests, and a working
+search with NEW / OLD / A-Z on SELECT. Registering over `Gen2PokedexMenu` would
+mean re-implementing both to stand still.
+
+What Gold has no answer for is the third — its entry is two pages of flavour
+text and nothing else. So the Gold arm adds **STATS**, **EVOLVES** and
+**MOVES**, and puts them where the cart already has a control that means "next
+page": `PAGE` counts on past its two into ours, and back round to one.
+
+That is deliberately not a new key. `DexEntryScreen_MenuActionJumptable` gives
+the entry four actions along row 17 and PAGE is already one of them, already
+labelled, already on screen. `A` is not intercepted to do it either: PAGE is
+the only one of the four that moves `self.page`, so the cart is left to run the
+press and the page is read afterwards.
+
+Everything above the entry's divider — the pic, the name, the number, the
+footprint, the height and the weight — stays the cart's on every page, so these
+read as more of the same entry rather than a second screen wearing its frame.
+Only the description panel changes: rows 11 to 15, eighteen columns. Row 11 is
+the page's own name, because Gold's page marker is two tiles of "P" over a
+digit and its sheet has no digit past 2.
+
+**Six stats, and no bars.** Gen 2 split Special in two, so the stats page
+prints six where Red's prints five — in two columns of three with the total
+underneath, which is exactly what four content rows hold. There are no bars
+here for the same reason the Gen 1 page gives for having none: a bar wide
+enough to read costs room the column has not got, and a number you can compare
+is worth more than a bar you cannot. That argument is stronger on an
+eighteen-tile panel, not weaker.
+
+**All five Gen 2 evolution methods.** A level, a stone, a trade (with its held
+item named when there is one), happiness with its time band, and TYROGUE's
+attack-versus-defence comparison with the level it happens at. A method a
+content mod adds and describes still wins, through the `gen2EvolutionMethods`
+registry. An evolution target you have never met is masked `?????` exactly as
+on Red — the mask reads Gold's `into` field as well as Red's `species`.
+
+`UP` and `DOWN` scroll the two pages that can outrun their panel — the movelist,
+and EEVEE's five evolutions. Both are unbound on Gold's entry view, so nothing
+is taken away.
+
+The reading is `dexdata.lua`, which is pure and shared: the Gold arm and the
+Gen 1 arm cannot drift apart about what a base stat is or which evolution a
+species has.
 
 ### PARTY MENU on Gold
 

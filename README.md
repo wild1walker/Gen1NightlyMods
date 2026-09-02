@@ -266,8 +266,15 @@ lift is a small panel with the car still on screen behind it. Drawing our
 versions of those over the cart's would be work spent to arrive back where Gold
 started.
 
-What does run there is `PARTY MENU`, `MENU LAYOUT`, `MOD MANAGER` and
-`UI THEME`.
+What does run there is `BACKDROPS`, `POKEDEX`, `PARTY MENU`, `MENU LAYOUT`,
+`MOD MANAGER` and `UI THEME`.
+
+`POKEDEX` is three extra pages on the cart's own entry screen rather than a
+replacement dex: Gold's list, search and AREA map are already good, and what it
+has no answer for is base stats, evolutions and the learnset. They go where the
+cart already has a control that means "next page" — `PAGE` counts on past its
+two into STATS, EVOLVES and MOVES. Six stats, because Gen 2 split Special; all
+five Gen 2 evolution methods; and an unseen evolution still masked.
 
 `PARTY MENU` is there because Gold has the same bug Red does: `drawIcon`
 colours every row out of one palette, so six Pokémon share one set of colours.
@@ -285,11 +292,10 @@ the screen.
 
 `BACKDROPS` runs there too, and needed no new art — see below.
 
-Two things are gaps rather than duplicates, and are named as gaps:
+One thing is a gap rather than a duplicate, and is named as one:
 
 | | what is missing on Gold |
 |---|---|
-| **`POKEDEX`** | Gold's dex has the area screen and the search, but no base stats, evolutions or learnset. The biggest of the three, and a screen port rather than an adapter. |
 | **`BAG`** | Gold's PACK has the pockets and the descriptions; sorting, favourites, pinned items and search are still missing. |
 
 
