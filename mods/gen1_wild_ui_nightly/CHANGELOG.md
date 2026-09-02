@@ -21,8 +21,43 @@ was taken from.
   the car still on screen behind it. BATTLE MENUS, POKEMON BOX, ITEM INFO and
   ELEVATOR PANEL would each draw a second one of something the cart has.
 
-  One is a gap rather than a duplicate and is named as such: **BAG**, where
-  sorting, favourites, pinned items and search are still missing on Gold.
+  None of the eight is a gap any more.
+
+- **BAG runs on Gold, Silver and Crystal** -- as three additions to the cart's
+  own PACK, not as a replacement bag.
+
+  Gold's PACK already has the two biggest things this mod gives Red's:
+  pockets, with the cart's own tab strip, and a description under the list
+  with a TM showing its MOVE's description rather than the TM's. What is left
+  is how a pocket's list is BUILT, and that is one method -- `PackMenu:rebuild`
+  -- so SORT, SEARCH and PIN happen after it and before the draw. The cart
+  keeps the selection, the quantity flow, the tab strip and every pixel of the
+  drawing.
+
+  **The capacity limit needed nothing at all**, which is worth saying because
+  it was called out as the risky one. The patch wraps `Bag.add` and
+  `Bag.capacity`, and `src/inventory/Bag.lua` is SHARED -- Gold's own PackMenu
+  requires it (PackMenu.lua:13) and orders its rows through it. So it was
+  already generation-agnostic, and it lifts a CHECK rather than changing a
+  layout: `save.inventory` is an id-to-count table on both carts either way.
+
+  The keys: Gold's PACK reads left/right, up/down, A, B and SELECT (its own
+  item move), so START -- the only key it does not read -- opens SORT and
+  SEARCH. PIN goes on the item submenu, because it is a thing done to ONE item
+  and that menu is the cart's idiom for exactly that. One row is added, and
+  that is a limit rather than a preference: `drawSubmenu` builds the box
+  upward at two rows an entry, so six is the last that fits and the cart
+  already uses five. Search is typed on Gold's own naming screen.
+
+  The sort is stable, and deliberately: `rebuild` runs on every pocket switch
+  AND every quantity change, so two items on the same count that swapped
+  places each time would flicker under the cursor while a stack is tossed.
+
+  **FAVOURITES did not port.** On Red it is a virtual POCKET, and Gold's tab
+  strip is four fixed pockets from the cart's own table -- a fifth means
+  replacing the strip, which is the one thing this arm exists to avoid. PIN
+  does the half of it that fits: an item you want at hand is at the top of the
+  pocket it already lives in.
 
 - **POKEDEX runs on Gold, Silver and Crystal** -- as three extra pages on the
   cart's own entry screen, not as a replacement dex.
@@ -206,8 +241,8 @@ was taken from.
   edit which does reach it degrades to a blank page instead of a red line.
 
 - `tests/theme2_test.lua`, `tests/partygen2_test.lua`,
-  `tests/arenagen2_test.lua`, `tests/dexgen2_test.lua` and
-  `tests/gen2gate_test.lua`. The arena one
+  `tests/arenagen2_test.lua`, `tests/dexgen2_test.lua`,
+  `tests/baggen2_test.lua` and `tests/gen2gate_test.lua`. The arena one
   checks, among other things, that every file the Gen 2 tables can ask for is
   actually in the package, and that the museum is the only backdrop with
   nowhere to go. The last one is the important one: it asserts that

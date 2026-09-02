@@ -266,8 +266,8 @@ lift is a small panel with the car still on screen behind it. Drawing our
 versions of those over the cart's would be work spent to arrive back where Gold
 started.
 
-What does run there is `BACKDROPS`, `POKEDEX`, `PARTY MENU`, `MENU LAYOUT`,
-`MOD MANAGER` and `UI THEME`.
+What does run there is `BACKDROPS`, `POKEDEX`, `BAG`, `PARTY MENU`,
+`MENU LAYOUT`, `MOD MANAGER` and `UI THEME`.
 
 `POKEDEX` is three extra pages on the cart's own entry screen rather than a
 replacement dex: Gold's list, search and AREA map are already good, and what it
@@ -292,11 +292,12 @@ the screen.
 
 `BACKDROPS` runs there too, and needed no new art — see below.
 
-One thing is a gap rather than a duplicate, and is named as one:
-
-| | what is missing on Gold |
-|---|---|
-| **`BAG`** | Gold's PACK has the pockets and the descriptions; sorting, favourites, pinned items and search are still missing. |
+`BAG` adds SORT, SEARCH and PIN to the cart's own PACK rather than replacing
+it: Gold already has the pockets and the item descriptions, so what is left is
+how a pocket's list is built. The capacity limit needed nothing at all — that
+patch is on the shared `src.inventory.Bag`, which Gold's PACK uses too.
+FAVOURITES is the one thing that did not port, because on Red it is a virtual
+*pocket* and Gold's tab strip is four fixed ones.
 
 
 Every one of those verdicts is written next to the feature it belongs to in

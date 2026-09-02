@@ -297,21 +297,23 @@ return {
       description = "SEVEN POCKETS WITH AUTO-SORTING, FAVORITES, PINNED ITEMS, SEARCH AND NO CAPACITY LIMIT.",
       default = true,
       aliases = { "Gen1ModernBag", "gen1_modern_bag" },
-      -- Gen 1 only for now, and the gap here is narrower than it looks.
+      -- Runs on Gold, Silver and Crystal -- as three additions to the
+      -- cart's own PACK rather than as a replacement bag.
       --
-      -- Gold's PACK already has pockets -- ITEMS, BALLS, KEY ITEMS, TM/HM --
-      -- and already prints a description under the list, with a TM showing
-      -- the MOVE's description rather than the TM's
-      -- (`PackMenu:description`, src/ui/gen2/PackMenu.lua:1045).  So the two
-      -- biggest things this mod gives Red are things Gold came with.
+      -- Gold's PACK already has the two biggest things this mod gives Red's:
+      -- pockets, with the cart's own tab strip, and a description under the
+      -- list with a TM showing its MOVE's description.  What is left is how a
+      -- pocket's list is BUILT, and that is one method -- `PackMenu:rebuild`
+      -- -- so SORT, SEARCH and PIN happen after it and before the draw.
       --
-      -- What is left is real but smaller: auto-sorting, favourites, pinned
-      -- items, search, and no capacity limit.  Each of those is a change to
-      -- how a pocket's list is BUILT, and Gold's pack builds its lists inside
-      -- a 1200-line state with the cart's own pocket switching and its own
-      -- quantity flow -- so it is a port of this mod's list layer onto that
-      -- state rather than a wrapper around it.  Worth doing; not done here.
-      gen1_only = true,
+      -- The capacity limit needed nothing at all: that patch is on
+      -- `src.inventory.Bag`, which is shared, and Gold's own PackMenu orders
+      -- its rows through it.
+      --
+      -- FAVOURITES is the one thing that did not port: on Red it is a virtual
+      -- POCKET, and Gold's tab strip is four fixed pockets from the cart's own
+      -- table.  PIN does the half of it that fits.  See
+      -- modules/Gen1ModernBag/gen2.lua.
     },
 
     -- ---- the screens nothing else had got to

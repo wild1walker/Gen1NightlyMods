@@ -239,9 +239,9 @@ guessed one.
 
 ## Gold, Silver and Crystal
 
-The bundle claims `gen1` and `gen2`, and on a Gen 2 boot five of its eleven
-features install: **BACKDROPS**, **POKEDEX**, **PARTY MENU**, **MENU LAYOUT**
-and **MOD MANAGER**, plus **UI THEME**.
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot six of its eleven
+features install: **BACKDROPS**, **POKEDEX**, **BAG**, **PARTY MENU**,
+**MENU LAYOUT** and **MOD MANAGER**, plus **UI THEME**.
 
 The other eight stand down, and for the most part that is the honest answer
 rather than a shortfall. This bundle exists to give Red the screens Gold
@@ -254,12 +254,6 @@ already shipped:
 | **ITEM INFO** | Gold's PACK and MART already print an item's description under the list, with a TM showing the move's. The text is the cart's own. |
 | **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
 | **BATTLE INTRO** | Gold's battle already draws edge to edge, and its intro is the cart's animated wipe. |
-
-One is a gap rather than a duplicate, and is named as one:
-
-| feature | what is actually missing |
-|---|---|
-| **BAG** | Gold's PACK has the pockets and the descriptions. Sorting, favourites, pinned items and search are not there. |
 
 
 Each verdict is written next to its feature in `features.lua`, with what was
@@ -347,6 +341,43 @@ repository and `og/gen2/` is not committed. Without it every town takes the
 plain scene; with it each takes its own roofs. Kanto is regenerated rather than
 shared with Red's eleven folders, because Gold repaints Kanto — its Cerulean is
 not Red's Cerulean.
+
+### BAG on Gold
+
+Three additions to the cart's PACK, not a replacement bag.
+
+Gold's PACK already has the two biggest things this mod gives Red's: pockets,
+with the cart's own tab strip, and a description under the list with a TM
+showing its *move's* description rather than the TM's. Red has neither.
+
+What is left is how a pocket's list is **built**, and that is one method —
+`PackMenu:rebuild`, which reads `save.inventory` through `Bag.order` and writes
+`self.rows`. Everything here happens after that and before the draw: filter,
+sort, float the pinned. The cart keeps the selection, the quantity flow, the
+tab strip and every pixel of the drawing.
+
+**The capacity limit needed nothing at all.** That patch wraps `Bag.add` and
+`Bag.capacity`, and `src/inventory/Bag.lua` is *shared* — Gold's own PackMenu
+requires it and orders its rows through it. So it was already
+generation-agnostic, and it lifts a *check* rather than changing a layout:
+`save.inventory` is an id-to-count table on both carts either way.
+
+**The keys.** Gold's PACK reads left/right, up/down, A, B and SELECT (the
+cart's own item move). START is the only key it does not read, so START opens
+SORT and SEARCH. PIN goes on the item submenu instead, because it is a thing
+you do to one item and that menu is the cart's idiom for exactly that — and
+only one row is added, which is a limit rather than a preference: the submenu
+box is drawn upward at two rows an entry, so six is the last that fits and the
+cart already uses five.
+
+Search is typed on Gold's own naming screen — the cart's keyboard, rather than
+a text field of ours.
+
+**FAVOURITES is the one thing that did not port.** On Red it is a virtual
+*pocket*; Gold's tab strip is four fixed pockets from the cart's own table, and
+a fifth would mean replacing the strip, which is the one thing this arm exists
+to avoid. PIN does the half of it that fits: an item you want at hand sits at
+the top of the pocket it already lives in.
 
 ### POKEDEX on Gold
 
