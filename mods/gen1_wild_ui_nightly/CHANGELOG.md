@@ -6,6 +6,29 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.21] - 2026-09-02
+
+- **The party row a message box cuts through keeps its colours**
+  (Gen1Party 1.8.2). 0.32.17 dropped an icon's matte and its true-colour mark
+  for the whole 16x16 cell as soon as the box reached any part of it -- and the
+  box's top edge does not land on a row boundary. The header moves every row
+  down 24, so a box at `y=96` runs *through* slot 5 (88..104) rather than
+  covering it, and the half still on the page had no mark on it. An unmarked
+  icon is read as four shades: one picture going grey while the four above it
+  stayed in colour. Only the covered part lets go now -- the same cut
+  Gen1ModernBag makes sideways in 1.13.1, turned ninety degrees, because a box
+  edge here is a horizontal and clips the height.
+
+- **`BUY` and `SELL` name themselves in the header.** Same empty box the item
+  PC had in 0.32.20, and the same cause -- `ShopMenu` opens both lists with
+  `ListMenu.new(game, nil, ...)` -- but at a mart the money on the right always
+  filled the space, so it read as a design choice rather than a gap.
+
+  The two need telling apart to be named, and the engine names neither, so it
+  comes off what they do: `onSelectKey` is the sell list's and only the sell
+  list's -- SELECT picks a row up and a second SELECT swaps the two, which is
+  the bag being reordered, and there is nothing to reorder in a shop's stock.
+
 ## [0.32.20] - 2026-09-02
 
 The item PC's three screens -- `WITHDRAW ITEM`, `DEPOSIT ITEM`, `TOSS ITEM`
