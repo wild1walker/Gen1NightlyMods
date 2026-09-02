@@ -237,6 +237,47 @@ def coverage(roots: dict[str, Path], table: str):
     return holes
 
 
+def destinations(roots: dict[str, Path], table: str):
+    """Every placement's map must carry a table of its method.
+
+    The one failure this catches is a typo, and a typo here is invisible
+    everywhere else: the row loads, the tests pass, the mod installs, and the
+    species simply never appears because the map it names has no table to
+    substitute inside.  ROUTE_10_NORTH is spelled that way for exactly this
+    reason and ROUTE_10 would have failed silently forever.
+    """
+    order = G.species_names(roots["pokecrystal"])
+    valid = set(order)
+    rows = re.findall(
+        r'species = "([A-Z0-9_]+)", map = "([A-Z0-9_]+)", method = "(\w+)"',
+        table)
+    known = {}
+    for version, (tree, defines) in G.VERSIONS.items():
+        maps = {"grass": set(), "water": set()}
+        for name, kind in (("johto_grass.asm", "grass"),
+                           ("kanto_grass.asm", "grass"),
+                           ("johto_water.asm", "water"),
+                           ("kanto_water.asm", "water")):
+            for line in G.read_asm(roots[tree] / "data" / "wild" / name,
+                                   defines):
+                head = re.search(
+                    r"def_(?:grass|water)_wildmons\s+([A-Z0-9_]+)", line)
+                if head:
+                    maps[kind].add(head.group(1))
+        known[version] = maps
+
+    bad = []
+    for species, mapname, method in rows:
+        if species not in valid:
+            bad.append("%s is not a species" % species)
+            continue
+        for version, maps in known.items():
+            if mapname not in maps.get(method, ()):
+                bad.append("%s: %s has no %s table on %s"
+                           % (species, mapname, method, version))
+    return bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pokegold", required=True, type=Path)
@@ -262,13 +303,19 @@ def main() -> int:
         if updated != text:
             sys.stderr.write("SET B has drifted -- run without --check\n")
             return 1
+        wrong = destinations(roots, text)
+        if wrong:
+            for line in wrong:
+                sys.stderr.write(line + "\n")
+            return 1
         holes = coverage(roots, text)
         if holes:
             for version, missing in sorted(holes.items()):
                 sys.stderr.write("%s cannot obtain: %s\n"
                                  % (version, " ".join(missing)))
             return 1
-        print("SET B is current, and every cartridge can obtain all 251")
+        print("SET B is current, every map named exists, and every "
+              "cartridge can obtain all 251")
         return 0
 
     if updated != text:

@@ -24,6 +24,7 @@ itself. Nothing is all-or-nothing.
 | **FOLLOWERS** | on | [Gen1Follower](https://github.com/wild1walker/Gen1Follower) |
 | **ALL 151** | on | [Gen151](https://github.com/wild1walker/Gen151) |
 | **GS BALL** | on, **GEN 2 ONLY** | this repository |
+| **ALL 251** | on, **GEN 2 ONLY** | this repository |
 | **EXP SHARE** | on, **GEN 5+** | originally [exp_share](https://github.com/ShaneMcGovernIE/exp_share) ‡ |
 | **CAUGHT MARKER** | on | originally [Quality of Life](https://github.com/unxpected-uxp/pokemon-gen1-recomp-mod-qol) ‡ |
 | **AREA BANNER** | on, 3s | Quality of Life ‡ |
@@ -260,8 +261,8 @@ a voxel overworld rather than falling back to the engine's.
 
 ## Gold, Silver and Crystal
 
-The bundle claims `gen1` and `gen2`. Fifteen of its eighteen features install
-on a Gen 2 boot, and one — **GS BALL** — installs on *nothing else*.
+The bundle claims `gen1` and `gen2`. Sixteen of its nineteen features install on a Gen 2 boot, and two —
+**GS BALL** and **ALL 251** — install on *nothing else*.
 
 Most needed nothing at all. They were written against hooks rather than
 modules, and Gold raises the same hooks under the same names — `movement.speed`,
@@ -278,6 +279,40 @@ Three are Gen 1 only, each for its own reason:
 | **ALL 151** | A Gen 1 *fact*, not a Gen 1 implementation: a researched placement table of species, Kanto maps, methods and levels against the gaps Red and Blue actually have. Gold's dex is 251, its maps are Johto, and its gaps close by breeding, time of day and the phone. The Gen 2 answer is a Johto table — somebody's research, not a port. |
 | **TRAINER REMATCH** | Gold shipped this. A rematch there is the POKéGEAR: the trainer takes your number and calls when they are ready. Both of this mod's seams are Red's anyway. |
 | **NPC WALK** | One number, and Gold has the right one already. Red's NPC crosses a cell in 32 frames against the player's 16, so an escort hops; Gold's is 16. |
+
+### ALL 251
+
+The Gen 2 half of **ALL 151**, and a separate feature rather than that one's
+Gen 2 arm, because it is a separate piece of research: a different table,
+against different gaps, on different maps. Each is gated to its own
+generation, so a save only ever sees the one that means anything.
+
+**What is missing turned out to be derivable.** `tools/gapset2.py` parses the
+pret disassemblies — the same source the engine's own extractor reads through a
+ROM — and closes the set both ways: up over evolution, and *down* over the
+Day-Care, because the engine implements breeding. Gold and Silver each cannot
+renewably produce 72 of the 251, Crystal 68, and sixty are missing from all
+three. Six babies that look missing are not: Pichu, Cleffa, Igglybuff,
+Smoochum, Elekid and Magby all breed from adults already in the grass.
+
+**The version exclusives are generated, not written.** A species missing on one
+cartridge and present on another is placed on the map the *sibling cartridge*
+keeps it on — the same game, the same species, the same map. It is why Gold's
+Vulpix and Silver's Growlithe both land on Route 36: the two cartridges swap
+exactly that slot, and the mod swaps it back.
+
+**Substitution, never appending** — and not by preference. Gold picks a grass
+slot off a fixed seven-entry probability ladder, so an appended eighth slot can
+never be drawn. That makes this layer simpler than its Gen 1 counterpart: there
+is nothing to append, so there is no vanilla slot count to record and nothing
+to trim back out. Stage one is the cartridge's own roll, untouched, and a map
+with nothing placed on it draws **zero** extra random numbers — the stream is
+identical to a clean install, draw for draw.
+
+There is no version detection anywhere in it. A placement applies only when its
+species has no renewable source in the tables actually merged on this install,
+so Gold's Vulpix row simply does not fire on Silver, and a species some other
+encounter mod already provided is left alone rather than provided twice.
 
 ### GS BALL
 

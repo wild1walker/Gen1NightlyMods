@@ -353,6 +353,29 @@ return {
       gen1_only = true,
     },
 
+    -- ---- catching everything, on the other three cartridges
+    --
+    -- The Gen 2 half of ALL 151, and a separate row rather than that one's
+    -- Gen 2 arm because it is a separate piece of research: a different
+    -- table, against different gaps, on different maps.  The two can never
+    -- install together -- each is gated to its own generation -- so a save
+    -- only ever sees the one that means anything.
+    {
+      id = "gen251",
+      group = "pokemon",
+      install_seq = 19,
+      priority = 900,
+      dir = "Gen251",
+      entry = "main.lua",
+      label = "ALL 251",
+      description = "EVERY ONE OF THE 251 OBTAINABLE IN ONE SAVE, ON ONE "
+        .. "CARTRIDGE, WITHOUT TRADING.",
+      enabledKey = "enabled",
+      default = true,
+      aliases = { "Gen251", "gen251" },
+      gen2_only = true,
+    },
+
     -- ---- the GS BALL
     --
     -- Sits beside ALL 151 rather than under GENERAL because it answers the
