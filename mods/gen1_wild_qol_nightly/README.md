@@ -309,6 +309,23 @@ to trim back out. Stage one is the cartridge's own roll, untouched, and a map
 with nothing placed on it draws **zero** extra random numbers — the stream is
 identical to a clean install, draw for draw.
 
+**The ten trade evolutions get a rule, not an item.** Gen151 sells a
+consumable Link Cable, and rejects "just let it evolve on level-up" because
+that evolves every Kadabra you own whether you wanted it or not. True in Red —
+not here. Gen 2 ships the **Everstone**, a permanent opt-out the cartridge's own
+evolution code already checks, so the objection is answered by the game rather
+than by an item this mod would have to invent, price and find a shelf for.
+
+Gold's trade rule is already complete: Everstone, the held item, the Time
+Capsule exemption, all written and all right. The only clause a single save can
+never satisfy is `if not ctx.link then return false`. So this supplies the link
+and touches nothing else — Scizor still costs a Metal Coat, an Everstone still
+says no, and a Poliwhirl still becomes Poliwrath first if you use the Water
+Stone. One divergence, stated plainly: the held item is **not** consumed, because
+the hook returns one boolean and has no way to report consumption, and a
+predicate that eats a Metal Coat when something merely *asks* whether a Pokémon
+would evolve is a much worse bug than a coat that survives.
+
 There is no version detection anywhere in it. A placement applies only when its
 species has no renewable source in the tables actually merged on this install,
 so Gold's Vulpix row simply does not fire on Silver, and a species some other

@@ -89,7 +89,12 @@ function Gen251.install()
   local Placements = submodule("placements.lua")
   local Build = submodule("build.lua")
   local Roll = submodule("roll.lua")
-  if not (Placements and Build and Roll) then return end
+  local Trade = submodule("trade.lua")
+  if not (Placements and Build and Roll and Trade) then return end
+
+  -- The ten trade evolutions, which are a missing cable rather than a missing
+  -- habitat and so are answered here rather than in the placement table.
+  Trade.install(mod)
 
   local roll = Roll.new()
   local installed = false

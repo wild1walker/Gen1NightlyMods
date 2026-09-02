@@ -312,5 +312,50 @@ do
      .. "roll, it does not add rolls")
 end
 
+-- ------------------------------------------------- the trade evolutions
+
+do
+  io.write("the ten trade evolutions\n")
+
+  local Trade = load_("modules/Gen251/trade.lua")
+  local function would(entry, mon, ctx) return Trade.wouldTrade(entry, mon, ctx) end
+
+  local KADABRA = { method = "EVOLVE_TRADE", into = "ALAKAZAM" }
+  local SCYTHER = { method = "EVOLVE_TRADE", into = "SCIZOR",
+                    item = "METAL_COAT" }
+
+  eq(would(KADABRA, {}, {}), true,
+     "one of the four inherited from Gen 1 needs nothing but the cable")
+  eq(would(SCYTHER, { item = "METAL_COAT" }, {}), true,
+     "and one of the six Gen 2 rows still costs its held item")
+  eq(would(SCYTHER, {}, {}), false, "without the item it does not fire")
+  eq(would(SCYTHER, { item = "KINGS_ROCK" }, {}), false,
+     "nor with the wrong one")
+
+  eq(would(KADABRA, { item = "EVERSTONE" }, {}), false,
+     "the EVERSTONE says no, which is the whole reason this can be a rule "
+     .. "rather than an item: Gen 2 ships the opt-out Gen151 had to invent "
+     .. "a consumable to avoid needing")
+
+  eq(would(KADABRA, {}, { link = true }), false,
+     "a real link is left entirely alone -- the cartridge's own path is "
+     .. "already about to do this correctly, and standing aside is the "
+     .. "difference between helping and interfering")
+  eq(would(KADABRA, {}, { force = true }), false,
+     "and a stone being used on the mon does not quietly trip a trade "
+     .. "evolution off the back of it")
+  eq(would(SCYTHER, { item = "METAL_COAT" }, { timeCapsule = true }), false,
+     "the Time Capsule cannot carry a held item, so an item trade evolution "
+     .. "across it stays refused exactly as the cartridge refuses it")
+
+  eq(would({ method = "EVOLVE_LEVEL", into = "IVYSAUR", level = 16 }, {}, {}),
+     false, "a level row is not this feature's business")
+  eq(would({ method = "EVOLVE_TRADE" }, {}, {}), false,
+     "and a row with nothing to evolve into is not a row")
+  eq(would(nil, {}, {}), false, "no row at all is handled, not raised")
+  ok(pcall(would, KADABRA, nil, nil),
+     "a missing mon and a missing trigger do not raise")
+end
+
 io.write(("gen251: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

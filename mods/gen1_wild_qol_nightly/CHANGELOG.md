@@ -30,6 +30,16 @@ was taken from.
   slot count to record, nothing to trim before stage one. A map with nothing
   placed on it draws ZERO extra random numbers.
 
+  The ten trade evolutions get a RULE rather than an item. Gen151 sells a
+  consumable cable because a level-up rule would evolve every KADABRA you own
+  whether you wanted it or not; Gen 2 ships the EVERSTONE, which is that
+  objection answered by the cartridge. Gold's trade check is already complete
+  -- Everstone, held item, Time Capsule -- and the only clause one save cannot
+  satisfy is the link, so that is the only thing supplied. The held item is
+  not consumed, because the hook returns one boolean and a predicate that eats
+  a METAL COAT when something merely asks is a worse bug than a coat that
+  survives.
+
   `--check` proves three things against the cartridges: that the generated
   half has not drifted, that every map named actually carries a table of the
   method its row claims, and that every gap on all three is answered by a
