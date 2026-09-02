@@ -6,6 +6,25 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.19] - 2026-09-02
+
+- **The white hairline down the right of every item icon, and beside every
+  coloured move type, is gone.** A true-colour rectangle is re-blitted raw over
+  the finished frame, and `Renderer:blitCanvas` scissors each zone and rounds
+  outward -- so on a fractional-DPI display the re-blit bleeds a sliver of
+  whatever the canvas holds just outside the mark. Inside a box that is the
+  box's own white **paper**.
+
+  The ring `DARK` paints round a mark hides exactly that, and it was asked the
+  wrong question: "is this frame a page". A page is one of the two ways to have
+  something shaded under the art; the other is a **panel**, and a battle's move
+  box and the bag's item window over a fight are both panels. The ring goes
+  wherever the art stands on something the theme shades now.
+
+  Containment in a box, not overlap -- so art on a screen the theme leaves
+  alone, the intro's portraits or a character on the map, is inside no box and
+  still gets no ring.
+
 ## [0.32.18] - 2026-09-02
 
 Catches the channel up with everything stable learned between 1.24.1 and
