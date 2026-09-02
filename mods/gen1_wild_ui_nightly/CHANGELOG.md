@@ -6,6 +6,31 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.13] - 2026-09-02
+
+- **No black box round the sprites in the intro.** `DARK` was painting its
+  one-pixel ring round Oak, the rival and the NIDORINO on a white screen.
+
+  The ring is a skirt, and a skirt hides a seam: a true-colour mark re-blits
+  its rect untouched, the page around it went through the palette pass, and
+  without the ring the join between the two shows. On a screen the theme
+  leaves alone there is no shaded page and so no seam -- and the ring becomes
+  the only thing you see. The intro, Oak's speech and the Hall of Fame are
+  left out of `Theme.PAGES` on purpose, being pictures rather than pages.
+
+  What still reached them is the mark itself. `OakSpeech.lua` draws the
+  portrait with `love.graphics.draw` and marks its whole rect **outside**
+  `SpriteRenderer`, so the sprite gate added in 1.22.4 -- which needs a sprite
+  depth above zero -- never sees it. The skirt now asks whether there is a
+  themed page at all, live off the stack, because a mark happens while the
+  frame is still drawing and `render.zones` does not run until every state has
+  drawn.
+
+  Still open: on the naming screen the portrait keeps a **white** box. That
+  screen is a page and is themed, so the mark's raw re-blit brings back the
+  white the screen was cleared to. It needs the sticker treatment the item
+  icons already get, and that is a separate change.
+
 ## [0.32.12] - 2026-09-02
 
 - **Voxel support is a work in progress.** It works best with **potato voxel**

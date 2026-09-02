@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.13] - 2026-09-02
+
+_Write what changed._
+
 ## [0.32.12] - 2026-09-02
 
 - **The autosave hold does not let go inside the next battle.** `OUTCOME_CAP`

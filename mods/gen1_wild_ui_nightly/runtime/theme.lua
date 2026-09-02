@@ -940,6 +940,9 @@ function Theme.new(context)
   -- `sgbPalettes` is the same test src/core/Game.lua uses to pick the zone
   -- list in the first place, so "owns the zones" here means exactly what it
   -- means there.
+  -- The game the current frame belongs to; see the `render.zones` wrap.
+  local frameGame = nil
+
   local function pageState(game)
     local states = game and game.stack and game.stack.states
     if type(states) ~= "table" then return nil end
@@ -1539,6 +1542,28 @@ function Theme.new(context)
     self.skirt = function()
       if not skirtFX then return nil end
       if self.read() ~= "dark" then return nil end
+      -- ------- and nothing to hide a seam against
+      --
+      -- A skirt is the one-pixel ring that hides the seam where raw art meets
+      -- a SHADED page: the mark re-blits its rect untouched, the page around
+      -- it went through the palette pass, and without the ring the join shows.
+      --
+      -- On a screen the theme leaves alone there is no shaded page and so no
+      -- seam -- and the ring becomes the whole of what you see.  The screens
+      -- that are pictures rather than pages are deliberately not themed (see
+      -- Theme.PAGES): the intro, Oak's speech, the Hall of Fame. A full-colour
+      -- portrait on one of those is drawn straight onto white paper and marked
+      -- by the engine (OakSpeech.lua draws the pic itself and calls
+      -- markTrueColor on its whole rect, outside SpriteRenderer, so the sprite
+      -- gate above never sees it) -- and DARK was painting a black box round
+      -- Oak, the rival and the NIDORINO on a white screen, for a seam that was
+      -- never there.
+      --
+      -- Asked of the live stack rather than of anything this theme recorded,
+      -- because the mark happens while the frame is still drawing and
+      -- `render.zones` -- where the theme decides anything -- does not run
+      -- until every state has drawn.
+      if not pageState(frameGame) then return nil end
       if type(skirtFX.honorsTrueColor) == "function"
           and not skirtFX.honorsTrueColor() then
         return nil
@@ -1571,6 +1596,11 @@ function Theme.new(context)
       -- the frame boundary, and it is here rather than inside `apply` so a
       -- theme that has stood down still forgets what it read
       self.forget()
+      -- Kept for `self.skirt`, which runs while the frame is still DRAWING
+      -- and so cannot be handed the game the way this hook is.  The object
+      -- does not change from frame to frame -- only its stack does, and the
+      -- stack is what gets read, live, at the moment of the mark.
+      frameGame = game
       zones = nextLink(game, zones)
       if broken then return zones end
       local ok, out = pcall(self.apply, game, zones)
