@@ -6,6 +6,47 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.18] - 2026-09-02
+
+Catches the channel up with everything stable learned between 1.24.1 and
+1.26.2, all of it in the same two files.
+
+- **Recording where the art is, and ringing it, are two different jobs.**
+  `watchArt` did both behind one `if`, so gating the ring on "is there a page
+  to shade" dropped the art out of the frame's zone list as well -- and a
+  battle, which is deliberately not a page and is full of marked art, came back
+  unthemed: white command boxes on a dark game. `tests/arttrack_test.lua` is
+  that case.
+
+- **The evolution screen goes dark**, instead of putting a black ring round the
+  POKeMON on a white page -- the same treatment Oak's speech got. It is a
+  themed page now, and the matte paints the page colour under the sprite's
+  mark. Its page fill is 160x96 rather than the whole frame, so the matte's
+  re-lay asks whether a fill covered the matte rather than whether it covered
+  the screen.
+
+- **Opening the bag in a battle no longer turns the fight black and white.**
+  `src.ui.ListMenu` is in `Theme.PAGES` and belongs there -- the shop's list,
+  the item PC's and the prize counter's are each a screen of their own. The
+  **bag's** is not, and `ListMenu` says so itself when `itemBox` is set:
+  `isOpaque = false`, so what is behind it is still on screen, and
+  `sgbPalettes = false`, so it brought no palette and the one already up stays.
+  That is a box on somebody else's screen -- a panel, the same thing the
+  `START` menu is on the map -- and the page walk steps over it now.
+
+  A classic battle hands the theme **no zone list at all**, which is the
+  engine's own "blit this frame in the colours it was drawn in". Counting the
+  bag as a page synthesised a whole-screen palette over exactly that.
+
+- **Item icons stop going greyscale when a pop-up opens over them.** 0.32.17
+  had an icon let go of its matte and its mark for the whole 16x16 cell as soon
+  as a box touched any of it, and these boxes are anchored to the right edge at
+  whatever width their longest row needs -- so one that reaches into the icon
+  column usually stops part-way across it, and the strip still showing was left
+  unmarked and read through the page's shades. Only the covered part lets go
+  now; the slab still on the page is drawn through a quad that stops where the
+  box starts.
+
 ## [0.32.17] - 2026-09-02
 
 - **Bag icons stop punching through the pop-up on top of them.** Open `SORT`,

@@ -177,6 +177,12 @@ Theme.PAGES = {
   -- this is a white box on a dark page, and without the page there is nothing
   -- for the matte to match.
   "src.ui.OakSpeech",
+  -- The evolution screen, by the same reasoning: it owns the frame and draws
+  -- a picture on it, so the old rule left it white -- a black ring round the
+  -- mon on a white page, which is the intro's bug on another screen. Its art
+  -- is `trueColor` and marked, so the reversal cannot touch it, and the matte
+  -- puts the page colour under that mark.
+  "src.ui.EvolutionState",
   "src.ui.LeaguePC",
   "src.ui.OptionsMenu",
   "src.mods.ManagerState",
@@ -744,7 +750,7 @@ end
 
 local MARK_MARK = "__gen1WildArtSkirt"
 
-local function watchArt(skirt)
+local function watchArt(skirt, onPage)
   local ok, PaletteFX = pcall(require, "src.render.PaletteFX")
   if not ok or type(PaletteFX) ~= "table" then return false end
   if rawget(PaletteFX, MARK_MARK) then return true end
@@ -787,12 +793,28 @@ local function watchArt(skirt)
     local result = base(x, y, w, h)
     if before and #list > before then
       local landed = list[#list]
-      local colour = skirt()
-      local ours = colour and artList() or nil
+      -- ------- two jobs, and only one of them is the ring
+      --
+      -- RECORDING where the art is, and PAINTING a one-pixel ring round it,
+      -- used to be the same `if`: no skirt colour, no entry in the list. They
+      -- are not the same question.
+      --
+      -- The list is what `withArt` turns into the frame's ART_PAGE zone, and
+      -- every screen with true-colour art on it needs that zone whether or not
+      -- it is a page. A battle is the case that proves it: it is deliberately
+      -- not a page, so gating the list on the skirt dropped its art zone
+      -- entirely and the whole battle came back unthemed.
+      --
+      -- The ring is the narrower job. It hides the seam where a raw-blitted
+      -- mark meets a SHADED page, so it is painted only where there is a page
+      -- to shade -- on a screen the theme leaves alone it is the only thing
+      -- you can see, which is the black box round Oak and the NIDORINO.
+      local ours = artList()
       if ours and #ours < ART_CAP then
         local rect = { x = landed.x, y = landed.y, w = landed.w, h = landed.h }
         ours[#ours + 1] = rect
-        paintSkirt(colour, rect, ours, artClip())
+        local colour = onPage() and skirt() or nil
+        if colour then paintSkirt(colour, rect, ours, artClip()) end
       end
     end
     return result
@@ -955,6 +977,41 @@ function Theme.new(context)
   -- `sgbPalettes` is the same test src/core/Game.lua uses to pick the zone
   -- list in the first place, so "owns the zones" here means exactly what it
   -- means there.
+  -- ------- the one class in Theme.PAGES that is not always a page
+  --
+  -- `src.ui.ListMenu` is in Theme.PAGES because most of what it opens IS a
+  -- page: the shop's list, the PC's, the prize counter's, every one of them a
+  -- screen of its own.  The BAG's is not, and the engine says so twice in the
+  -- same three lines (ListMenu.lua:132-137):
+  --
+  --     self.itemBox = opts.itemBox or opts.messageBox or false
+  --     if self.itemBox then
+  --       self.isOpaque = false
+  --       -- keep RunDefaultPaletteCommand's last palette: ItemMenuLoop never
+  --       -- sets its own
+  --       self.sgbPalettes = false
+  --
+  -- `isOpaque = false` is "what is behind me is still on screen" and
+  -- `sgbPalettes = false` is "I brought no palette; keep the one that is up".
+  -- Together they describe a BOX ON somebody else's screen, which is a panel
+  -- and not a page -- the same thing the START menu is on the map.
+  --
+  -- Treating it as a page synthesised a whole-screen palette and handed the
+  -- frame underneath to it.  Open the bag in a battle and that frame is the
+  -- fight: `BattleState:sgbPalettes` returns nil for the classic layout, so
+  -- the theme is given NO zone list, which is the engine's "blit this frame in
+  -- the colours it was drawn in".  A page over it turned that into four
+  -- greys over the whole screen -- the backdrop, the POKeMON, all of it --
+  -- reported as the item menu making the battle black and white.
+  --
+  -- Stepped over instead, so the walk carries on down to whatever really does
+  -- own the frame.  Nothing is lost by it: the bag's own windows are themed
+  -- as PANELS on that frame, which is how the START menu over the map has
+  -- always been done, and the map or the battle behind keeps its colours.
+  local function overlayState(state)
+    return state.sgbPalettes == false and state.isOpaque == false
+  end
+
   -- The game the current frame belongs to; see the `render.zones` wrap.
   local frameGame = nil
 
@@ -966,7 +1023,9 @@ function Theme.new(context)
       if type(state) == "table" then
         if state.gen1wildTheme ~= nil then return state, i end
         classes = classes or pageClasses()
-        if classes[getmetatable(state)] then return state, i end
+        if classes[getmetatable(state)] and not overlayState(state) then
+          return state, i
+        end
         if state.sgbPalettes then
           -- A picture with something standing on it is a page after all; see
           -- Theme.COVERED_PAGES.  Alone, it is the picture it looks like.
@@ -1134,6 +1193,27 @@ function Theme.new(context)
   local function pageZones(zones, state)
     if state.sgbPalettes and type(zones) == "table"
         and wholeAt(zones[1]) and type(zones[1].colors) == "table" then
+      return zones
+    end
+    -- ------- and a list that is somebody else's ART
+    --
+    -- `colors = false` is the true-colour opt-out: a RAW blit, so the pixels
+    -- underneath reach the screen untouched.  A battle declares one -- that is
+    -- how its backdrop and its POKeMON keep their colours -- and it owns the
+    -- frame while it does.
+    --
+    -- Open the bag in a battle and the frame is still the battle's: a
+    -- ListMenu has no palettes of its own, so the list handed in here belongs
+    -- to the fight underneath.  Synthesising a whole-screen page over it threw
+    -- that raw list away and read the battle through four greys instead --
+    -- reported as the bag turning everything behind it black and white.
+    --
+    -- A page that brought no palettes must not paint over art it did not draw.
+    -- Its own boxes are themed as PANELS either way, which is what makes the
+    -- item list and the FIGHT grid dark while the fight behind them keeps its
+    -- colours -- and `dark` already leaves a raw zone alone, because art is
+    -- not inverted.
+    if type(zones) == "table" and zones[1] and zones[1].colors == false then
       return zones
     end
     -- Synthesised at the same x the list it stands in for was centred to, so
@@ -1572,28 +1652,6 @@ function Theme.new(context)
     self.skirt = function()
       if not skirtFX then return nil end
       if self.read() ~= "dark" then return nil end
-      -- ------- and nothing to hide a seam against
-      --
-      -- A skirt is the one-pixel ring that hides the seam where raw art meets
-      -- a SHADED page: the mark re-blits its rect untouched, the page around
-      -- it went through the palette pass, and without the ring the join shows.
-      --
-      -- On a screen the theme leaves alone there is no shaded page and so no
-      -- seam -- and the ring becomes the whole of what you see.  The screens
-      -- that are pictures rather than pages are deliberately not themed (see
-      -- Theme.PAGES): the intro, Oak's speech, the Hall of Fame. A full-colour
-      -- portrait on one of those is drawn straight onto white paper and marked
-      -- by the engine (OakSpeech.lua draws the pic itself and calls
-      -- markTrueColor on its whole rect, outside SpriteRenderer, so the sprite
-      -- gate above never sees it) -- and DARK was painting a black box round
-      -- Oak, the rival and the NIDORINO on a white screen, for a seam that was
-      -- never there.
-      --
-      -- Asked of the live stack rather than of anything this theme recorded,
-      -- because the mark happens while the frame is still drawing and
-      -- `render.zones` -- where the theme decides anything -- does not run
-      -- until every state has drawn.
-      if not onThemedPage() then return nil end
       if type(skirtFX.honorsTrueColor) == "function"
           and not skirtFX.honorsTrueColor() then
         return nil
@@ -1606,7 +1664,7 @@ function Theme.new(context)
       mod.log:info("sprite cells are not being watched; a character can wear "
         .. "a pale box on the way into a battle")
     end
-    if not watchArt(self.skirt) then
+    if not watchArt(self.skirt, onThemedPage) then
       mod.log:info("true-colour marks are not being watched; art keeps its "
         .. "hairline on a fractional-DPI display")
     end
