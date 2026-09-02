@@ -337,5 +337,42 @@ do
     "and the engine's dex entry, for the build with POKEDEX switched off")
 end
 
+io.write("Oak's speech is mattted only while a page is standing on it\n")
+do
+  -- The screen behind the naming screen. It is not a page itself -- the intro
+  -- is a picture and Theme.PAGES leaves it out -- but it is isOpaque and it
+  -- PUSHES the naming screen instead of closing, so it goes on drawing its
+  -- portrait underneath one. That is the white box behind the rival on NEW
+  -- NAME, and no matte on the page above can reach a mark made below it.
+  local named = {}
+  for _, path in ipairs(Matte.SCREENS) do named[path] = true end
+  ok(named["src.ui.OakSpeech"], "so Oak's speech is patched like the rest")
+
+  -- ...and the trap that comes with it. Every other screen in the list is a
+  -- page in its own right, so "there is a page" was implicit and free. This
+  -- one is not, and matting it on the bare intro would paint a BLACK box onto
+  -- white paper -- a worse bug than the one being fixed, and the exact shape
+  -- of the black rings that were just taken out.
+  local page = true
+  local gated = {
+    read = theme.read,
+    matte = theme.matte,
+    onPage = function() return page end,
+  }
+  local gatedContext = { theme = gated, mod = context.mod }
+
+  reset()
+  page = true
+  Matte.new(gatedContext).wrap(screenDraw)({})
+  eq(#fills, 3, "under the naming screen the portrait gets its matte")
+  eq(fills[2].colour[1], 0, "...and it is the page colour")
+
+  reset()
+  page = false
+  Matte.new(gatedContext).wrap(screenDraw)({})
+  eq(drawn, 1, "on the bare intro it draws once, as it always did")
+  eq(#fills, 1, "and no matte is painted onto white paper")
+end
+
 io.write(("\nmatte: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

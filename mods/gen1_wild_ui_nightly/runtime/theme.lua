@@ -968,6 +968,21 @@ function Theme.new(context)
     return nil
   end
 
+  -- Whether this frame has a themed page on it at all, asked of the LIVE
+  -- stack.  Both things that paint over a true-colour mark turn on this, for
+  -- the same reason: a skirt hides the seam against a shaded page, and a matte
+  -- replaces the white a shaded page would otherwise leave inside the mark.
+  -- With no page there is no shading, the screen is still on its own white
+  -- paper, and either one would be painting a box onto a picture.
+  local function onThemedPage()
+    return pageState(frameGame) ~= nil
+  end
+
+  -- Published for runtime/matte.lua, which has to ask the same question about
+  -- a screen that is NOT itself a page: Oak's speech keeps drawing its
+  -- portrait underneath the naming screen, and the naming screen is a page.
+  self.onPage = onThemedPage
+
   -- Every panel on the stack ABOVE whatever owns the frame, bottom up so a
   -- menu over a menu paints in the order the two were drawn.
   --
@@ -1563,7 +1578,7 @@ function Theme.new(context)
       -- because the mark happens while the frame is still drawing and
       -- `render.zones` -- where the theme decides anything -- does not run
       -- until every state has drawn.
-      if not pageState(frameGame) then return nil end
+      if not onThemedPage() then return nil end
       if type(skirtFX.honorsTrueColor) == "function"
           and not skirtFX.honorsTrueColor() then
         return nil

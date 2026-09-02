@@ -26,10 +26,27 @@ was taken from.
   frame is still drawing and `render.zones` does not run until every state has
   drawn.
 
-  Still open: on the naming screen the portrait keeps a **white** box. That
-  screen is a page and is themed, so the mark's raw re-blit brings back the
-  white the screen was cleared to. It needs the sticker treatment the item
-  icons already get, and that is a separate change.
+- **No white box behind the portrait on the naming screen either.** That
+  screen IS a page and IS themed, so the mark's raw re-blit brought back the
+  white the screen was cleared to.
+
+  `runtime/matte.lua` has painted exactly this out on five engine screens
+  since it was written -- it draws once with `markTrueColor` stubbed to
+  collect the rects, paints the page colour into them, then draws for real on
+  top. Oak's speech was not one of the five, and it is the odd one: it is not
+  a page, so on the bare intro it is white art on white paper with nothing
+  wrong. But it is `isOpaque` and it PUSHES the naming screen rather than
+  closing, so it goes on drawing its portrait underneath a screen that IS a
+  page. No matte on the page above can reach a mark made by the state below.
+
+  So it joins the list, gated on there being a themed page on the frame at
+  all -- the same question the skirt above now asks, and for the same reason.
+  Without that gate the fix would paint a BLACK box onto the white intro,
+  which is the shape of the very bug being removed.
+
+  No baking was needed: Gen1Arena's own notes settle it -- a sprite mod's
+  Crystal replacement "carries its own honest alpha", so the white was never
+  the sprite's own pixels, only the page showing through it.
 
 ## [0.32.12] - 2026-09-02
 

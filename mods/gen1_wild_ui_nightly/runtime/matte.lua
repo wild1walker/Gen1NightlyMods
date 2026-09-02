@@ -134,12 +134,23 @@ local Matte = {}
 -- `src.ui.DexEntryMenu` is here for the build where POKEDEX is switched off:
 -- with it on, Gen1Dex registers its own entry screen, that instance carries
 -- its own `draw`, and this wrapper is never reached for it.
+--
+-- `src.ui.OakSpeech` is the odd one and the reason `matteColour` asks the
+-- theme whether there is a page at all.  It is NOT a page -- the intro is a
+-- picture and Theme.PAGES leaves it out on purpose -- so on its own it is
+-- white art on white paper with no box to see.  But it is `isOpaque` and it
+-- PUSHES the naming screen (OakSpeech.lua:454) rather than closing, so it
+-- goes on drawing its portrait underneath a screen that IS a page and IS
+-- themed.  The white box a player sees behind the rival on NEW NAME is Oak's
+-- speech drawing under the naming screen, and mattes on the page above it
+-- cannot reach a mark made by the state below.
 Matte.SCREENS = {
   "src.ui.TrainerCard",
   "src.ui.SummaryMenu",
   "src.ui.LeaguePC",
   "src.ui.Diploma",
   "src.ui.DexEntryMenu",
+  "src.ui.OakSpeech",
 }
 
 -- The title screen, and the row its copyright line sits on.  `TitleState`
@@ -161,6 +172,14 @@ function Matte.new(context)
       return nil
     end
     if theme.read() == "light" then return nil end
+    -- Is there a themed page on this frame at all?  Every screen above was a
+    -- page in its own right, so this was implicit and free; OakSpeech is not,
+    -- and matting it while the intro is on its own white paper would paint a
+    -- BLACK box where there is currently nothing wrong.  A theme too old to
+    -- answer keeps the previous behaviour.
+    if type(theme.onPage) == "function" and not theme.onPage() then
+      return nil
+    end
     local PaletteFX = require("src.render.PaletteFX")
     if type(PaletteFX.honorsTrueColor) == "function"
         and not PaletteFX.honorsTrueColor() then
