@@ -608,14 +608,14 @@ do
   eq(table.concat(installed, ","),
      "autosave,sprint,autocontinue,sound,follower,expshare,caught,banners,"
        .. "interact,npcwalk,rematch,forgethm,reusabletms,modmenu,gen151,"
-       .. "menus,remember",
+       .. "menus,celebi,remember",
      "installation is the order these mods were built and tested against")
 
   local listed = {}
   for i, feature in ipairs(features) do listed[i] = feature.id end
   eq(table.concat(listed, ","),
      "sprint,interact,npcwalk,banners,follower,remember,expshare,rematch,caught,"
-       .. "gen151,forgethm,reusabletms,autosave,autocontinue,sound,menus,"
+       .. "gen151,celebi,forgethm,reusabletms,autosave,autocontinue,sound,menus,"
        .. "modmenu",
      "the menu is grouped by what a player came looking for")
 

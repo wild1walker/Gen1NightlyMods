@@ -9,9 +9,36 @@ was taken from.
 
 ## [0.32.23] - 2026-09-02
 
+- **GS BALL: Crystal's own CELEBI event, switched back on.**
+
+  Crystal ships the entire event and cannot reach it. The receptionist in the
+  Goldenrod POKeCENTER who hands over the ball, KURT taking it away and giving
+  it back outside his house, the shrine in ILEX FOREST, the forest going quiet,
+  the level 30 CELEBI -- every piece is in the cartridge, and the engine
+  implements both specials the shrine calls. What gates it is `sGSBallFlag`,
+  written by nothing but the Mobile Adapter GB. No adapter, no flag, and eleven
+  scripts sit there as dead data on every cartridge sold outside Japan.
+
+  So this writes the flag and stops. Not an item, not a script, not an NPC, not
+  a map, not a line of text: everything the player then sees is the cartridge's
+  own event in its own words, in the order its authors wrote it. The event was
+  never missing, only unreachable, and a key is a more honest fix than a
+  reimplementation of eleven scripts that already work.
+
+  Idempotent, which is the part with teeth. The byte also reads `given` and
+  `used`; overwriting either would send the receptionist after a player who has
+  already finished the event, so a flag that is already set is left exactly as
+  it is. tests/celebi_test.lua drives all three states.
+
+  GOLD and SILVER get nothing, because there is nothing there to get: the GS
+  BALL, the shrine script and the event are absent from those two cartridges
+  entirely -- not gated, not unused, absent. It is the bundle's first feature
+  that installs on Gen 2 and on nothing else.
+
+
 - **The quality-of-life half runs on Gold, Silver and Crystal**, and nearly all
-  of it runs unchanged. `manifest.json` claims `gen1` and `gen2`; fourteen of
-  the seventeen features install there.
+  of it runs unchanged. `manifest.json` claims `gen1` and `gen2`; fifteen of
+  the eighteen features install there.
 
   Most of them needed nothing at all, because they were already written against
   hooks rather than modules and Gold raises the same hooks under the same

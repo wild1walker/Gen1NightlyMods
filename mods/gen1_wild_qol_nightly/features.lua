@@ -353,6 +353,32 @@ return {
       gen1_only = true,
     },
 
+    -- ---- the GS BALL
+    --
+    -- Sits beside ALL 151 rather than under GENERAL because it answers the
+    -- same question that one does -- "can this save actually hold them all?"
+    -- -- for the one Pokemon no cartridge sold outside Japan will ever give
+    -- up.  Its own switch is live: OFF is a Crystal that never heard of the
+    -- Mobile Adapter, which is the Crystal everybody played.
+    {
+      id = "celebi",
+      group = "pokemon",
+      install_seq = 18,
+      priority = 900,
+      dir = "Gen2Celebi",
+      entry = "main.lua",
+      label = "GS BALL",
+      description = "UNLOCKS CRYSTAL'S OWN CELEBI EVENT, WHICH SHIPPED "
+        .. "FINISHED AND UNREACHABLE.",
+      enabledKey = "enabled",
+      default = true,
+      aliases = { "Gen2Celebi", "celebi", "gs_ball" },
+      -- Gen 2 only, because the event is: there is no GS BALL, no shrine
+      -- script and no CELEBI event anywhere in Red, Blue or Yellow, and
+      -- nothing for this to unlock there.
+      gen2_only = true,
+    },
+
     -- ---- the machines
     --
     -- Two rules about TMs and HMs, and they are deliberately two rows on two
