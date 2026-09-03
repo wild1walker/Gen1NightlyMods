@@ -309,6 +309,28 @@ to trim back out. Stage one is the cartridge's own roll, untouched, and a map
 with nothing placed on it draws **zero** extra random numbers — the stream is
 identical to a clean install, draw for draw.
 
+**The statics stay until they are caught — and the flag is never touched.**
+Gen151 clears `EVENT_BEAT_<SPECIES>` and puts the object back. That is exactly
+the wrong move here. Gen 1's flags mean one thing; Gen 2's `EVENT_FOUGHT_*` are
+load-bearing for unrelated progression — Sudowoodo's gates the Goldenrod flower
+shop, Snorlax's gates a Victory Road Gate object, and **Suicune's gates the Tin
+Tower entrance**, which is to say Ho-Oh's entire chain. Clearing a flag to give
+someone their Suicune back could take their Ho-Oh away.
+
+So nothing writes an event flag. Each object carries its *own* visibility flag,
+separate from the fought flag; the map's callback re-hides it on every load and
+this puts it back afterwards, reading whether you actually own the species. The
+flag stays set, every script depending on it keeps its answer, and the bird is
+on its perch again. Raikou and Entei are the same loss through a different door
+— an emptied save slot, refilled from the roster, at full health because a
+beast that came back hurt would be the same beast.
+
+Two are named rather than silently missing: **Sudowoodo** (Route 36 turns the
+object into a Twin, so what comes back battles nothing) and **Suicune on
+Crystal** (a Tin Tower scene, not a walk-up object — it roams on Gold and
+Silver, where the roamer arm covers it). Lapras was never a gap: it is on a
+*daily* flag, so it is back in Union Cave every Friday.
+
 **The ten trade evolutions get a rule, not an item.** Gen151 sells a
 consumable Link Cable, and rejects "just let it evolve on level-up" because
 that evolves every Kadabra you own whether you wanted it or not. True in Red —

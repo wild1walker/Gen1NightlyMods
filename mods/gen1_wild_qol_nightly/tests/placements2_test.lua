@@ -164,8 +164,19 @@ do
   -- The statics all exist on the cartridge.  A second copy in the grass
   -- would make LUGIA an encounter rather than an event, which is a much
   -- bigger change than making the one in the Whirl Islands come back.
-  local STATIC = { "LAPRAS", "SNORLAX", "SUDOWOODO", "ARTICUNO", "ZAPDOS",
-                   "MOLTRES", "RAIKOU", "ENTEI", "SUICUNE", "LUGIA", "HO_OH" }
+  -- The eight that really do exist on the cartridge.  The three Kanto birds
+  -- are NOT here and that took checking: Gen 2's only statics are the
+  -- thirteen `loadwildmon` calls in its map scripts, and ARTICUNO, ZAPDOS and
+  -- MOLTRES are not among them -- so they are placed, like MEWTWO and MEW.
+  --
+  -- These eight are answered without a spawn, three different ways: LUGIA,
+  -- HO-OH and SNORLAX are put back on their maps, RAIKOU and ENTEI (and
+  -- SUICUNE, which roams on GOLD and SILVER) are refilled in the save, and
+  -- LAPRAS was never a gap at all -- it is on a DAILY flag, so it is back in
+  -- UNION CAVE every Friday.  SUDOWOODO, and SUICUNE on CRYSTAL, are named
+  -- gaps rather than silent ones.
+  local STATIC = { "LAPRAS", "SNORLAX", "SUDOWOODO", "RAIKOU", "ENTEI",
+                   "SUICUNE", "LUGIA", "HO_OH" }
   wrong = {}
   for _, species in ipairs(STATIC) do
     if placed[species] then wrong[#wrong + 1] = species end
@@ -203,6 +214,26 @@ do
      .. "in a game whose whole point is that there is one")
   eq(celebi and celebi.map, "ILEX_FOREST",
      "in the forest the shrine stands in, which is where it would have been")
+end
+
+-- ------------------------------------------------- the three that surprised
+
+do
+  io.write("the birds are placed, not left to a static that does not exist\n")
+
+  local placed = {}
+  for _, row in ipairs(P.common) do placed[row.species] = row end
+
+  for _, species in ipairs({ "ARTICUNO", "ZAPDOS", "MOLTRES" }) do
+    ok(placed[species],
+       species .. " has a placement: Gen 2 has no static for it and no wild "
+       .. "table entry either, so without a row it is simply not in the game")
+  end
+  eq(placed.ARTICUNO and placed.ARTICUNO.map, "ICE_PATH_B3F",
+     "ARTICUNO in the only ice cave either region has")
+  eq(placed.MOLTRES and placed.MOLTRES.tier, "VERY_RARE",
+     "and a bird nobody could ever catch here asks vanilla's rarest slot, "
+     .. "which is the most this mod is willing to ask")
 end
 
 io.write(("placements2: %d passed, %d failed\n"):format(passed, failed))

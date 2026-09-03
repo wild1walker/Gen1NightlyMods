@@ -357,5 +357,86 @@ do
      "a missing mon and a missing trigger do not raise")
 end
 
+-- ------------------------------------------------------------ the statics
+
+do
+  io.write("the statics that stay until they are caught\n")
+
+  local Statics = load_("modules/Gen251/statics.lua")
+
+  -- Gen 2 spells it `caught`; Gen 1 spells it `owned`.  Reading the Gen 1
+  -- name would return nil for every species, and nil is indistinguishable
+  -- from "not caught" -- so every static would be restored forever, for a
+  -- player already holding the Pokemon.
+  eq(Statics.owns({ pokedex = { caught = { LUGIA = true } } }, "LUGIA"), true,
+     "ownership is read off pokedex.caught, which is what Gen 2 writes")
+  eq(Statics.owns({ pokedex = { owned = { LUGIA = true } } }, "LUGIA"), false,
+     "and NOT off pokedex.owned, which is the Gen 1 name and is always nil "
+     .. "here")
+  eq(Statics.owns(nil, "LUGIA"), false, "no save owns nothing")
+
+  local empty = { pokedex = { caught = {} } }
+  ok(Statics.wants(empty, "VERMILION_CITY"),
+     "a map whose static is uncaught wants it back")
+  eq(Statics.wants(empty, "VERMILION_CITY").species, "SNORLAX", "the right one")
+  eq(Statics.wants({ pokedex = { caught = { SNORLAX = true } } },
+                   "VERMILION_CITY"), nil,
+     "a player who caught it keeps the cartridge's behaviour exactly")
+  eq(Statics.wants(empty, "ROUTE_29"), nil, "a map with no static wants nothing")
+
+  -- The two that are deliberately absent, and the reason is in the file.
+  eq(Statics.ROSTER.SUDOWOODO, nil,
+     "SUDOWOODO is not restored: Route 36 turns the object into a TWIN, so "
+     .. "what would come back carries a twin's script and battles nothing")
+  eq(Statics.ROSTER.SUICUNE, nil,
+     "and SUICUNE is not: its object is approached by a scripted movement "
+     .. "inside a scene, so an un-hidden one has no path back into the "
+     .. "script that battles it")
+end
+
+-- ------------------------------------------------------------ the roamers
+
+do
+  io.write("the roamers that go back to roaming\n")
+
+  local Statics = load_("modules/Gen251/statics.lua")
+  local ROSTER = {
+    { species = "RAIKOU", level = 40, map = "ROUTE_42" },
+    { species = "ENTEI", level = 40, map = "ROUTE_37" },
+  }
+  local function ownsNothing() return false end
+
+  -- A beaten or caught beast keeps its slot and loses its species and map,
+  -- which is what BattleEnd_HandleRoamMons does -- `win` and `caught` are the
+  -- same branch, so a KO reads exactly like a capture.
+  local save = { roamers = { { species = nil, map = nil, hp = 0 },
+                             { species = "ENTEI", map = "ROUTE_37", hp = 30 } } }
+  local back = Statics.restoreRoamers(save, ROSTER, ownsNothing)
+  eq(table.concat(back, ","), "RAIKOU", "an emptied slot is refilled")
+  eq(save.roamers[1].species, "RAIKOU",
+     "with the species its INDEX says it was -- the slot order is the only "
+     .. "thing left that identifies a beaten beast")
+  eq(save.roamers[1].map, "ROUTE_42", "back on its starting route")
+  eq(save.roamers[1].hp, 0,
+     "at full health, deliberately: a beast that came back at the health it "
+     .. "fled with would be the same beast, and this is a fresh one")
+
+  eq(save.roamers[2].hp, 30,
+     "a beast still out there is left completely alone, hp and position and "
+     .. "all")
+
+  -- The player who actually caught it keeps the cartridge's behaviour.
+  local caught = { roamers = { { species = nil, map = nil, hp = 0 } } }
+  local none = Statics.restoreRoamers(caught, ROSTER,
+    function(species) return species == "RAIKOU" end)
+  eq(#none, 0, "a caught beast is not put back")
+  eq(caught.roamers[1].species, nil, "and its slot stays empty")
+
+  eq(#Statics.restoreRoamers(nil, ROSTER, ownsNothing), 0,
+     "no save restores nothing")
+  eq(#Statics.restoreRoamers({ roamers = {} }, nil, ownsNothing), 0,
+     "and no roster restores nothing, rather than raising")
+end
+
 io.write(("gen251: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -90,11 +90,18 @@ function Gen251.install()
   local Build = submodule("build.lua")
   local Roll = submodule("roll.lua")
   local Trade = submodule("trade.lua")
-  if not (Placements and Build and Roll and Trade) then return end
+  local Statics = submodule("statics.lua")
+  if not (Placements and Build and Roll and Trade and Statics) then return end
 
   -- The ten trade evolutions, which are a missing cable rather than a missing
   -- habitat and so are answered here rather than in the placement table.
   Trade.install(mod)
+
+  -- LUGIA, HO-OH and SNORLAX stay until they are caught, and RAIKOU and ENTEI
+  -- go back to roaming.  Nothing here writes an event flag: Gen 2's
+  -- EVENT_FOUGHT_* are load-bearing for progression a player would not
+  -- expect to lose.
+  Statics.install(mod)
 
   local roll = Roll.new()
   local installed = false

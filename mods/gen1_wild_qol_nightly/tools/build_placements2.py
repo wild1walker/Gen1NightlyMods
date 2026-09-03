@@ -210,8 +210,38 @@ def render(rows) -> str:
 # --check can prove the gap is fully answered rather than merely consistent.
 TRADE_EVOLUTIONS = {"ALAKAZAM", "MACHAMP", "GOLEM", "GENGAR", "POLITOED",
                     "SLOWKING", "STEELIX", "SCIZOR", "KINGDRA", "PORYGON2"}
-RETRYABLE_STATICS = {"LAPRAS", "SNORLAX", "SUDOWOODO", "ARTICUNO", "ZAPDOS",
-                     "MOLTRES", "RAIKOU", "ENTEI", "SUICUNE", "LUGIA", "HO_OH"}
+# Verified against the cartridges rather than assumed, twice over.
+#
+# Gen 2's only statics are the thirteen `loadwildmon` calls in its map
+# scripts, and ARTICUNO, ZAPDOS and MOLTRES are not among them -- listing
+# those here would have let --check call a cartridge complete while three
+# species had no source at all, which is the exact false pass this constant
+# exists to prevent.
+#
+# What IS answered by modules/Gen251/statics.lua: the three whose object
+# script is unguarded, so putting the object back puts the encounter back --
+# and the roamers, whose emptied save slot is refilled from the roster.
+# SUICUNE is in the second group on GOLD and SILVER, where it roams;
+# pokecrystal seeds Raikou and Entei only (src/core/gen2/Roamers.lua:74), so
+# on CRYSTAL it is the TIN TOWER static instead and is not answered.
+RETRYABLE_STATICS = {"LUGIA", "HO_OH", "SNORLAX", "RAIKOU", "ENTEI"}
+ROAMS_EXCEPT_ON_CRYSTAL = {"SUICUNE"}
+
+# Renewable on the cartridge in a way no wild table can show: LAPRAS is gated
+# on DAILYFLAGS2_UNION_CAVE_LAPRAS_F, which is cleared every day, so it is
+# back in UNION CAVE B2F every Friday for as long as the save lasts.  It was
+# never a gap; the gap set simply cannot see a respawn that lives in a script.
+VANILLA_RESPAWNS = {"LAPRAS"}
+
+# Named, documented and deliberately unanswered.  Both are driven by a map
+# SCENE rather than by an object you can walk up to, so restoring them means
+# re-entering a scene rather than un-hiding an object -- a different and much
+# more invasive operation than statics.lua performs.  --check reports them
+# every run rather than letting them pass as answered.
+KNOWN_GAPS = {
+    "SUDOWOODO": "Route 36 turns the object into a TWIN after the battle",
+    "SUICUNE": "Crystal's is a Tin Tower scene, not a walk-up object",
+}
 
 
 def coverage(roots: dict[str, Path], table: str):
@@ -228,10 +258,11 @@ def coverage(roots: dict[str, Path], table: str):
     per_version = gap_roots(roots, order, valid)
     holes = {}
     for version, (_gap, roots_here) in per_version.items():
-        missing = [name for name in roots_here
-                   if name not in placed
-                   and name not in TRADE_EVOLUTIONS
-                   and name not in RETRYABLE_STATICS]
+        answered = set(placed) | TRADE_EVOLUTIONS | RETRYABLE_STATICS \
+            | VANILLA_RESPAWNS
+        if version != "crystal":
+            answered |= ROAMS_EXCEPT_ON_CRYSTAL
+        missing = [name for name in roots_here if name not in answered]
         if missing:
             holes[version] = missing
     return holes
@@ -309,13 +340,24 @@ def main() -> int:
                 sys.stderr.write(line + "\n")
             return 1
         holes = coverage(roots, text)
-        if holes:
-            for version, missing in sorted(holes.items()):
+        unexpected = {}
+        for version, missing in holes.items():
+            rest = [name for name in missing if name not in KNOWN_GAPS]
+            if rest:
+                unexpected[version] = rest
+        if unexpected:
+            for version, missing in sorted(unexpected.items()):
                 sys.stderr.write("%s cannot obtain: %s\n"
                                  % (version, " ".join(missing)))
             return 1
-        print("SET B is current, every map named exists, and every "
-              "cartridge can obtain all 251")
+        for version, missing in sorted(holes.items()):
+            for name in missing:
+                print("  known gap on %s: %s -- %s"
+                      % (version, name, KNOWN_GAPS[name]))
+        total = sum(len(v) for v in holes.values())
+        print("SET B is current, every map named exists, and every gap is "
+              "answered%s" % (" apart from the known ones above" if total
+                              else " on all three cartridges"))
         return 0
 
     if updated != text:

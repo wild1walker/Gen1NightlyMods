@@ -30,6 +30,17 @@ was taken from.
   slot count to record, nothing to trim before stage one. A map with nothing
   placed on it draws ZERO extra random numbers.
 
+  The statics stay until they are caught, and the event flag is never
+  touched. Gen151 clears EVENT_BEAT_<SPECIES>; here that would be a bug. Gen
+  2's EVENT_FOUGHT_* flags gate unrelated progression -- SUDOWOODO's the
+  GOLDENROD flower shop, SNORLAX's a VICTORY ROAD GATE object, SUICUNE's the
+  TIN TOWER entrance and therefore HO-OH's whole chain -- so clearing one to
+  return a SUICUNE could take a HO-OH away. Each object carries its own
+  visibility flag instead, and that is what goes back. RAIKOU and ENTEI are
+  refilled in the save from the roster, at full health. SUDOWOODO and
+  CRYSTAL's SUICUNE are named gaps, not silent ones; LAPRAS was never a gap
+  at all, being on a daily flag that puts it back every Friday.
+
   The ten trade evolutions get a RULE rather than an item. Gen151 sells a
   consumable cable because a level-up rule would evolve every KADABRA you own
   whether you wanted it or not; Gen 2 ships the EVERSTONE, which is that

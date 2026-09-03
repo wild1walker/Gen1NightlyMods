@@ -179,11 +179,33 @@ P.common = {
     why = "where MR.POKeMON found the egg: the row puts the species back "
       .. "where its own story says it came from" },
 
-  -- ---- the two that are not on the cartridge at all (VERY_RARE)
+  -- ---- the five that are not on the cartridge at all (VERY_RARE)
   --
-  -- MEWTWO and MEW have no Gen 2 acquisition of any kind -- CERULEAN CAVE is
-  -- sealed and nothing replaced it -- so unlike everything above, these are
-  -- not a renewable copy of something. They are the only way.
+  -- The three Kanto birds join MEWTWO and MEW here, and it took checking to
+  -- believe it: Gen 2's ONLY statics are the thirteen `loadwildmon` calls in
+  -- its map scripts, and ARTICUNO, ZAPDOS and MOLTRES are not among them.
+  -- They are not gated, not roaming and not in a wild table -- they simply
+  -- are not in Gold, Silver or Crystal.  So unlike LUGIA or SNORLAX, which
+  -- exist and merely cannot be got twice, these five have no acquisition of
+  -- any kind and these rows are not a renewable copy of something.  They are
+  -- the only way.
+  { species = "ARTICUNO", map = "ICE_PATH_B3F", method = "grass", band = "high",
+    tier = "VERY_RARE", feature = "gifts",
+    why = "the deepest floor of the only ice cave either region has, behind "
+      .. "STRENGTH: Gen 2 kept ARTICUNO's habitat and left the bird out of "
+      .. "it" },
+  { species = "ZAPDOS", map = "ROUTE_10_NORTH", method = "grass", band = "high",
+    tier = "VERY_RARE", feature = "gifts",
+    why = "the route the POWER PLANT stands on, which is where ZAPDOS lived "
+      .. "in Red and is still the only place Gen 2 keeps VOLTORB" },
+  { species = "MOLTRES", map = "SILVER_CAVE_OUTSIDE", method = "grass",
+    band = "high", tier = "VERY_RARE", feature = "gifts",
+    why = "FireRed puts MOLTRES at a mountain's summit and MT.SILVER is the "
+      .. "only summit Gen 2 has -- behind sixteen badges, which is the "
+      .. "hardest thing either region asks for anything" },
+
+  --
+  -- CERULEAN CAVE is sealed in Gen 2 and nothing replaced it.
   { species = "MEWTWO", map = "SILVER_CAVE_ROOM_3", method = "grass",
     band = "high", tier = "VERY_RARE", feature = "gifts",
     why = "CERULEAN CAVE is sealed in Gen 2 and MT.SILVER is the cave that "

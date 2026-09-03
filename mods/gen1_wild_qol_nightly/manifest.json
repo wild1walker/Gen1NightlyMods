@@ -46,5 +46,5 @@
     "engine_internals"
   ],
   "github": "wild1walker/Gen1NightlyMods",
-  "description": "NIGHTLY. The quality-of-life half of the Gen1Wild suite in one mod: sprinting, autosave, auto continue, sound, followers, all 151, EXP share, the move reminder, menu layout and the mod manager. Every feature switches on and off by itself. On Gold, Silver and Crystal all of it runs except ALL 151, TRAINER REMATCH and NPC WALK, which are Gen 1 only."
+  "description": "NIGHTLY. The quality-of-life half of the Gen1Wild suite in one mod: sprinting, autosave, auto continue, sound, followers, all 151, EXP share, the move reminder, menu layout and the mod manager. Every feature switches on and off by itself. On Gold, Silver and Crystal all of it runs except ALL 151, TRAINER REMATCH and NPC WALK, which are Gen 1 only, and it adds two that run there and nowhere else: ALL 251 and the GS BALL."
 }
