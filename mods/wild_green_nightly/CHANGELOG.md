@@ -6,6 +6,24 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.23] - 2026-09-02
+
+- No changes. This mod stays **Red only**, and the Gen 2 work in this version
+  is the reason to say so rather than leave it unstated.
+
+  Wild Green is the player in green, the names the game offers, and
+  `WILD GREEN VERSION` on the title screen -- and all three of those are Red's.
+  The recipe writes Red's nine sprite suits, the ribbon is drawn onto Red's
+  title art, and the palette overrides name Red's SGB entries. Gold's player is
+  a different character with different sprites on a title screen that is Ho-Oh
+  over a different logo; making this run there is a new mod, not a `games` key.
+
+  The **Wild Green Nightly cart** is unaffected and stays a Red cart
+  (`cart.json` is `"base": "red"`). What changed this version is that the two
+  bundles it pins now also run on Gold, Silver and Crystal when a player
+  installs them on their own from the index.
+
+
 ## [0.32.22] - 2026-09-02
 
 - No changes; the channel ships as one version.

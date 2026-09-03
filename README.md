@@ -217,7 +217,7 @@ the bars above and below it are the biggest thing on the screen. The backdrop's
 own edge is now stretched into them, so the picture runs off the screen instead
 of stopping at a rectangle. `EDGE TO EDGE` turns it off.
 
-### `UI THEME`: `LIGHT`, `DARK`, `COLORFUL*`
+### `UI THEME`: `LIGHT`, `DARK`
 
 `START > OPTION > UI THEME`. `LIGHT` is the default and is what every build
 before this one looked like.
@@ -229,11 +229,124 @@ Nothing is redrawn, no screen is edited, and a theme that cannot move a glyph
 cannot move a glyph off the screen.
 
 **`DARK`** reverses every zone on the page: paper black, ink white, the shades
-between them exchanged. **`COLORFUL`** tints each page by what the screen is —
-the Pokédex red, the box blue, the party green, the bag leather — and colours
-the suite's own cards by what they open. It wears an asterisk because it is not
-finished: the battle command grid's four buttons sit over a battle rather than
-over a black-and-white page, which is a different mechanism, and they are next.
+between them exchanged.
+
+There were three. `COLORFUL` — a saturated tint per screen, a band across a
+header, a card per Pokémon in its own species colour — was taken out at 0.8.0
+rather than finished, and this page went on describing it for rather longer
+than that. The history has it if it is ever wanted back.
+
+On Gold, Silver and Crystal the same two themes arrive by a different route;
+see below.
+
+## Gold, Silver and Crystal
+
+The two bundles run on Gen 2 as of 0.32.23. Install either from the index on a
+Gold, Silver or Crystal boot and it loads in full.
+
+The **cart** does not move. Wild Green Nightly is a Red cart (`"base": "red"`)
+and stays one, because Wild Green itself is Red's player, Red's names and Red's
+title screen. What claims Gen 2 is `Gen1WildUI Nightly`, `Gen1WildQOL Nightly`
+and the test bench, installed on their own.
+
+**Nearly all of the quality-of-life half runs there unchanged**, because it was
+written against hooks rather than modules and Gold raises the same hooks under
+the same names. Sprinting is the clearest case: `movement.speed` is raised by
+both worlds, so holding B to run needed not one line. Three features are Gen 1
+only — `ALL 151`, whose placement table is Kanto research; `TRAINER REMATCH`,
+which on Gold is the POKéGEAR; and `NPC WALK`, because Gold's NPCs already walk
+at the player's pace.
+
+**Most of the visual half stands down there, and that is the honest answer
+rather than a shortfall.** This bundle exists to give Red the screens Gold
+already shipped. Gold's battle menu is a 2x2 grid and its battle has an XP bar.
+Its Bill's PC is a real box with the mon, the level and the gender beside the
+list. Its PACK has pockets and prints an item's description under them. Its
+lift is a small panel with the car still on screen behind it. Drawing our
+versions of those over the cart's would be work spent to arrive back where Gold
+started.
+
+What does run there is `BACKDROPS`, `POKEDEX`, `BAG`, `PARTY MENU`,
+`MENU LAYOUT`, `MOD MANAGER` and `UI THEME`.
+
+`POKEDEX` is three extra pages on the cart's own entry screen rather than a
+replacement dex: Gold's list, search and AREA map are already good, and what it
+has no answer for is base stats, evolutions and the learnset. They go where the
+cart already has a control that means "next page" — `PAGE` counts on past its
+two into STATS, EVOLVES and MOVES. Six stats, because Gen 2 split Special; all
+five Gen 2 evolution methods; and an unseen evolution still masked.
+
+`PARTY MENU` is there because Gold has the same bug Red does: `drawIcon`
+colours every row out of one palette, so six Pokémon share one set of colours.
+Each one wears its own on Gold now, out of the cart's own `monColors` — so a
+CHARMANDER in the party is the orange it is in a fight.
+
+`UI THEME` gets there by a different mechanism, because Gold gives it no
+choice. Red colours a page *after* it is drawn, by blitting the frame through
+an SGB zone's four colours; Gold is a CGB game whose colour is already in the
+picture. So on Gold the theme rewrites `Chrome.DEFAULT_BOX_PALETTE` — the four
+colours every box, every string and every fill reads when it is handed none —
+in place, once a frame, before the frame draws. Same two themes, same stored
+row, same promise that a theme which cannot move a glyph cannot move one off
+the screen.
+
+`BACKDROPS` runs there too, and needed no new art — see below.
+
+`BAG` adds SORT, SEARCH and PIN to the cart's own PACK rather than replacing
+it: Gold already has the pockets and the item descriptions, so what is left is
+how a pocket's list is built. The capacity limit needed nothing at all — that
+patch is on the shared `src.inventory.Bag`, which Gold's PACK uses too.
+FAVOURITES is the one thing that did not port, because on Red it is a virtual
+*pocket* and Gold's tab strip is four fixed ones.
+
+
+Every one of those verdicts is written next to the feature it belongs to in
+each bundle's `features.lua`, with what was checked to reach it.
+
+### The backdrops were never Kanto art
+
+This one is worth its own note, because the name misleads. Every backdrop in
+the pack is a FireRed **terrain** scene — grass, forest, cave, sea, pond,
+beach, craggy, snow, ice cave, desert, volcano — and Johto is made of the same
+terrain. What was Kanto-specific was the *assignment*, and that is a table.
+
+Six of the twenty are named after Kanto bosses only because FireRed assigned
+them that way, and three of those six belong to people who are not in this
+game at all. So they are re-dealt:
+
+| scene | Kanto | Gold, Silver and Crystal |
+|---|---|---|
+| 14 Snow | Giovanni | **RED**, at the top of Mt Silver |
+| 15 Snow Cave | Lorelei | **KAREN** — and the **ICE PATH**, which is what it is a painting of |
+| 16 Snow Mountain | Bruno | Bruno, who is in both |
+| 17 Desert | Agatha | **KOGA** |
+| 18 Volcano | Lance | Lance, who is the Champion here |
+| 19 Space | the Champion | **WILL**, the psychic |
+
+All twenty scenes are reached on a Gen 2 boot.
+
+The one thing that changed rather than moved is the **tower**. `tower.png` is
+not a picture of a tower — it is the generic interior with GRAYMON baked in,
+and GRAYMON is Red's rule for its CEMETERY tileset. Gold has no CEMETERY, no
+GRAYMON and no per-tower palette at all, so Sprout Tower and the Tin Tower take
+the plain interior. That is the transcription, not a downgrade: on Gold those
+walls really are the same palette a Poké Center's are.
+
+**Town colours are generated, not drawn.** A town variant has always been a
+recolour: the art's only two saturated warm colours are the roof browns, and a
+variant remaps them onto that town's own roof pair out of the game's data.
+Gold keeps the same two colours one level up — `RoofPals`, indexed by map
+group — so all twenty-one towns across both regions come out of the same two
+passes:
+
+```sh
+python3 tools/make_gen2_towns.py <save-dir>/data/generated/palettes.lua
+```
+
+All twenty-one are committed, the same as Red's eleven, so nothing has to be
+run to play. The script is here because the art is a function of the game's
+own numbers and ought to be rebuildable from them — `palettes.lua` comes from
+your own cartridge import and is the one thing that cannot be committed.
 
 ## Licence
 

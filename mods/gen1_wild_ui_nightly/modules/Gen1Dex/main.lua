@@ -53,7 +53,25 @@ local function loadSibling(mod, name)
 end
 
 return function(mod)
-  mod.options:define({
+  -- ------- which arm, asked once
+  --
+  -- Read before the schema, because the rows differ, and before the siblings
+  -- are LOADED, because on Gold most of them must not be: list.lua and
+  -- entry.lua reach `PartyMenu.drawIcon` and `BattleState.askNicknameUI`,
+  -- neither of which Gold has, and they register over `PokedexMenu` and
+  -- `DexEntryMenu` -- two ids Gold never builds, its own being
+  -- `Gen2PokedexMenu`.
+  local isGen2 = false
+  do
+    local ok, GameVersion = pcall(require, "src.core.GameVersion")
+    if ok and type(GameVersion) == "table"
+        and type(GameVersion.generation) == "function" then
+      local okCall, generation = pcall(GameVersion.generation)
+      isGen2 = okCall and generation == 2
+    end
+  end
+
+  local schema = {
     -- Every POKéMON on the screen in its own species colours, over the plain
     -- grey ramp -- which is what makes the icons worth having and what the
     -- rest of this set looks like.  Off puts the vanilla dex brown back and
@@ -129,9 +147,66 @@ return function(mod)
     -- other two.
     { key = "map_inspect", type = "toggle", label = "MAP INSPECT",
       default = true },
-  })
+  }
+
+  -- ------- the rows, per generation
+  --
+  -- Ten of the eleven above are settings for screens this mod REPLACES, and
+  -- on Gold it replaces none of them: the list, the search, the AREA map and
+  -- the nickname prompt are all the cart's there.  A row that cannot do
+  -- anything is worse than a missing one -- it is a switch the player flips
+  -- and watches not work -- so Gold gets the one row that governs what this
+  -- mod actually adds there.
+  local GEN2_ROWS = {
+    gen2_pages = true,
+  }
+
+  if isGen2 then
+    local kept = {}
+    for _, row in ipairs(schema) do
+      if GEN2_ROWS[row.key] then kept[#kept + 1] = row end
+    end
+    -- STATS, EVOLVES and MOVES on the entry screen.  Live: the wrap reads it
+    -- on every frame and every press, so OFF is Gold's own two-page entry
+    -- back with nothing to relaunch.
+    kept[#kept + 1] = { key = "gen2_pages", type = "toggle",
+      label = "EXTRA DEX PAGES", default = true }
+    schema = kept
+  end
+
+  mod.options:define(schema)
 
   local DexData = loadSibling(mod, "dexdata.lua")
+
+  -- ------- what this mod publishes
+  --
+  -- The whole of dexdata.lua, and it is published BEFORE the generation
+  -- branch on purpose: it is pure, it reads Gen 1 and Gen 2 datasets alike
+  -- (see `DexData.statKeys`), and it is this mod's public surface.  A sibling
+  -- that asks for `buildStats` should get it whichever cart is running --
+  -- losing it on Gold would be a silent regression for anything built on it.
+  mod.exports.buildList = DexData.list
+  mod.exports.buildMoves = DexData.moves
+  mod.exports.buildMoveRows = DexData.moveRows
+  mod.exports.buildStats = DexData.stats
+  mod.exports.buildDescription = DexData.description
+  mod.exports.seenSpecies = DexData.seenSpecies
+  mod.exports.modeLabels = DexData.MODE_LABELS
+  mod.exports.nextMode = DexData.NEXT_MODE
+
+  if isGen2 then
+    -- Gold's dex keeps its list, its search and its AREA screen; what it has
+    -- no answer for is base stats, evolutions and the learnset, and that is
+    -- all this adds.  See gen2.lua.
+    local Gen2Dex = loadSibling(mod, "gen2.lua")
+    local arm = Gen2Dex.new(mod, DexData)
+    local ok, problem = pcall(arm.install)
+    if not ok then
+      mod.log:error("the Gold dex pages did not install: %s", tostring(problem))
+    end
+    return
+  end
+
   local makeChrome = loadSibling(mod, "chrome.lua")
   local makeList = loadSibling(mod, "list.lua")
   local makeEntry = loadSibling(mod, "entry.lua")
@@ -290,14 +365,6 @@ return function(mod)
 
   -- The pure builders, for the suite and for any mod that wants the same
   -- answers this screen is drawing without opening it.
-  mod.exports.buildList = DexData.list
-  mod.exports.buildMoves = DexData.moves
-  mod.exports.buildMoveRows = DexData.moveRows
-  mod.exports.buildStats = DexData.stats
-  mod.exports.buildDescription = DexData.description
-  mod.exports.seenSpecies = DexData.seenSpecies
-  mod.exports.modeLabels = DexData.MODE_LABELS
-  mod.exports.nextMode = DexData.NEXT_MODE
 
   mod.log:info("the Pokédex has icons")
 end

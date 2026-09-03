@@ -237,6 +237,241 @@ transformed, so the bar keeps finding the HUD when the fork retunes its layout.
 A fork that snaps the HUDs but publishes no geometry gets no bar rather than a
 guessed one.
 
+## Gold, Silver and Crystal
+
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot six of its eleven
+features install: **BACKDROPS**, **POKEDEX**, **BAG**, **PARTY MENU**,
+**MENU LAYOUT** and **MOD MANAGER**, plus **UI THEME**.
+
+The other eight stand down, and for the most part that is the honest answer
+rather than a shortfall. This bundle exists to give Red the screens Gold
+already shipped:
+
+| feature | why not on Gold |
+|---|---|
+| **BATTLE MENUS** | Gold's battle menu is already a 2x2 grid, and its battle already has an XP bar with the cart's own fill sound. |
+| **POKEMON BOX** | Gold's Bill's PC is already a box — the name in its own panel, five nicknames down the right, and the mon, level, gender and species of whatever the cursor is on. |
+| **ITEM INFO** | Gold's PACK and MART already print an item's description under the list, with a TM showing the move's. The text is the cart's own. |
+| **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
+| **BATTLE INTRO** | Gold's battle already draws edge to edge, and its intro is the cart's animated wipe. |
+
+
+Each verdict is written next to its feature in `features.lua`, with what was
+checked to reach it.
+
+### BACKDROPS on Gold
+
+The seam is cleaner than Red's. Gold's battle field is one `Chrome.clear()`
+call — the first line of `BattleState:drawPanel`, and the only one in the file
+— so the backdrop goes in ahead of that instead of behind Red's
+geometry-matched `love.graphics.rectangle` shim. There is no wide arm either:
+Gold's battle is 160x144 inside `Chrome.withPanel` whatever the window does.
+
+**No new art was needed, and the reason is that there never was any Kanto
+art.** All twenty backdrops are FireRed *terrain* scenes. Six carry Kanto boss
+names only because FireRed assigned them that way, and Giovanni, Lorelei and
+Agatha are not in this game — so their snowfield, ice cave and desert are free,
+and Johto has an immediate use for them:
+
+| scene | Kanto | here |
+|---|---|---|
+| 14 Snow | Giovanni | RED, on Mt Silver |
+| 15 Snow Cave | Lorelei | KAREN, and the **ICE PATH** |
+| 16 Snow Mountain | Bruno | Bruno, in both games |
+| 17 Desert | Agatha | KOGA |
+| 18 Volcano | Lance | Lance, the Champion here |
+| 19 Space | the Champion | WILL |
+
+All twenty scenes are reached. Two *files* are not, and neither is a picture:
+`museum.png` is byte-identical to `indoor.png`, and `tower.png` is that same
+image with GRAYMON baked into it.
+
+#### The tower, and why it does not use the tower
+
+`tower.png` is not a picture of a tower. The pack's own Pokémon Tower scene is
+slot 13, and its author drew 13 as an outdoor plaza under open sky — so this
+mod gave 13 to `town` and built the tower out of **10 Indoors**, the same art
+as `indoor`, `club`, `mansion`, `museum` and `ship`, with one thing done to it:
+GRAYMON at 0.80 strength.
+
+And GRAYMON is a Gen 1 fact. Red routes its tower by
+`FieldDefaults.byTileset = { CEMETERY = "GRAYMON" }` — the Pokémon Tower wears
+a mourning palette rather than Lavender's roofs.
+
+Gold has no CEMETERY tileset, no GRAYMON, and no per-tower palette at all: its
+map colours come from `environments[environment][daytime]`, shared by every
+INDOOR map on the cart. Crystal's `specialTilesets` — the list of tilesets the
+game *does* give their own colours to — is six long and has no tower on it.
+
+So Sprout Tower, the Tin Tower and the Tin Tower's floors take the plain
+interior here. That is not a downgrade, it is the transcription: on Gold those
+walls really are the same palette a Poké Center's are. The Burned Tower's
+basement is the exception and takes the cave, because it is a collapsed pit
+rather than a room.
+
+Two of the three selection inputs are also *better* here than on Red, because
+Gold's map header carries what Red made this mod guess:
+
+- **`environment`** — TOWN / ROUTE / INDOOR / CAVE / GATE / DUNGEON, straight
+  off the header. Red has no such field, so its arm has to infer from the
+  tileset whether an unmapped map is a room. Here an unmapped tileset still
+  gets a right answer.
+- **the roofs** — in the data, so a town variant is generated rather than
+  hand-listed.
+
+One thing the header cannot say is which maps are gyms: Gold has no GYM
+tileset, so a gym sits on its town's tileset and the sixteen are named
+explicitly. So are the S.S. Aqua's decks and `SILVER_CAVE_OUTSIDE`, each of
+which is the wrong shape for its tileset — the same class of override the Gen 1
+arm keeps for the S.S. Anne.
+
+#### Town colours
+
+Generated, not drawn — as they always have been. Gold's `RoofPals` is indexed
+by **map group** (Red's `roofByMapIndex` is per city map), so every map in a
+group shares one roof pair and a group is a town's colour. Twenty-one of Gold's
+twenty-six groups contain a town, which is every town in both regions:
+
+```sh
+python3 tools/make_gen2_towns.py <save-dir>/data/generated/palettes.lua
+```
+
+All twenty-one folders are committed under `og/gen2/`, so a Gen 2 boot has its
+town roofs with nothing to run. The script is kept because the art is a
+function of the game's own numbers and should be rebuildable from them;
+`palettes.lua` comes from your own cartridge import and is the one input that
+cannot live here. Kanto is regenerated rather than shared with Red's eleven
+folders, because Gold repaints Kanto — its Cerulean is not Red's Cerulean.
+
+### BAG on Gold
+
+Three additions to the cart's PACK, not a replacement bag.
+
+Gold's PACK already has the two biggest things this mod gives Red's: pockets,
+with the cart's own tab strip, and a description under the list with a TM
+showing its *move's* description rather than the TM's. Red has neither.
+
+What is left is how a pocket's list is **built**, and that is one method —
+`PackMenu:rebuild`, which reads `save.inventory` through `Bag.order` and writes
+`self.rows`. Everything here happens after that and before the draw: filter,
+sort, float the pinned. The cart keeps the selection, the quantity flow, the
+tab strip and every pixel of the drawing.
+
+**The capacity limit needed nothing at all.** That patch wraps `Bag.add` and
+`Bag.capacity`, and `src/inventory/Bag.lua` is *shared* — Gold's own PackMenu
+requires it and orders its rows through it. So it was already
+generation-agnostic, and it lifts a *check* rather than changing a layout:
+`save.inventory` is an id-to-count table on both carts either way.
+
+**The keys.** Gold's PACK reads left/right, up/down, A, B and SELECT (the
+cart's own item move). START is the only key it does not read, so START opens
+SORT and SEARCH. PIN goes on the item submenu instead, because it is a thing
+you do to one item and that menu is the cart's idiom for exactly that — and
+only one row is added, which is a limit rather than a preference: the submenu
+box is drawn upward at two rows an entry, so six is the last that fits and the
+cart already uses five.
+
+Search is typed on Gold's own naming screen — the cart's keyboard, rather than
+a text field of ours.
+
+**FAVOURITES is the one thing that did not port.** On Red it is a virtual
+*pocket*; Gold's tab strip is four fixed pockets from the cart's own table, and
+a fifth would mean replacing the strip, which is the one thing this arm exists
+to avoid. PIN does the half of it that fits: an item you want at hand sits at
+the top of the pocket it already lives in.
+
+### POKEDEX on Gold
+
+Three extra pages on the cart's own entry screen, not a replacement dex.
+
+Gold's Pokédex is good, and already carries two of the three things this mod
+was built to add to Red's: an AREA screen with blinking nests, and a working
+search with NEW / OLD / A-Z on SELECT. Registering over `Gen2PokedexMenu` would
+mean re-implementing both to stand still.
+
+What Gold has no answer for is the third — its entry is two pages of flavour
+text and nothing else. So the Gold arm adds **STATS**, **EVOLVES** and
+**MOVES**, and puts them where the cart already has a control that means "next
+page": `PAGE` counts on past its two into ours, and back round to one.
+
+That is deliberately not a new key. `DexEntryScreen_MenuActionJumptable` gives
+the entry four actions along row 17 and PAGE is already one of them, already
+labelled, already on screen. `A` is not intercepted to do it either: PAGE is
+the only one of the four that moves `self.page`, so the cart is left to run the
+press and the page is read afterwards.
+
+Everything above the entry's divider — the pic, the name, the number, the
+footprint, the height and the weight — stays the cart's on every page, so these
+read as more of the same entry rather than a second screen wearing its frame.
+Only the description panel changes: rows 11 to 15, eighteen columns. Row 11 is
+the page's own name, because Gold's page marker is two tiles of "P" over a
+digit and its sheet has no digit past 2.
+
+**Six stats, and no bars.** Gen 2 split Special in two, so the stats page
+prints six where Red's prints five — in two columns of three with the total
+underneath, which is exactly what four content rows hold. There are no bars
+here for the same reason the Gen 1 page gives for having none: a bar wide
+enough to read costs room the column has not got, and a number you can compare
+is worth more than a bar you cannot. That argument is stronger on an
+eighteen-tile panel, not weaker.
+
+**All five Gen 2 evolution methods.** A level, a stone, a trade (with its held
+item named when there is one), happiness with its time band, and TYROGUE's
+attack-versus-defence comparison with the level it happens at. A method a
+content mod adds and describes still wins, through the `gen2EvolutionMethods`
+registry. An evolution target you have never met is masked `?????` exactly as
+on Red — the mask reads Gold's `into` field as well as Red's `species`.
+
+`UP` and `DOWN` scroll the two pages that can outrun their panel — the movelist,
+and EEVEE's five evolutions. Both are unbound on Gold's entry view, so nothing
+is taken away.
+
+The reading is `dexdata.lua`, which is pure and shared: the Gold arm and the
+Gen 1 arm cannot drift apart about what a base stat is or which evolution a
+species has.
+
+### PARTY MENU on Gold
+
+The one feature here that Gold needs as much as Red does.
+`PartyMenu:drawIcon` colours every row out of `palettes.partyMenu[1]`, so six
+Pokémon share one palette — which is Red's single MEWMON zone over all six
+rows, written in CGB instead of SGB.
+
+The Gold arm hands `drawIcon` a palettes table whose `partyMenu[1]` is that
+mon's own pair from `Palettes.monColors`, for the length of one call. Nothing
+is redrawn: the icon, the bob, the held-item marker and the cursor offset are
+all still the cart's. `START: PARTY` comes with it; `RULED ICONS` and `MOVE NOT
+SWITCH` do not, because they are settings for the Gen 1 screen and a row that
+cannot do anything is worse than a missing one.
+
+### UI THEME on Gold
+
+Red draws a page in four DMG shades and the colour arrives afterwards from the
+SGB pass, so the Gen 1 theme rewrites that pass's zone list. Gold is a CGB game
+whose colour is already in the picture — `render.zones` is still raised there,
+but it carries nothing to reverse, so a theme built on it would never fire.
+
+So the Gold arm moves one step earlier, to `Chrome.DEFAULT_BOX_PALETTE`: the
+four colours every box, every string and every fill reads when it is handed
+none, which fifty-two files under `src/` draw through. They are rewritten in
+place, once a frame, from `core.update` — before the frame draws. Same two
+themes, same stored row, same promise that a theme which cannot move a glyph
+cannot move a glyph off the screen.
+
+In place rather than replaced, because `TrainerCard` passes that exact table to
+seventeen calls and identity has to keep holding.
+
+And scoped to pages the way the Gen 1 arm is — which here takes real work
+rather than none. Gold's battle field is `Chrome.clear()`, reading this same
+table, so an unscoped `DARK` would paint every battle black. The topmost state
+decides, over an allow-list of Gold's own page classes plus anything this suite
+registered; the overworld is not a stack state on Gold, so a plain overworld
+frame finds nothing and is left alone.
+
+The mattes do not load on Gold, and that is not a gap either: a matte paints
+the page colour under a true-colour rectangle because Red blits one raw past
+the shade pass and brings the white page back with it. Gold has no such pass.
+
 ## What is different from the standalone mods
 
 Nothing about what they do. The source is vendored unmodified from each mod's

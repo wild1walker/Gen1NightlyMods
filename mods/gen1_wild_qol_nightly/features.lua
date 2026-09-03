@@ -160,6 +160,25 @@ return {
       enabledKey = "qol_npc_walk",
       default = true,
       aliases = { "qol_npc_walk", "NpcWalk" },
+      -- Gen 1 only, because Gold does not have the problem.
+      --
+      -- The whole feature is one number.  Red's NPC takes THIRTY-TWO frames
+      -- to cross a cell against the player's sixteen (src/world/NPC.lua:11
+      -- against src/world/Player.lua:14), so its sixteen-frame walk cycle
+      -- fits twice in one tile and an escort hops.  Gold's is sixteen
+      -- (src/world/gen2/Npc.lua:14) -- the same as its player's -- so one
+      -- cycle is one tile and an escort already walks.
+      --
+      -- Installing it there would not be a no-op, which is why this is a gate
+      -- and not a shrug.  `src.world.NPC` is an ALIAS to Gold's own Npc class
+      -- on a Gen 2 boot rather than a facade over it (the adapter table in
+      -- docs/mod-api-gen2-compat.md), so the replacement really does land on
+      -- the class Gold runs, and it would replace a correct `walkPhase` with
+      -- one re-derived for a cell twice the length.  Worse, `textBoxUp` reads
+      -- `top.isOverworld` off the stack -- and Gold's world is not a stack
+      -- state at all, so on the plain overworld that answers "a box is up"
+      -- and every NPC on the map would stop animating.
+      gen1_only = true,
     },
     {
       id = "banners",
@@ -257,6 +276,21 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen1Rematch", "gen1_rematch", "rematch" },
+      -- Gen 1 only, and this one is a feature Gold shipped rather than a gap.
+      --
+      -- A rematch on Gold is the POKéGEAR: a trainer takes your number, calls
+      -- you when they want to go again, and the cart tracks who is ready
+      -- (src/core/gen2/Phone.lua, src/core/gen2/PhoneRing.lua).  Putting a
+      -- "want to battle again?" box on the end of an `after` line beside that
+      -- would be a second, worse rematch system competing with the one the
+      -- game is built around.
+      --
+      -- Both of its seams are Gen 1's anyway.  `world.talk` is raised from
+      -- src/world/OverworldController.lua and nowhere else, so there is no
+      -- wrappable talk on Gold, and `BattleState.newTrainer` has no Gen 2
+      -- backing -- Gold builds and pushes a trainer battle in one call the
+      -- way it does a wild one.
+      gen1_only = true,
     },
     {
       id = "caught",
@@ -301,6 +335,71 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen151", "gen151" },
+      -- Gen 1 only, because the feature IS a Gen 1 fact.
+      --
+      -- ALL 151 is not "make the dex completable" in the abstract; it is a
+      -- researched placement table -- species, Kanto map, method, level,
+      -- rarity and a justification per row (placements.lua) -- for the
+      -- hundred and fifty-one, against the version-exclusive and
+      -- trade-evolution gaps Red and Blue actually have.  None of those three
+      -- inputs survives the move: Gold's dex is two hundred and fifty-one,
+      -- its maps are Johto, and the gaps it has are different gaps closed by
+      -- different means (breeding, time of day, the day-care, the phone).
+      --
+      -- The honest Gen 2 answer is a placement table written for Johto, which
+      -- is a different piece of research and belongs to whoever does it.  A
+      -- cart that wants the Gen 2 shape of this pins CRYSTAL_251, which the
+      -- nightly already lists as an optional dependency.
+      gen1_only = true,
+    },
+
+    -- ---- catching everything, on the other three cartridges
+    --
+    -- The Gen 2 half of ALL 151, and a separate row rather than that one's
+    -- Gen 2 arm because it is a separate piece of research: a different
+    -- table, against different gaps, on different maps.  The two can never
+    -- install together -- each is gated to its own generation -- so a save
+    -- only ever sees the one that means anything.
+    {
+      id = "gen251",
+      group = "pokemon",
+      install_seq = 19,
+      priority = 900,
+      dir = "Gen251",
+      entry = "main.lua",
+      label = "ALL 251",
+      description = "EVERY ONE OF THE 251 OBTAINABLE IN ONE SAVE, ON ONE "
+        .. "CARTRIDGE, WITHOUT TRADING.",
+      enabledKey = "enabled",
+      default = true,
+      aliases = { "Gen251", "gen251" },
+      gen2_only = true,
+    },
+
+    -- ---- the GS BALL
+    --
+    -- Sits beside ALL 151 rather than under GENERAL because it answers the
+    -- same question that one does -- "can this save actually hold them all?"
+    -- -- for the one Pokemon no cartridge sold outside Japan will ever give
+    -- up.  Its own switch is live: OFF is a Crystal that never heard of the
+    -- Mobile Adapter, which is the Crystal everybody played.
+    {
+      id = "celebi",
+      group = "pokemon",
+      install_seq = 18,
+      priority = 900,
+      dir = "Gen2Celebi",
+      entry = "main.lua",
+      label = "GS BALL",
+      description = "UNLOCKS CRYSTAL'S OWN CELEBI EVENT, WHICH SHIPPED "
+        .. "FINISHED AND UNREACHABLE.",
+      enabledKey = "enabled",
+      default = true,
+      aliases = { "Gen2Celebi", "celebi", "gs_ball" },
+      -- Gen 2 only, because the event is: there is no GS BALL, no shrine
+      -- script and no CELEBI event anywhere in Red, Blue or Yellow, and
+      -- nothing for this to unlock there.
+      gen2_only = true,
     },
 
     -- ---- the machines

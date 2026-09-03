@@ -37,10 +37,31 @@ function Bundle.install(mod, spec, features)
   local Registry = assert(loadRuntime("registry"), "runtime/registry.lua did not load")
   local Menu = assert(loadRuntime("menu"), "runtime/menu.lua did not load")
   local Claims = assert(loadRuntime("claims"), "runtime/claims.lua did not load")
+  -- Which generation this boot is, asked once and passed on: the theme, the
+  -- mattes, the feature gate and the menu all turn on it, and asking the
+  -- engine four times to get four copies of one answer is four chances for
+  -- them to disagree.
+  local isGen2 = detectGen2()
+
   -- Optional for the same reason Settings is: a tree built before this file
   -- existed should lose the themes rather than the boot.
-  local Theme = loadRuntime("theme")
-  local Matte = loadRuntime("matte")
+  --
+  -- Two arms, and they are two files rather than one file with a branch
+  -- because they share no mechanism.  Red colours a page AFTER it is drawn,
+  -- by blitting the frame through an SGB zone's four colours, so the Gen 1
+  -- theme rewrites the zone list.  Gold's colour is already in the picture
+  -- (src/core/Game2.lua:1536) and goes on per tile while the page draws, out
+  -- of `Chrome.DEFAULT_BOX_PALETTE`, so the Gen 2 theme rewrites those four
+  -- instead.  Same two themes, same stored row, same promise that a theme
+  -- cannot move a glyph; nothing else in common.  See runtime/theme2.lua.
+  local Theme = loadRuntime(isGen2 and "theme2" or "theme")
+  -- Gen 1 only, and not a gap.  A matte paints the page colour under a
+  -- true-colour rectangle, because Red blits one RAW past the shade pass and
+  -- the white page it was cut out of comes back with it.  Gold has no such
+  -- pass and no such re-blit -- its art is drawn in the picture like
+  -- everything else -- so there is no white box to repair and nothing for a
+  -- matte to do.
+  local Matte = not isGen2 and loadRuntime("matte") or nil
   -- Optional, and deliberately so: a bundle installed outside a sealed cart
   -- needs none of it, and a tree built before this file existed should lose
   -- the remembering rather than the boot.
@@ -82,7 +103,7 @@ function Bundle.install(mod, spec, features)
     optionset = optionset,
     registry = registry,
     loader = loader,
-    isGen2 = detectGen2(),
+    isGen2 = isGen2,
     shared = {},
     -- Which voxel mod is installed, if any.  Built once for the bundle: the
     -- lookup is memoised in there, so a dozen features asking costs one

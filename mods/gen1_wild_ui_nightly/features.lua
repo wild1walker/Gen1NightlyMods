@@ -123,6 +123,29 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen1Arena", "gen1arena" },
+      -- Runs on Gold, Silver and Crystal.
+      --
+      -- The seam there is cleaner than Red's: the battle field is one
+      -- `Chrome.clear()` call, the first line of `BattleState:drawPanel`
+      -- (src/ui/gen2/BattleState.lua:4246) and the only one in the file, so
+      -- the backdrop goes in ahead of that instead of behind Red's
+      -- geometry-matched `love.graphics.rectangle` shim.
+      --
+      -- What made this look like a content problem is that the art is named
+      -- after Kanto.  It is not drawn for Kanto.  All twenty backdrops are
+      -- FireRed TERRAIN scenes -- grass, forest, cave, sea, pond, beach,
+      -- craggy, snow, ice cave, desert, volcano -- and Johto is made of the
+      -- same terrain.  What was Kanto-specific was the ASSIGNMENT, and that
+      -- is a table.
+      --
+      -- Two of the three inputs are better here than on Red, because Gold's
+      -- map header carries what Red made this mod guess: `environment` says
+      -- whether a map is a town, a route, a cave or a room, so an unmapped
+      -- tileset still lands somewhere right; and the roof colours are in the
+      -- data, so a town variant is generated rather than hand-listed.
+      --
+      -- See modules/Gen1Arena/main.lua for the three tables and
+      -- tools/make_gen2_towns.py for the town recolours.
     },
 
     {
@@ -145,6 +168,22 @@ return {
       -- upstream registration is suppressed, so each has one home.
       adapter = "widescreen",
       suppress_hooks = { ["ui.options.rows"] = true },
+      -- Gen 1 only, because Gold's battle is already the thing this makes
+      -- Red's into.
+      --
+      -- `BattleState:drawsWidescreen` answers true on Gold and its draw goes
+      -- through `Chrome.withPanel` (src/ui/gen2/BattleState.lua:4476), so the
+      -- battle already fills the window rather than sitting in a centred 4:3
+      -- square, and the intro is `src/ui/gen2/BattleTransition.lua`, which is
+      -- the cart's own animated wipe.
+      --
+      -- Two of this mod's three seams would not fire there anyway.  It wraps
+      -- `Renderer.endFrame` to catch the flash, and Gold never calls Renderer
+      -- at all -- it draws straight to the screen, which is the reason
+      -- Game2:drawViewportFrame has to compose its own present canvas.  Half
+      -- an intro mod installing is worse than none, and `transition.style`
+      -- alone -- the one hook Gold does raise -- is not the feature.
+      gen1_only = true,
     },
 
     {
@@ -161,6 +200,21 @@ return {
       -- this row takes a relaunch and carries the menu's asterisk.
       default = true,
       aliases = { "Gen1BattleUI" },
+      -- Gen 1 only, because Gold shipped both halves of it.
+      --
+      -- The command grid: `BattleState:drawPanel` lays its menu labels out at
+      -- `col = ((i - 1) % 2) * spacing` and `row = floor((i - 1) / 2) * 2`
+      -- (src/ui/gen2/BattleState.lua:4285-4290).  That is a 2x2 grid, drawn
+      -- from the cart, which is exactly what this mod builds for Red out of
+      -- Red's four-row list.
+      --
+      -- The XP bar: Gold has one, animates it, and plays the cart's own
+      -- Sfx_ExpBar and Sfx_HitEndOfExpBar while it fills
+      -- (src/ui/gen2/BattleState.lua:1145-1284, BattleHud:drawExpBarEnd).
+      --
+      -- Installing this there would draw a second grid over the cart's and a
+      -- second bar under the cart's.  There is nothing left for it to add.
+      gen1_only = true,
     },
 
     -- ---- the menus a player lives in
@@ -180,6 +234,20 @@ return {
       description = "THE POKEDEX WITH A POKEMON BESIDE EVERY ENTRY, BASE STATS, EVOLUTIONS, MOVES AND AN AREA SCREEN.",
       default = true,
       aliases = { "Gen1Dex" },
+      -- Runs on Gold, Silver and Crystal -- as three extra pages on the
+      -- cart's own entry screen rather than as a replacement dex.
+      --
+      -- Gold's Pokedex is good, and already carries two of the three things
+      -- this mod was built to add to Red's: an AREA screen with blinking
+      -- nests, and a working search with NEW / OLD / A-Z on SELECT.  What it
+      -- has no answer for is the third -- base stats, evolutions and the
+      -- learnset -- so that is all the Gold arm adds, and it adds it where
+      -- the cart already has a control that means "next page": PAGE counts on
+      -- past its two into STATS, EVOLVES and MOVES.
+      --
+      -- Everything above the entry's divider stays the cart's on every page,
+      -- so they read as more of the same entry rather than a second screen
+      -- wearing its frame.  See modules/Gen1Dex/gen2.lua.
     },
 
     {
@@ -192,6 +260,19 @@ return {
       description = "REPLACES BILL'S PC WITH A REAL BOX: THE PARTY LEFT, TWENTY SLOTS RIGHT, AND A CURSOR THAT CARRIES A POKEMON.",
       default = true,
       aliases = { "Gen1BillsBox" },
+      -- Gen 1 only, because Gold already has the screen this builds.
+      --
+      -- This mod exists because Red's Bill's PC is a text list: WITHDRAW,
+      -- DEPOSIT, a name at a time, no picture, no party beside it.  Gold's is
+      -- a box -- `src/ui/gen2/BoxMenu.lua`, transcribed from
+      -- engine/pokemon/bills_pc.asm -- with the box name in its own panel,
+      -- five nicknames down the right, and a left panel carrying the front
+      -- pic, the level, the gender and the species of whatever the cursor is
+      -- on.  MOVE POKéMON is there too, walking the party and the box the way
+      -- _MovePKMNWithoutMail does.
+      --
+      -- That is this feature, in the cart, four years earlier.
+      gen1_only = true,
     },
 
     {
@@ -216,6 +297,23 @@ return {
       description = "SEVEN POCKETS WITH AUTO-SORTING, FAVORITES, PINNED ITEMS, SEARCH AND NO CAPACITY LIMIT.",
       default = true,
       aliases = { "Gen1ModernBag", "gen1_modern_bag" },
+      -- Runs on Gold, Silver and Crystal -- as three additions to the
+      -- cart's own PACK rather than as a replacement bag.
+      --
+      -- Gold's PACK already has the two biggest things this mod gives Red's:
+      -- pockets, with the cart's own tab strip, and a description under the
+      -- list with a TM showing its MOVE's description.  What is left is how a
+      -- pocket's list is BUILT, and that is one method -- `PackMenu:rebuild`
+      -- -- so SORT, SEARCH and PIN happen after it and before the draw.
+      --
+      -- The capacity limit needed nothing at all: that patch is on
+      -- `src.inventory.Bag`, which is shared, and Gold's own PackMenu orders
+      -- its rows through it.
+      --
+      -- FAVOURITES is the one thing that did not port: on Red it is a virtual
+      -- POCKET, and Gold's tab strip is four fixed pockets from the cart's own
+      -- table.  PIN does the half of it that fits.  See
+      -- modules/Gen1ModernBag/gen2.lua.
     },
 
     -- ---- the screens nothing else had got to
@@ -244,6 +342,17 @@ return {
       default = true,
       maintained = true,
       aliases = { "Gen1ItemInfo" },
+      -- Gen 1 only, because Gold prints these already.
+      --
+      -- The whole of ITEM INFO is "these three screens have nowhere to say
+      -- what an item is, so redraw them until they do".  On Gold all three
+      -- say it out of the box: `PackMenu:description` and
+      -- `MartMenu:description` both print the item's line under the list, and
+      -- both substitute a TM's MOVE description for the TM's own.  The text
+      -- is the cart's -- RomExtractorGen2 pulls `ItemDescriptions` straight
+      -- out of the ROM -- so it is not even the same text this mod had to
+      -- write for Red, it is the real thing.
+      gen1_only = true,
     },
 
     {
@@ -258,6 +367,17 @@ return {
       default = true,
       maintained = true,
       aliases = { "Gen1Elevator" },
+      -- Gen 1 only, because Gold's lift is already the panel.
+      --
+      -- Red's WHICH FLOOR? is a full-screen list with the car gone behind it,
+      -- which is the thing this mod fixes.  Gold's is two boxes transcribed
+      -- from Elevator_AskWhichFloor: a "Now on:" panel at the top left and a
+      -- four-row scrolling list at `menu_coords 12, 1, 18, 9` -- against the
+      -- right edge, small, with the elevator still on the screen behind it
+      -- (src/ui/gen2/ElevatorMenu.lua).
+      --
+      -- Same layout, same reasoning, already in the cart.
+      gen1_only = true,
     },
 
     -- ---- the furniture

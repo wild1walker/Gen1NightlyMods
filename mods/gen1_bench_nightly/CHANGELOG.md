@@ -5,6 +5,31 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.23] - 2026-09-02
+
+- **The bench opens on Gold, Silver and Crystal**, which it has to: the channel
+  now ships two bundles that claim Gen 2, and a bench that only ran on Red
+  could not be used to test them.
+
+- **It draws in Gold's idiom there rather than Red's.** `src.ui.OptionRows` is
+  four 20x4 boxes and Gold's OPTION screen is one 18x16 box, so the bench has
+  two drawers and picks one at build. The Gold one is a full-screen
+  `Chrome.textbox` with the label and its value two tiles apart and the cart's
+  own cursor glyph, seven rows at a time with its own scroll window -- Gold's
+  chrome has no `clampScroll`, because every Gen 2 screen keeps its own.
+
+  `src.ui.OptionRows` is named once now, behind a lazy pcall, and the Gold arm
+  never reaches it. That matters: it is on the loader's Gen 1-only list with no
+  adapter, so requiring it from a mod's chunk on a Gold boot puts a line on the
+  boot error feed the player sees in MODS.
+
+- **START A BATTLE works there.** Red builds a battle and pushes it; Gold does
+  both in one call, which is why `BattleState.newWild` has no Gen 2 backing at
+  all. The Gold arm builds the opponent with `Mon.new` and hands it to
+  `World:startBattle`, so the row does the same thing it always did rather than
+  saying `NO BATTLE FROM HERE` on every Gold boot.
+
+
 ## [0.32.22] - 2026-09-02
 
 - No changes; the channel ships as one version.

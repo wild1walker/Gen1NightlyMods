@@ -23,6 +23,8 @@ itself. Nothing is all-or-nothing.
 | **SOUND** | on | [Gen1SoundQOL](https://github.com/wild1walker/Gen1SoundQOL) |
 | **FOLLOWERS** | on | [Gen1Follower](https://github.com/wild1walker/Gen1Follower) |
 | **ALL 151** | on | [Gen151](https://github.com/wild1walker/Gen151) |
+| **GS BALL** | on, **GEN 2 ONLY** | this repository |
+| **ALL 251** | on, **GEN 2 ONLY** | this repository |
 | **EXP SHARE** | on, **GEN 5+** | originally [exp_share](https://github.com/ShaneMcGovernIE/exp_share) ‡ |
 | **CAUGHT MARKER** | on | originally [Quality of Life](https://github.com/unxpected-uxp/pokemon-gen1-recomp-mod-qol) ‡ |
 | **AREA BANNER** | on, 3s | Quality of Life ‡ |
@@ -256,6 +258,149 @@ The caught marker follows the HUDs when they move and stays put when they do
 not. The follower's billboard is built through the fork's own
 `SpriteBillboards` and `Voxel3D`, so a follower keeps its scaled mount size in
 a voxel overworld rather than falling back to the engine's.
+
+## Gold, Silver and Crystal
+
+The bundle claims `gen1` and `gen2`. Sixteen of its nineteen features install on a Gen 2 boot, and two —
+**GS BALL** and **ALL 251** — install on *nothing else*.
+
+Most needed nothing at all. They were written against hooks rather than
+modules, and Gold raises the same hooks under the same names — `movement.speed`,
+`battle.exp_award`, `ui.party.submenu`, `ui.title_menu.items`,
+`battle.low_health_alarm`, `save.writing`, `map.entered`. **SPRINT** is the
+clearest case: `movement.speed` is raised from `src/world/gen2/World.lua` as
+well as `src/world/Player.lua`, so holding B to run works on Gold with not one
+line changed.
+
+Three are Gen 1 only, each for its own reason:
+
+| feature | why not on Gold |
+|---|---|
+| **ALL 151** | A Gen 1 *fact*, not a Gen 1 implementation: a researched placement table of species, Kanto maps, methods and levels against the gaps Red and Blue actually have. Gold's dex is 251, its maps are Johto, and its gaps close by breeding, time of day and the phone. The Gen 2 answer is a Johto table — somebody's research, not a port. |
+| **TRAINER REMATCH** | Gold shipped this. A rematch there is the POKéGEAR: the trainer takes your number and calls when they are ready. Both of this mod's seams are Red's anyway. |
+| **NPC WALK** | One number, and Gold has the right one already. Red's NPC crosses a cell in 32 frames against the player's 16, so an escort hops; Gold's is 16. |
+
+### ALL 251
+
+The Gen 2 half of **ALL 151**, and a separate feature rather than that one's
+Gen 2 arm, because it is a separate piece of research: a different table,
+against different gaps, on different maps. Each is gated to its own
+generation, so a save only ever sees the one that means anything.
+
+**What is missing turned out to be derivable.** `tools/gapset2.py` parses the
+pret disassemblies — the same source the engine's own extractor reads through a
+ROM — and closes the set both ways: up over evolution, and *down* over the
+Day-Care, because the engine implements breeding. Gold and Silver each cannot
+renewably produce 72 of the 251, Crystal 68, and sixty are missing from all
+three. Six babies that look missing are not: Pichu, Cleffa, Igglybuff,
+Smoochum, Elekid and Magby all breed from adults already in the grass.
+
+**The version exclusives are generated, not written.** A species missing on one
+cartridge and present on another is placed on the map the *sibling cartridge*
+keeps it on — the same game, the same species, the same map. It is why Gold's
+Vulpix and Silver's Growlithe both land on Route 36: the two cartridges swap
+exactly that slot, and the mod swaps it back.
+
+**Substitution, never appending** — and not by preference. Gold picks a grass
+slot off a fixed seven-entry probability ladder, so an appended eighth slot can
+never be drawn. That makes this layer simpler than its Gen 1 counterpart: there
+is nothing to append, so there is no vanilla slot count to record and nothing
+to trim back out. Stage one is the cartridge's own roll, untouched, and a map
+with nothing placed on it draws **zero** extra random numbers — the stream is
+identical to a clean install, draw for draw.
+
+**The statics stay until they are caught — and the flag is never touched.**
+Gen151 clears `EVENT_BEAT_<SPECIES>` and puts the object back. That is exactly
+the wrong move here. Gen 1's flags mean one thing; Gen 2's `EVENT_FOUGHT_*` are
+load-bearing for unrelated progression — Sudowoodo's gates the Goldenrod flower
+shop, Snorlax's gates a Victory Road Gate object, and **Suicune's gates the Tin
+Tower entrance**, which is to say Ho-Oh's entire chain. Clearing a flag to give
+someone their Suicune back could take their Ho-Oh away.
+
+So nothing writes an event flag. Each object carries its *own* visibility flag,
+separate from the fought flag; the map's callback re-hides it on every load and
+this puts it back afterwards, reading whether you actually own the species. The
+flag stays set, every script depending on it keeps its answer, and the bird is
+on its perch again. Raikou and Entei are the same loss through a different door
+— an emptied save slot, refilled from the roster, at full health because a
+beast that came back hurt would be the same beast.
+
+**Sudowoodo** joins them, and the reason it once did not was a misreading:
+`variablesprite` swaps the *sheet* and nothing else, so the object keeps
+`SudowoodoScript`, and that script reads the Squirtbottle rather than the
+fought flag. Putting the object back puts the encounter back; putting the
+sprite slot back makes it a tree again instead of the Twin the script left
+standing there.
+
+**Suicune on Crystal** is the one static that genuinely cannot be un-hidden —
+its object script is the generic do-nothing, and the scene that battles it sits
+behind `EVENT_GOT_RAINBOW_WING`, so for anyone who went on to Ho-Oh it can
+never run again. So it is not un-hidden. It is put back where Gold and Silver
+keep it: the roamers. The cartridge's own `CheckEncounterRoamMon` picks
+`value % 4`, so the third slot is already live and a third beast needs no
+special case anywhere. It fires only for a player who has *seen* Suicune and
+does not have it — and `seen` is written when a battle starts, so the Route 36
+and Cianwood sightings, which are sprites walking past, cannot trip it early.
+
+Lapras was never a gap: it is on a *daily* flag, so it is back in Union Cave
+every Friday.
+
+**The ten trade evolutions get a rule, not an item.** Gen151 sells a
+consumable Link Cable, and rejects "just let it evolve on level-up" because
+that evolves every Kadabra you own whether you wanted it or not. True in Red —
+not here. Gen 2 ships the **Everstone**, a permanent opt-out the cartridge's own
+evolution code already checks, so the objection is answered by the game rather
+than by an item this mod would have to invent, price and find a shelf for.
+
+Gold's trade rule is already complete: Everstone, the held item, the Time
+Capsule exemption, all written and all right. The only clause a single save can
+never satisfy is `if not ctx.link then return false`. So this supplies the link
+and touches nothing else — Scizor still costs a Metal Coat, an Everstone still
+says no, and a Poliwhirl still becomes Poliwrath first if you use the Water
+Stone. One divergence, stated plainly: the held item is **not** consumed, because
+the hook returns one boolean and has no way to report consumption, and a
+predicate that eats a Metal Coat when something merely *asks* whether a Pokémon
+would evolve is a much worse bug than a coat that survives.
+
+There is no version detection anywhere in it. A placement applies only when its
+species has no renewable source in the tables actually merged on this install,
+so Gold's Vulpix row simply does not fire on Silver, and a species some other
+encounter mod already provided is left alone rather than provided twice.
+
+### GS BALL
+
+The one feature that runs on Gold and not on Red, and the smallest thing in the
+bundle: it writes a single byte.
+
+Crystal ships the entire Celebi event and cannot reach it. The receptionist in
+the Goldenrod POKéCENTER, KURT taking the ball away and giving it back, the
+shrine in ILEX FOREST, the forest going quiet, the level 30 CELEBI — all of it
+is in the cartridge, and the engine implements both specials the shrine calls.
+What gates it is `sGSBallFlag`, which only the Mobile Adapter GB ever wrote. No
+adapter, no flag, and eleven scripts sit there as dead data on every cartridge
+sold outside Japan.
+
+So the feature writes the flag and stops. No new item, no new script, no NPC,
+no map, no line of text. Everything the player then sees is the cartridge's own
+event in its own words — the event was never missing, only unreachable, and a
+key is a more honest fix than a reimplementation.
+
+It is idempotent, which is the part that matters: the flag byte also reads
+`given` and `used`, and overwriting either would send the receptionist after a
+player who has already finished the event.
+
+Gold and Silver get nothing from it, because there is nothing there to get: the
+GS BALL, the shrine script and the event are absent from those two cartridges
+entirely — not gated, not unused, absent. CELEBI on Gold and Silver is the
+placement table's problem.
+
+`NPC WALK` is the one worth reading twice, because installing it on Gold would
+*not* have been a harmless no-op. `src.world.NPC` is an **alias** to Gold's own
+class on a Gen 2 boot rather than a facade over it, so the replacement really
+would land — swapping a correct `walkPhase` for one derived for a cell twice
+the length, and, because its text-box test reads `top.isOverworld` off a stack
+Gold's world is not on, stopping every NPC on the map from animating. That is
+what the gate is for.
 
 ## What is different from the standalone mods
 
