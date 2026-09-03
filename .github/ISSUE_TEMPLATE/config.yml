@@ -1,10 +1,13 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Engine bug (not the mods)
-    url: https://github.com/bryanthaboi/gen1recomp/issues
-    about: >
-      If it still happens with the whole suite switched off, it is the game
-      rather than these mods. File it upstream.
+  # The only link worth a slot in the picker: the two channels are different
+  # builds, and a report filed against the wrong one is a report about code
+  # the reader is not running.
+  #
+  # There is deliberately NO link for engine bugs.  This repository is for
+  # bugs in these mods; where an engine bug belongs is a sentence in the form
+  # itself, which is enough, and a second entry here only made the picker look
+  # like a menu of places this is not.
   - name: The stable suite
     url: https://github.com/wild1walker/Gen1Wild/issues
     about: >
