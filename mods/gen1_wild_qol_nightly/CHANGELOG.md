@@ -9,49 +9,60 @@ was taken from.
 
 ## [0.32.24] - 2026-09-03
 
-- **A trainer the map answers for is the map's, not the rematch's.**
-  `TRAINER REMATCH` wraps `world.talk` and, for any beaten trainer with an
-  after-battle line, kept the interaction. But the after-line is the LAST
-  thing `talkTo` reaches. A hand-ported map script wins first
-  (`OverworldController.lua:3152`, "hand-ported scripts always win"), then an
-  item ball, then a static encounter, and only then the trainer branches --
-  and this wrap runs before every one of them. The offer was not sitting on
-  the end of a conversation. It was replacing one.
+- **TRAINER REMATCH stopped answering for the engine, and gym leaders became
+  rematchable in the same change.**
 
-  **The ROCKET on `ROCKET_HIDEOUT_B4F` is what that cost.** He is a beaten
-  trainer with an after-line whose hand-ported talk is the only thing in the
-  game that puts the LIFT KEY on the floor: the ball starts hidden in the map
-  objects and the first talk after the win is what reveals it
-  (`CheckAndSetEvent EVENT_ROCKET_DROPPED_LIFT_KEY` / `ShowObject
-  ROCKETHIDEOUTB4F_LIFT_KEY`). With the row on, that talk never ran. The
-  rematch prompt came up in its place, the ball stayed hidden, and the lift
+  The wrap on `world.talk` used to ANSWER the A press itself for any beaten
+  trainer with an `after` line -- print the line, then offer the fight. But
+  that line is the last thing `talkTo` reaches. A hand-ported map script wins
+  first (`OverworldController.lua:3152`, "hand-ported scripts always win"),
+  then an item ball, then a static encounter, and only then the trainer
+  branches. The wrap ran before all of it. The offer was not sitting on the
+  end of a conversation; it was replacing one.
+
+  **The ROCKET on `ROCKET_HIDEOUT_B4F` is what that cost.** His hand-ported
+  talk is the only thing in the game that puts the LIFT KEY on the floor: the
+  ball starts hidden in the map objects and the first talk after the win is
+  what reveals it (`CheckAndSetEvent EVENT_ROCKET_DROPPED_LIFT_KEY` /
+  `ShowObject ROCKETHIDEOUTB4F_LIFT_KEY`). With the row on, that talk never
+  ran. You got a rematch prompt instead, the ball stayed hidden, and the lift
   stayed locked -- no SILPH SCOPE, no POKeMON TOWER, no GIOVANNI. A run that
   reads as a feature the whole way down and ends unfinishable.
 
-  **The gate is the engine's own question, not a list of names**, because it
-  is not one grunt. Talking to a trainer you have beaten is where this game
-  hands over what it still owes you: a gym leader re-runs the TM give when
-  your bag was full at the victory, the MT MOON SUPER NERD's line is what
-  turns the fossils on, GIOVANNI's reveals the SILPH SCOPE. So the module now
-  asks `MapScripts.talkScript(map.id, object.text)` -- the same lookup, on the
-  same merged view, that `talkTo` asks first -- and hands the A press straight
-  back when it answers. Item balls and static encounters are handed back by
-  the same reproduced order, `"0"` screened out as pokered's ITEM_NONE the way
-  the engine screens it. A mod's own `map_scripts` registration composes into
-  that view, so an object another mod speaks for is behind the gate too, and
-  so is the trainer nobody has thought of yet.
+  **The fix is that the engine says the line now, and the question goes on
+  the end of it.** `next()` runs first and in full, so whichever line the
+  engine would have printed is the line you get and every side effect it
+  carries still happens. All this mod adds is `Want to battle again?` on the
+  box the engine pushed -- and only when that box was the end of it.
 
-  What it costs is the rematch against about a dozen scripted trainers, all of
-  them bosses. What it buys is that no rematch can stand between a player and
-  something the cartridge owes them. An engine that has moved the registry out
-  from under this stands the feature down rather than outrank a script it can
-  no longer see: losing every rematch in the game is recoverable and losing
-  the LIFT KEY is not.
+  **Which is asked of the stack, not of a list of names:** the talk pushed
+  exactly one plain box, and when it closes the engine's own `onDone` leaves
+  the stack where the talk found it. Then the engine had one line to say and
+  has said it. Anything else is the engine still working, and there is no
+  offer on that talk.
 
-  `tests/rematch_test.lua` is 103 assertions now, 10 of them this: the
-  scripted trainer, the item ball, the ITEM_NONE sentinel that is not one, the
-  static encounter, the object with no text id, and the engine whose registry
-  has moved.
+  That one rule is the whole of the behaviour you asked for. A gym leader who
+  still owes you a TM -- your bag was full at the victory, so talking to them
+  re-runs the hand-over -- answers with a *chain* of boxes, each pushing the
+  next from its own `onDone`, so the stack is deeper when we look and nothing
+  is offered. Take the TM and the same leader answers with one advice line,
+  which ends where it started: rematch. The ROCKET drops the LIFT KEY on the
+  floor and *then* asks you if you want to go again. Same rule, no names, and
+  the trainer nobody has thought of yet is behind it too.
+
+  **Gym leaders are rematchable at all for the first time.** They carry no
+  `def_trainers` header, so the old path -- which needed one for its `after`
+  line -- could never offer a leader a rematch, whatever the module's own
+  comment said. Letting the engine speak means there is no header to look up:
+  a leader you have taken everything from is an ordinary beaten trainer with
+  an ordinary line. The badge still stays exactly once yours; nothing about
+  the victory path runs on a rematch.
+
+  `tests/rematch_test.lua` is 115 assertions, on a fake that now models the
+  state stack and the engine's own talk: the chain that owes you a TM, the
+  advice line that does not, the LIFT KEY revealed before anything is asked,
+  a menu, a box already asking a question, a box that closes on a timer, and
+  a script that pushes nothing at all.
 
 ## [0.32.23] - 2026-09-02
 
