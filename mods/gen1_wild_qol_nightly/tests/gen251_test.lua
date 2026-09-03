@@ -384,14 +384,24 @@ do
      "a player who caught it keeps the cartridge's behaviour exactly")
   eq(Statics.wants(empty, "ROUTE_29"), nil, "a map with no static wants nothing")
 
-  -- The two that are deliberately absent, and the reason is in the file.
-  eq(Statics.ROSTER.SUDOWOODO, nil,
-     "SUDOWOODO is not restored: Route 36 turns the object into a TWIN, so "
-     .. "what would come back carries a twin's script and battles nothing")
+  -- SUDOWOODO is restored, and the reason the file once gave for excluding
+  -- it was wrong: `variablesprite` swaps the SHEET and nothing else, so the
+  -- object keeps SudowoodoScript, and that script reads the SQUIRTBOTTLE
+  -- rather than EVENT_FOUGHT_SUDOWOODO.
+  ok(Statics.ROSTER.SUDOWOODO, "SUDOWOODO is restored like the rest")
+  eq(Statics.ROSTER.SUDOWOODO.spriteSlot, 4,
+     "with its sprite slot put back too, so the tree is a tree again rather "
+     .. "than the TWIN the script left standing there")
+  eq(Statics.wants({ pokedex = { caught = {} } }, "ROUTE_36").species,
+     "SUDOWOODO", "and Route 36 knows to ask for it")
+
+  -- SUICUNE is the one that really cannot be un-hidden: its object script is
+  -- the generic ObjectEvent, and the scene that battles it is behind
+  -- EVENT_GOT_RAINBOW_WING.  It gets the roamers instead.
   eq(Statics.ROSTER.SUICUNE, nil,
-     "and SUICUNE is not: its object is approached by a scripted movement "
-     .. "inside a scene, so an un-hidden one has no path back into the "
-     .. "script that battles it")
+     "SUICUNE is not un-hidden: its object does nothing when talked to, and "
+     .. "the scene that battles it cannot run again once the player has the "
+     .. "RAINBOW WING")
 end
 
 -- ------------------------------------------------------------ the roamers
@@ -436,6 +446,50 @@ do
      "no save restores nothing")
   eq(#Statics.restoreRoamers({ roamers = {} }, nil, ownsNothing), 0,
      "and no roster restores nothing, rather than raising")
+end
+
+-- ------------------------------------------------- Crystal's SUICUNE
+
+do
+  io.write("Crystal's SUICUNE goes back to roaming\n")
+
+  local Statics = load_("modules/Gen251/statics.lua")
+  local ROW = { species = "SUICUNE", level = 40, map = "ROUTE_38" }
+
+  local lost = { pokedex = { seen = { SUICUNE = true }, caught = {} },
+                 roamers = { { species = "RAIKOU", map = "ROUTE_42" },
+                             { species = "ENTEI", map = "ROUTE_37" } } }
+  eq(Statics.wantsRoamingSuicune(lost), true,
+     "seen and not caught is exactly `you met it and lost it` -- and `seen` "
+     .. "is written when a battle starts, so the Route 36 and CIANWOOD "
+     .. "sightings, which are sprites walking past, cannot trip it")
+
+  eq(Statics.seedRoamingSuicune(lost, ROW), true, "so the third slot is seeded")
+  eq(lost.roamers[3].species, "SUICUNE", "with SUICUNE")
+  eq(lost.roamers[3].map, "ROUTE_38", "on the route GOLD and SILVER start it")
+  eq(lost.roamers[3].hp, 0, "at full health")
+  eq(lost.roamers[1].species, "RAIKOU", "and the other two are untouched")
+
+  eq(Statics.seedRoamingSuicune(lost, ROW), false,
+     "seeding is idempotent: a slot that already holds a beast is left alone")
+
+  eq(Statics.wantsRoamingSuicune(
+       { pokedex = { seen = { SUICUNE = true }, caught = { SUICUNE = true } } }),
+     false, "a player who caught it keeps the cartridge's behaviour")
+  eq(Statics.wantsRoamingSuicune({ pokedex = { seen = {}, caught = {} } }),
+     false,
+     "and a player who has never met it gets nothing -- this must not hand "
+     .. "SUICUNE to somebody in the middle of Crystal's story")
+
+  local roaming = { pokedex = { seen = { SUICUNE = true }, caught = {} },
+                    roamers = { { species = "SUICUNE", map = "ROUTE_38" } } }
+  eq(Statics.wantsRoamingSuicune(roaming), false,
+     "a SUICUNE already out there is left completely alone")
+
+  eq(Statics.seedRoamingSuicune({ pokedex = {} }, ROW), false,
+     "no roamer list means the beasts were never released, so the player "
+     .. "cannot have fought SUICUNE either -- nothing to repair")
+  eq(Statics.wantsRoamingSuicune(nil), false, "no save wants nothing")
 end
 
 io.write(("gen251: %d passed, %d failed\n"):format(passed, failed))

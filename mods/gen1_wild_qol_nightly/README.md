@@ -325,11 +325,25 @@ on its perch again. Raikou and Entei are the same loss through a different door
 — an emptied save slot, refilled from the roster, at full health because a
 beast that came back hurt would be the same beast.
 
-Two are named rather than silently missing: **Sudowoodo** (Route 36 turns the
-object into a Twin, so what comes back battles nothing) and **Suicune on
-Crystal** (a Tin Tower scene, not a walk-up object — it roams on Gold and
-Silver, where the roamer arm covers it). Lapras was never a gap: it is on a
-*daily* flag, so it is back in Union Cave every Friday.
+**Sudowoodo** joins them, and the reason it once did not was a misreading:
+`variablesprite` swaps the *sheet* and nothing else, so the object keeps
+`SudowoodoScript`, and that script reads the Squirtbottle rather than the
+fought flag. Putting the object back puts the encounter back; putting the
+sprite slot back makes it a tree again instead of the Twin the script left
+standing there.
+
+**Suicune on Crystal** is the one static that genuinely cannot be un-hidden —
+its object script is the generic do-nothing, and the scene that battles it sits
+behind `EVENT_GOT_RAINBOW_WING`, so for anyone who went on to Ho-Oh it can
+never run again. So it is not un-hidden. It is put back where Gold and Silver
+keep it: the roamers. The cartridge's own `CheckEncounterRoamMon` picks
+`value % 4`, so the third slot is already live and a third beast needs no
+special case anywhere. It fires only for a player who has *seen* Suicune and
+does not have it — and `seen` is written when a battle starts, so the Route 36
+and Cianwood sightings, which are sprites walking past, cannot trip it early.
+
+Lapras was never a gap: it is on a *daily* flag, so it is back in Union Cave
+every Friday.
 
 **The ten trade evolutions get a rule, not an item.** Gen151 sells a
 consumable Link Cable, and rejects "just let it evolve on level-up" because

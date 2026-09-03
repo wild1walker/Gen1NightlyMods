@@ -39,23 +39,43 @@
 -- there is something to do, and it quietly repairs a save that lost one
 -- before this mod was installed.
 --
--- ------- the two that are not here
+-- ------- SUDOWOODO, and the claim that was wrong about it
 --
--- SUDOWOODO and SUICUNE are excluded, and not for want of trying.  Both are
--- driven by a map SCENE rather than by an object you can walk up to and talk
--- to, so putting the object back does not put the encounter back:
+-- This file used to exclude SUDOWOODO, on the grounds that Route 36 runs
+-- `variablesprite SPRITE_WEIRD_TREE, SPRITE_TWIN` after the battle, so what
+-- came back would be a twin carrying a twin's script.  Half of that is true
+-- and the important half is not.  The engine's own note on the command:
 --
---   SUDOWOODO  Route 36 runs `variablesprite SPRITE_WEIRD_TREE, SPRITE_TWIN`
---              after the battle.  The object that would come back is a TWIN,
---              carrying a twin's script, and talking to it does not start a
---              battle with anything.
---   SUICUNE    TIN TOWER 1F's object is approached by a scripted movement
---              inside a scene.  Re-appearing it puts a SUICUNE on the tiles
---              with no path back into the script that battles it.
+--     the sheet changes and NOTHING else does ... the object STRUCT is never
+--     touched, so its coordinates, its facing, its FROZEN_F and its identity
+--     as wLastTalked all survive.       src/world/gen2/Npc.lua:274
 --
--- Restoring either means re-entering a scene rather than un-hiding an object,
--- which is a different and much more invasive operation than this file
--- performs.  They are named here rather than quietly missing.
+-- The object keeps SudowoodoScript, and that script checks ONE thing --
+-- whether the player is carrying the SQUIRTBOTTLE.  It never reads
+-- EVENT_FOUGHT_SUDOWOODO.  So a restored tree is a restored encounter, and
+-- the only thing the swapped sheet costs is that it looks wrong.
+--
+-- Which is worth fixing anyway, so the sprite slot is reverted too: the
+-- object's `sprite` field is the literal 244 ($f4 SPRITE_WEIRD_TREE), a slot
+-- id rather than a sheet, so what it draws is whatever wVariableSprites[4]
+-- holds.  Putting back the value the map started with puts the tree back.
+--
+-- ------- SUICUNE, which needed a different answer entirely
+--
+-- Crystal's SUICUNE is the one static that genuinely cannot be un-hidden.
+-- Its object script is `ObjectEvent`, the generic do-nothing: the battle
+-- lives in TinTower1FSuicuneBattleScript, reached from a map SCENE, and the
+-- callback that would re-appear the object is behind
+-- `checkevent EVENT_GOT_RAINBOW_WING` -- so for any player who has gone on to
+-- HO-OH, the scene can never run again no matter what is restored.
+--
+-- So it is not restored.  It is put back where GOLD and SILVER keep it: the
+-- roamers.  Crystal seeds only RAIKOU and ENTEI
+-- (src/core/gen2/Roamers.lua:74), but the roam machinery is not two beasts
+-- wide -- CheckEncounterRoamMon picks `value % 4`, so slots 1, 2 and 3 are
+-- all live -- and a third slot is the same code path the other two already
+-- run.  A Crystal player who lost SUICUNE gets it roaming Johto, exactly as
+-- the other two cartridges would have given it to them.
 
 local Statics = {}
 
@@ -71,12 +91,18 @@ Statics.ROSTER = {
             object = "WHIRLISLANDLUGIACHAMBER_LUGIA" },
   HO_OH = { map = "TIN_TOWER_ROOF", object = "TINTOWERROOF_HO_OH" },
   SNORLAX = { map = "VERMILION_CITY", object = "VERMILIONCITY_BIG_SNORLAX" },
+  -- The sprite slot is $f4 SPRITE_WEIRD_TREE minus SPRITE_VARS ($f0), which
+  -- the `variablesprite` macro has already subtracted by the time the VM sees
+  -- it (src/script/gen2/Vm.lua:463).  Same number on all three cartridges.
+  SUDOWOODO = { map = "ROUTE_36", object = "ROUTE36_WEIRD_TREE",
+                spriteSlot = 4 },
 }
 
 -- Which map to act on, so a sweep costs one table lookup rather than three.
 Statics.BY_MAP = {}
 for species, row in pairs(Statics.ROSTER) do
-  Statics.BY_MAP[row.map] = { species = species, object = row.object }
+  Statics.BY_MAP[row.map] = { species = species, object = row.object,
+                              spriteSlot = row.spriteSlot }
 end
 
 -- Gen 2 spells it `caught`, where Gen 1 spells it `owned`
@@ -96,6 +122,44 @@ function Statics.wants(save, mapId)
   if not row then return nil end
   if Statics.owns(save, row.species) then return nil end
   return row
+end
+
+-- ---------------------------------------------------------- SUICUNE, again
+--
+-- Crystal only, and behind a condition that cannot fire early: the player has
+-- SEEN Suicune and does not have it.  Seen is written when a battle starts,
+-- and the only Suicune battle in Crystal is the one at TIN TOWER -- the Route
+-- 36, Route 42 and CIANWOOD sightings are overworld sprites walking past and
+-- write nothing to the dex.  So this is exactly "you met it and lost it",
+-- read off the save with no event flag touched in either direction.
+function Statics.wantsRoamingSuicune(save)
+  local dex = save and save.pokedex
+  if type(dex) ~= "table" then return false end
+  local seen = (dex.seen and dex.seen.SUICUNE) and true or false
+  local caught = (dex.caught and dex.caught.SUICUNE) and true or false
+  if not seen or caught then return false end
+  -- Already out there: a beast mid-roam is left completely alone.
+  for _, slot in ipairs((save.roamers) or {}) do
+    if type(slot) == "table" and slot.species == "SUICUNE" then return false end
+  end
+  return true
+end
+
+-- Seed the third slot.  CheckEncounterRoamMon picks `value % 4`, so 1, 2 and
+-- 3 are all live and a third beast needs no special case anywhere -- it is
+-- the same code path RAIKOU and ENTEI already run.
+function Statics.seedRoamingSuicune(save, row)
+  if not (type(save) == "table" and type(row) == "table" and row.species) then
+    return false
+  end
+  local list = save.roamers
+  -- No roamer list at all means the beasts were never released, which means
+  -- the player cannot have fought SUICUNE either.  Nothing to repair.
+  if type(list) ~= "table" then return false end
+  local slot = list[3]
+  if type(slot) == "table" and slot.species ~= nil then return false end
+  list[3] = { species = row.species, level = row.level, map = row.map, hp = 0 }
+  return true
 end
 
 -- ------------------------------------------------------------- the roamers
@@ -148,6 +212,51 @@ function Statics.install(mod)
     return Statics.owns(save(), species)
   end
 
+  -- "gen1" | "gs" | "crystal" -- SUICUNE roams on two of the three already.
+  local function lineage()
+    local okReq, GameVersion = pcall(require, "src.core.GameVersion")
+    if not okReq or type(GameVersion) ~= "table" then return nil end
+    if type(GameVersion.engine) ~= "function" then return nil end
+    local okCall, value = pcall(GameVersion.engine)
+    return okCall and value or nil
+  end
+
+  -- Put a variable sprite slot back to the value the map started with.
+  --
+  -- The wanted value is read off the world's own initialSprites rather than
+  -- written down here: that is where the engine itself gets it when it fills
+  -- an empty slot (src/world/gen2/World.lua:712), so this cannot disagree
+  -- with the map.
+  --
+  -- Both copies are written, because they answer at different times: the save
+  -- seeds the table on the next World build, and the live table is what the
+  -- current session draws from.  If the sheet is still stale for this one
+  -- visit -- the object may already have spawned by the time map.entered
+  -- fires -- it corrects itself on the next entry, and the ENCOUNTER works
+  -- either way, because the script never depended on the sheet.
+  local function revertSprite(slot)
+    if not slot then return false end
+    local okWorld, world = pcall(function() return mod.world:overworld() end)
+    if not okWorld or type(world) ~= "table" then return false end
+    local wanted
+    for _, row in ipairs(world.initialSprites or {}) do
+      if row.slot == slot then
+        wanted = row.sprite
+        break
+      end
+    end
+    if wanted == nil then return false end
+    local record = save()
+    if record then
+      record.variableSprites = record.variableSprites or {}
+      record.variableSprites[slot] = wanted
+    end
+    if type(world.variableSprites) == "table" then
+      world.variableSprites[slot] = wanted
+    end
+    return true
+  end
+
   -- Returns what it put back, for the log and for the bench.
   function Statics.sweep(mapId)
     local record = save()
@@ -164,7 +273,24 @@ function Statics.install(mod)
         return mod.world:toggleObject(mapId, row.object, true)
       end)
       if ok then
+        -- Order matters: the sheet is put back BEFORE the object is counted,
+        -- so a tree that came back looking like a twin is still a tree in the
+        -- log rather than two separate mysteries.
+        if row.spriteSlot then revertSprite(row.spriteSlot) end
         back[#back + 1] = row.species
+      end
+    end
+
+    -- Crystal's SUICUNE, put back where the other two cartridges keep it.
+    if Roamers and lineage() == "crystal"
+        and Statics.wantsRoamingSuicune(record) then
+      local row
+      for _, entry in ipairs(Roamers.SPECIES or {}) do
+        if entry.species == "SUICUNE" then row = entry end
+      end
+      if row and Statics.seedRoamingSuicune(record, row) then
+        mod.log:info("SUICUNE was never caught, so it is roaming Johto -- "
+          .. "which is what GOLD and SILVER would have done with it")
       end
     end
 

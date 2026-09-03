@@ -37,9 +37,16 @@ was taken from.
   TIN TOWER entrance and therefore HO-OH's whole chain -- so clearing one to
   return a SUICUNE could take a HO-OH away. Each object carries its own
   visibility flag instead, and that is what goes back. RAIKOU and ENTEI are
-  refilled in the save from the roster, at full health. SUDOWOODO and
-  CRYSTAL's SUICUNE are named gaps, not silent ones; LAPRAS was never a gap
-  at all, being on a daily flag that puts it back every Friday.
+  refilled in the save from the roster, at full health. SUDOWOODO is
+  restored too, sprite slot and all -- the reason it was once excluded was a
+  misreading of `variablesprite`, which swaps the SHEET and nothing else, so
+  the object keeps SudowoodoScript and that script reads the SQUIRTBOTTLE
+  rather than the fought flag. CRYSTAL's SUICUNE genuinely cannot be
+  un-hidden -- its object does nothing when talked to, and the scene that
+  battles it sits behind EVENT_GOT_RAINBOW_WING -- so it is put back where
+  GOLD and SILVER keep it: the roamers' third slot, which the cart's own
+  CheckEncounterRoamMon already rolls. LAPRAS was never a gap at all, being
+  on a daily flag that puts it back every Friday.
 
   The ten trade evolutions get a RULE rather than an item. Gen151 sells a
   consumable cable because a level-up rule would evolve every KADABRA you own

@@ -170,11 +170,11 @@ do
   -- MOLTRES are not among them -- so they are placed, like MEWTWO and MEW.
   --
   -- These eight are answered without a spawn, three different ways: LUGIA,
-  -- HO-OH and SNORLAX are put back on their maps, RAIKOU and ENTEI (and
-  -- SUICUNE, which roams on GOLD and SILVER) are refilled in the save, and
-  -- LAPRAS was never a gap at all -- it is on a DAILY flag, so it is back in
-  -- UNION CAVE every Friday.  SUDOWOODO, and SUICUNE on CRYSTAL, are named
-  -- gaps rather than silent ones.
+  -- HO-OH, SNORLAX and SUDOWOODO are put back on their maps; RAIKOU, ENTEI
+  -- and SUICUNE live in the roamer slots, CRYSTAL's SUICUNE included, since
+  -- the third slot the cart already rolls is where GOLD and SILVER keep it;
+  -- and LAPRAS was never a gap at all -- it is on a DAILY flag, so it is
+  -- back in UNION CAVE every Friday.
   local STATIC = { "LAPRAS", "SNORLAX", "SUDOWOODO", "RAIKOU", "ENTEI",
                    "SUICUNE", "LUGIA", "HO_OH" }
   wrong = {}
