@@ -7,6 +7,52 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.24] - 2026-09-03
+
+- **A trainer the map answers for is the map's, not the rematch's.**
+  `TRAINER REMATCH` wraps `world.talk` and, for any beaten trainer with an
+  after-battle line, kept the interaction. But the after-line is the LAST
+  thing `talkTo` reaches. A hand-ported map script wins first
+  (`OverworldController.lua:3152`, "hand-ported scripts always win"), then an
+  item ball, then a static encounter, and only then the trainer branches --
+  and this wrap runs before every one of them. The offer was not sitting on
+  the end of a conversation. It was replacing one.
+
+  **The ROCKET on `ROCKET_HIDEOUT_B4F` is what that cost.** He is a beaten
+  trainer with an after-line whose hand-ported talk is the only thing in the
+  game that puts the LIFT KEY on the floor: the ball starts hidden in the map
+  objects and the first talk after the win is what reveals it
+  (`CheckAndSetEvent EVENT_ROCKET_DROPPED_LIFT_KEY` / `ShowObject
+  ROCKETHIDEOUTB4F_LIFT_KEY`). With the row on, that talk never ran. The
+  rematch prompt came up in its place, the ball stayed hidden, and the lift
+  stayed locked -- no SILPH SCOPE, no POKeMON TOWER, no GIOVANNI. A run that
+  reads as a feature the whole way down and ends unfinishable.
+
+  **The gate is the engine's own question, not a list of names**, because it
+  is not one grunt. Talking to a trainer you have beaten is where this game
+  hands over what it still owes you: a gym leader re-runs the TM give when
+  your bag was full at the victory, the MT MOON SUPER NERD's line is what
+  turns the fossils on, GIOVANNI's reveals the SILPH SCOPE. So the module now
+  asks `MapScripts.talkScript(map.id, object.text)` -- the same lookup, on the
+  same merged view, that `talkTo` asks first -- and hands the A press straight
+  back when it answers. Item balls and static encounters are handed back by
+  the same reproduced order, `"0"` screened out as pokered's ITEM_NONE the way
+  the engine screens it. A mod's own `map_scripts` registration composes into
+  that view, so an object another mod speaks for is behind the gate too, and
+  so is the trainer nobody has thought of yet.
+
+  What it costs is the rematch against about a dozen scripted trainers, all of
+  them bosses. What it buys is that no rematch can stand between a player and
+  something the cartridge owes them. An engine that has moved the registry out
+  from under this stands the feature down rather than outrank a script it can
+  no longer see: losing every rematch in the game is recoverable and losing
+  the LIFT KEY is not.
+
+  `tests/rematch_test.lua` is 103 assertions now, 10 of them this: the
+  scripted trainer, the item ball, the ITEM_NONE sentinel that is not one, the
+  static encounter, the object with no text id, and the engine whose registry
+  has moved.
+
 ## [0.32.23] - 2026-09-02
 
 - **ALL 251: the Johto placement table, and the spawn layer that reads it.**

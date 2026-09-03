@@ -33,6 +33,44 @@
 -- on this path and can be fought again for the practice; the badge is already
 -- yours and stays exactly once yours.
 --
+-- ------- whose talk this is
+--
+-- The offer sits at the END of a conversation the engine was going to have,
+-- and there is exactly one conversation it may sit on the end of.  `talkTo`
+-- answers an A press in a fixed order and the beaten trainer's after-line is
+-- the last of them a trainer object reaches: a hand-ported map script wins
+-- first ("hand-ported scripts always win", OverworldController.lua:3152),
+-- then an item ball (:3163), then a static encounter (:3199), and only then
+-- the two trainer branches (:3225-3237).  This wrap runs BEFORE all of it,
+-- so that order is reproduced here.  Without it the offer does not sit on
+-- the end of a conversation, it replaces one.
+--
+-- And a replaced conversation is not a missing line, it is a missing item.
+-- The ROCKET on ROCKET_HIDEOUT_B4F is a beaten trainer with an after-line
+-- AND a hand-ported talk, and that talk is the only thing in the game that
+-- puts the LIFT KEY on the floor: the ball starts hidden in the map objects
+-- and the first talk after the win is what reveals it (CheckAndSetEvent
+-- EVENT_ROCKET_DROPPED_LIFT_KEY / ShowObject ROCKETHIDEOUTB4F_LIFT_KEY,
+-- data/scripts/story3.lua:387-408).  A rematch offered in its place is a
+-- save that can never take the lift again: no SILPH SCOPE, no POKeMON
+-- TOWER, no GIOVANNI.  The prompt reads as a feature the whole way down.
+--
+-- It is not one grunt, which is why the gate is not one name.  Talking to a
+-- trainer you have beaten is where this game hands over what it still owes
+-- you: a gym leader re-runs the TM give when your bag was full at the
+-- victory (retryTmGive, data/scripts/gyms.lua:28-38), the MT MOON SUPER
+-- NERD's line is what turns the fossils on (data/scripts/story2.lua:708),
+-- GIOVANNI's reveals the SILPH SCOPE.  So the question asked is the
+-- engine's own, in the same words: does this map have a script for this
+-- object?  If it does, the interaction is the engine's and we do not take
+-- it -- including for the trainer nobody has thought of yet, on a cart
+-- nobody has written yet, because a mod's own `map_scripts` registration
+-- lands in the same merged view this reads.
+--
+-- What that costs is a rematch against perhaps a dozen scripted trainers in
+-- the game, all of them bosses.  What it buys is that no rematch can ever
+-- stand between a player and something the cartridge owes them.
+--
 -- ------- the levels
 --
 -- The team is the one you beat.  The levels are yours.
@@ -115,17 +153,77 @@ return function(mod)
     return text
   end
 
+  -- ------- does this map answer for this object itself?
+  --
+  -- The engine's own first question, asked in the engine's own words
+  -- (OverworldController.lua:3152-3153).  `talkScript` reads the merged view
+  -- MapScripts keeps -- the engine's hand-ported tables with every mod's
+  -- `map_scripts` registration composed on top -- so an object another mod
+  -- speaks for is behind this gate too.
+  --
+  -- Asked through whichever module this build answers on: `data.scripts.init`
+  -- is what `talkTo` holds, and it is a thin delegate to the registry, which
+  -- is the one worth asking first because requiring it runs no attach.  It is
+  -- asked per talk rather than cached, because a mod may register a map's
+  -- talk after this module installed and the view behind it is already warm.
+  local function registry()
+    for _, name in ipairs({ "src.script.MapScripts", "data.scripts.init" }) do
+      local found, loaded = pcall(require, name)
+      if found and type(loaded) == "table"
+         and type(loaded.talkScript) == "function" then
+        return loaded
+      end
+    end
+    return nil
+  end
+
+  -- Once, not once per A press: an engine that has moved this registry will
+  -- not have moved it back by the next trainer.
+  local stoodDown = false
+
+  local function scripted(ow, npc)
+    local mapId = ow.map and ow.map.id
+    local text = npc.def.text
+    if type(mapId) ~= "string" or type(text) ~= "string" then return true end
+
+    local scripts = registry()
+    if not scripts then
+      -- Unable to ask, so unable to claim.  Standing down costs every
+      -- rematch in the game; claiming a talk that was not ours costs
+      -- somebody the LIFT KEY, and only one of those is recoverable.
+      if not stoodDown then
+        stoodDown = true
+        mod.log:warn("no talkScript on src.script.MapScripts or "
+          .. "data.scripts.init in this build, so TRAINER REMATCH stands "
+          .. "down rather than outrank a map's own talk script")
+      end
+      return true
+    end
+
+    local asked, script = pcall(scripts.talkScript, mapId, text)
+    if not asked then return true end
+    return script ~= nil
+  end
+
   -- ------- is this a trainer with a rematch in them?
   --
   -- Answers the line to print, or nil for "not ours" -- and nil is the
   -- ordinary answer.  Every gate here is one the vanilla path checks in the
-  -- same order at OverworldController.lua:3125-3137, so a trainer this says
+  -- same order at OverworldController.lua:3152-3237, so a trainer this says
   -- yes to is exactly a trainer whose after-line the engine was about to
   -- print anyway.  One that says no falls through and the engine does what it
   -- always did.
   local function afterLine(ow, npc)
     local def = npc and npc.def
     if type(def) ~= "table" or not def.trainerClass then return nil end
+    -- The three answers talkTo reaches BEFORE either trainer branch.  An
+    -- item ball first (:3163) -- "0" is pokered's ITEM_NONE sentinel and is
+    -- a plain text object, so it is screened out here the way the engine
+    -- screens it; then a static encounter (:3199); then the map's own script
+    -- for this object, which outranks all of it.
+    if def.item and def.item ~= 0 and def.item ~= "0" then return nil end
+    if def.pokemon then return nil end
+    if scripted(ow, npc) then return nil end
     if type(ow.trainerDefeated) ~= "function" then return nil end
     local asked, beaten = pcall(ow.trainerDefeated, ow, npc)
     if not asked or not beaten then return nil end

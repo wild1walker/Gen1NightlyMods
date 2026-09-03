@@ -6,6 +6,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.24] - 2026-09-03
+
+- No changes; the channel ships as one version.
+
 ## [0.32.23] - 2026-09-02
 
 - **The visual half runs on Gold, Silver and Crystal**, and most of it by

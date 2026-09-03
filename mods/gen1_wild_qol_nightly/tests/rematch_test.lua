@@ -5,6 +5,15 @@
 -- rematch, who is handed straight back to the engine, and what the two ways
 -- out of the after-battle line do.
 --
+-- The other thing that must not rot is who the wrap is allowed to answer for.
+-- `talkTo` reaches the beaten trainer's after-line LAST -- a hand-ported map
+-- script, an item ball and a static encounter all outrank it -- and this wrap
+-- runs before every one of them, so it has to hand those back itself.  The
+-- ROCKET on ROCKET_HIDEOUT_B4F is the case that pays for the gate: a beaten
+-- trainer with an after-line whose hand-ported talk is the only thing that
+-- reveals the LIFT KEY ball.  A rematch offered in its place is a save that
+-- can never take the lift again.
+--
 -- The one thing here that is not obvious and must not rot: a rematch battle
 -- carries NO checkpointOrigin.  The engine's restore path keys on
 -- `kind == "trainer_encounter"` and re-runs the entire first-win branch on
@@ -48,6 +57,18 @@ end
 -- it was asked so the test can look.
 
 local boxes, battles
+
+-- Which objects the map answers for itself.  The engine keys these by map id
+-- and TEXT_ constant and merges every mod's registration into the same view,
+-- so a plain two-level table is the whole of what the module reads.
+local scripts
+
+package.loaded["src.script.MapScripts"] = {
+  talkScript = function(mapId, textConst)
+    local perMap = scripts and scripts[mapId]
+    return perMap and perMap[textConst] or nil
+  end,
+}
 
 package.loaded["src.core.Strings"] = function(text) return text end
 
@@ -128,14 +149,23 @@ local function newWorld(options)
   local npc = {
     frozen = false,
     faced = false,
-    def = { trainerClass = "OPP_YOUNGSTER", trainerParty = 2, index = 4 },
+    def = { trainerClass = "OPP_YOUNGSTER", trainerParty = 2, index = 4,
+            -- the object's TEXT_ constant: what talkScript is keyed on
+            text = "TEXT_ROUTE3_TRAINER0" },
     facePlayer = function(self) self.faced = true end,
   }
   if options.notATrainer then npc.def.trainerClass = nil end
+  if options.item then npc.def.item = options.item end
+  if options.pokemon then npc.def.pokemon = options.pokemon end
+  if options.noText then npc.def.text = nil end
+  if options.scripted then
+    scripts.ROUTE_3 = { TEXT_ROUTE3_TRAINER0 = function() end }
+  end
 
   local ow = {
     player = {},
-    map = { def = { label = "ROUTE_3" } },
+    -- talkTo asks trainerHeader by the map's LABEL and talkScript by its ID
+    map = { id = "ROUTE_3", def = { label = "ROUTE_3" } },
     trainerDefeated = function() return options.beaten ~= false end,
     pushed = nil,
     finished = nil,
@@ -151,7 +181,7 @@ end
 -- ------------------------------------------------------------------ the mod
 
 local function install(stored)
-  boxes, battles, partyHook = {}, {}, nil
+  boxes, battles, partyHook, scripts = {}, {}, nil, {}
   local w = stored or {}
   local world = newWorld(w.world or { money = w.money, party = w.party })
   local values = (stored and stored.options) or {}
@@ -327,6 +357,70 @@ do
   local off = install({ options = { enabled = false } })
   eq(off.talk(), true, "and so is everyone when the row is off")
   eq(#boxes, 0, "OFF is the vanilla interaction, with nothing to relaunch")
+end
+
+-- --------------------------------------------- the branch this may answer
+--
+-- talkTo's order, reproduced: a hand-ported map script, an item ball and a
+-- static encounter are all reached BEFORE the beaten trainer's after-line,
+-- and this wrap runs before all three.  The ROCKET on ROCKET_HIDEOUT_B4F is
+-- the case that pays for it -- beaten, with an after-line, and a talk that
+-- is the only thing in the game that reveals the LIFT KEY.
+
+do
+  io.write("a trainer the map answers for is the map's\n")
+  local w = install({ world = { scripted = true } })
+
+  eq(w.talk(), true, "the hand-ported script gets the A press, as it always did")
+  eq(#boxes, 0, "no line of ours is pushed over it")
+  eq(#battles, 0, "and nothing is offered to fight")
+  ok(not w.npc.frozen, "the object is left exactly as the engine found it")
+end
+
+do
+  io.write("an item ball and a static encounter are the engine's too\n")
+
+  local ball = install({ world = { item = "LIFT_KEY" } })
+  eq(ball.talk(), true, "an object carrying an item is picked up, not fought")
+  eq(#boxes, 0, "with nothing of ours in front of it")
+
+  -- pokered's ITEM_NONE sentinel: the object sets the has-item bit and names
+  -- item 0, which is a plain text object.  Lua's "0" is truthy, so a gate
+  -- that only asked `if def.item` would swallow these.
+  local none = install({ world = { item = "0" } })
+  eq(none.talk(), false, "a named item of 0 is not a ball, so the offer stands")
+  eq(#boxes, 1, "and the after-battle line is ours to print")
+
+  local zero = install({ world = { item = 0 } })
+  eq(zero.talk(), false, "nor is a numeric 0")
+
+  local static = install({ world = { pokemon = "SNORLAX" } })
+  eq(static.talk(), true, "a static encounter is the engine's")
+  eq(#boxes, 0, "with nothing of ours in front of it")
+end
+
+do
+  io.write("what it cannot ask about, it does not claim\n")
+
+  -- An object with no TEXT_ constant cannot be looked up, so it cannot be
+  -- shown to be unscripted.
+  local mute = install({ world = { noText = true } })
+  eq(mute.talk(), true, "an object with no text id is handed back")
+
+  -- And an engine whose registry has moved: the module stands down rather
+  -- than outrank a talk script it can no longer see.  Standing down costs
+  -- every rematch in the game; claiming a talk that was not ours costs
+  -- somebody the LIFT KEY, and only one of those is recoverable.
+  local registry = package.loaded["src.script.MapScripts"]
+  package.loaded["src.script.MapScripts"] = { }
+  local blind = install()
+  eq(blind.talk(), true, "no talkScript to ask, so no interaction taken")
+  eq(#boxes, 0, "and nothing of ours on screen")
+  package.loaded["src.script.MapScripts"] = registry
+
+  local back = install()
+  eq(back.talk(), false, "and the offer is back the moment it can ask again")
+  eq(#boxes, 1, "the trainer's own line")
 end
 
 -- ------------------------------------------------------------- the purse

@@ -5,6 +5,10 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.24] - 2026-09-03
+
+- No changes; the channel ships as one version.
+
 ## [0.32.23] - 2026-09-02
 
 - **The bench opens on Gold, Silver and Crystal**, which it has to: the channel
