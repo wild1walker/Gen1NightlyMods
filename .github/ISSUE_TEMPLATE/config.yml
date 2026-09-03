@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Engine bug (not the mods)
+    url: https://github.com/bryanthaboi/gen1recomp/issues
+    about: >
+      If it still happens with the whole suite switched off, it is the game
+      rather than these mods. File it upstream.
+  - name: The stable suite
+    url: https://github.com/wild1walker/Gen1Wild/issues
+    about: >
+      This repository is the NIGHTLY channel. If you are on the released Wild
+      Green rather than Wild Green Nightly, file it there.

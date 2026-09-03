@@ -1,0 +1,174 @@
+name: Bug report
+description: Something in the nightly suite is broken, wrong, or not behaving like it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the nightly channel.** Things break here on purpose — that is what it
+        is for. Report anything that looks wrong, however small.
+
+        Upstream's form asks you to turn every mod OFF before filing. This one is the
+        opposite: the bug is probably *in* one of these mods, and the useful thing is
+        working out **which one**. The MODS tab lets you switch features off one at a
+        time, and narrowing it to a single row is the single most valuable thing you
+        can put in this report.
+
+        If the same thing happens with the whole suite off, it is an engine bug and
+        belongs at
+        [bryanthaboi/gen1recomp](https://github.com/bryanthaboi/gen1recomp/issues).
+
+        A screenshot is worth more than any description. If you can grab one, grab one.
+
+  - type: input
+    id: summary
+    attributes:
+      label: One line summary
+      description: What's broken, in a sentence.
+      placeholder: The battle backdrop on Route 36 is the gym scene instead of the town one
+    validations:
+      required: true
+
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game were you playing
+      description: Pick every version you saw it in. Gold, Silver and Crystal support is new — bugs there are expected.
+      multiple: true
+      options:
+        - Red
+        - Blue
+        - Yellow
+        - Gold
+        - Silver
+        - Crystal
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mod
+    attributes:
+      label: Which mod
+      description: >
+        Which one you think it is. Pick more than one if you are not sure, and
+        "I don't know" is a perfectly good answer — say what you tried under
+        "anything else" and someone will help narrow it.
+      multiple: true
+      options:
+        - Gen1WildUI Nightly — the visual half
+        - Gen1WildQOL Nightly — the quality-of-life half
+        - Wild Green Nightly — the player, the names, the title screen
+        - Test Bench — the BENCH row
+        - The cart itself — installing, updating, the launcher
+        - I don't know
+    validations:
+      required: true
+
+  - type: input
+    id: feature
+    attributes:
+      label: Which feature, if you narrowed it down
+      description: >
+        The row in `OPTION > GEN1WILD UI` or `GEN1WILD QOL` — switching them off
+        one at a time is how you find it. Leave blank if you did not get that far.
+      placeholder: BACKDROPS, or ALL 251, or UI THEME
+    validations:
+      required: false
+
+  - type: dropdown
+    id: with_off
+    attributes:
+      label: Does it still happen with that feature switched off
+      options:
+        - "No — switching it off fixes it"
+        - "Yes — still happens with it off"
+        - "I didn't try"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Nightly version
+      description: >
+        In the game under MODS, or the release title. Nightlies move fast, so a
+        version that is a few builds old may already be fixed.
+      placeholder: 0.32.23
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Which build are you running
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Android
+        - iOS
+        - Nintendo Switch
+        - Xbox
+        - Anbernic RG34XXSP
+        - Multiple platforms
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Where in the game
+      description: >
+        Be specific. Route, town, building, floor, menu, battle. If it is a menu,
+        say which screen and which row.
+      placeholder: Route 36, walking into the tall grass north of the tree
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot, or a detailed description if you couldn't take one
+      description: >
+        Drag the image straight into this box. If you couldn't get one, write
+        "no screenshot" and describe exactly what was on screen — what was drawn
+        where, any text, whether anything was frozen, flickering or the wrong colour.
+      placeholder: |
+        Drop the image here.
+
+        Or, with no screenshot:
+        The battle started with the gym backdrop -- the one with the red plank
+        wall -- instead of the town scene. Everything else looked normal: the
+        Pokemon, the HP bars and the menu all drew correctly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: Numbered steps, starting from somewhere someone else can get to.
+      placeholder: |
+        1. Start a new Crystal game and get to Violet City
+        2. Go north to Route 36
+        3. Walk into the grass until a wild battle starts
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      placeholder: The town backdrop, the same one Violet City uses.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        Every time or only sometimes. Did it start after a specific nightly.
+        What you already tried. Anything you were doing right before.
+    validations:
+      required: false
