@@ -95,10 +95,16 @@ local function fakeMod(stored)
     defined = nil,
     warnings = 0,
     read = function(_, name)
-      -- The Gold arm must never ask for a sibling; the Gen 1 arm asks for
-      -- two.  Recording the ask is how the last test below sees the
-      -- difference.
+      -- WHICH siblings each arm asks for, by name.  The Gen 1 arm asks for
+      -- chrome.lua and screen.lua; the Gold arm asks for gen2panel.lua and
+      -- must never reach either of the other two -- they read
+      -- PartyMenu.drawIcon and .sgbPalettes off the Gen 1 module, which are
+      -- nil on a Gold boot.  Every read answers nil here, which is also how
+      -- the degrade is exercised: a panel that will not load must leave the
+      -- mod installed rather than take the boot down.
       self.readAsked = (self.readAsked or 0) + 1
+      self.reads = self.reads or {}
+      self.reads[name] = (self.reads[name] or 0) + 1
       return nil, "not in this test"
     end,
     log = {
@@ -147,16 +153,24 @@ do
   ok(keys.species_colours, "SPECIES COLOURS is offered on Gold")
   ok(keys.start_says_party, "so is START: PARTY -- Gold's start menu says "
      .. "POKeMON too, and ui.start_menu.items is raised there")
-  ok(not keys.ruled_icons,
-     "RULED ICONS is NOT offered: it is a setting for the Gen 1 screen, and a "
-     .. "row that cannot do anything is worse than a missing one")
-  ok(not keys.live_move, "nor is MOVE NOT SWITCH, for the same reason")
+  ok(keys.ruled_icons,
+     "RULED ICONS is offered on Gold as of 0.32.28: the frame puts a rule "
+     .. "between the icons and the names there too, and off puts the "
+     .. "engine's own icon slide back")
+  ok(not keys.live_move,
+     "MOVE NOT SWITCH is NOT offered: moving a member on Gold is MOVE "
+     .. "POKéMON in the PC, not a row on this popup, so the switch this row "
+     .. "would change is not there to change")
 
   eq(next(mod.content.screens.registered), nil,
-     "and nothing is registered: Gold's party list is the cart's")
-  eq(mod.readAsked, nil,
+     "no screen is registered: the Gold arm replaces one METHOD on the "
+     .. "cart's party list, not the screen")
+  eq((mod.reads or {})["gen2panel.lua"], 1,
+     "the Gold frame is the one sibling read there")
+  eq((mod.reads or {})["screen.lua"], nil,
      "the Gen 1 screen is never even READ on Gold -- it reaches "
      .. "PartyMenu.drawIcon and .sgbPalettes, which are nil there")
+  eq((mod.reads or {})["chrome.lua"], nil, "and neither is its drawing kit")
   ok(type(mod.hooks.wrapped["ui.start_menu.items"]) == "function",
      "the START menu row is still installed, because that hook is raised on "
      .. "both generations")

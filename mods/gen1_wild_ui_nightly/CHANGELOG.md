@@ -6,6 +6,66 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.28] - 2026-09-04
+
+- **Gold's party list is drawn in the set's own frame.**
+
+  Everything ON that page was already better than Red's: animated icons, a
+  held-item marker that replaces a quadrant of the icon rather than sitting
+  beside it, an HP bar and a level and a status tag on every row, and since
+  0.32.23 each mon in its own species colours. What it had was **no frame** --
+  `drawPanel` opens with `Chrome.clear()` and the six rows, the CANCEL row and
+  the icons stand on bare paper, with the prompt at the bottom as the only box
+  on the screen.
+
+  That is faithful to the cart, and it made the party the one page in this
+  suite you could open next to the Pokédex or the PACK and see a different
+  game. 0.32.23's note said replacing the screen would be work spent to arrive
+  back where Gold started; that was right about the ROW and wrong about the
+  page around it.
+
+  **The frame moved and the columns did not.** The six rows step down two tile
+  rows -- 1..12 becomes 3..14 -- which is what makes room for a header box on
+  0-2 and leaves the footer 15-17. Every second-line coordinate stays exactly
+  what the ASM gives it: status at 5, level at 8, the bar at 11. Those three
+  are packed against each other at L100 already, and buying a right margin
+  there is a collision not worth risking on a page whose problem was the
+  frame.
+
+  **`RULED ICONS` runs here now too**, and the reason it did not is the reason
+  it should: the row said Gold's names already sit off the icon cell, which is
+  true of the *unselected* rows only. `PartyMenu:iconX` slides the selected
+  icon eight pixels right, into the very gap the claim was about -- so the row
+  you are looking at is the one row where the art touches the first letter of
+  the name. The icon is fixed at 8 with the rule on, a hairline goes at 26 and
+  names start at 32, and the tenth glyph buys the air: CHARMANDER reads
+  CHARMANDE. Off puts the full-width column and the engine's slide back.
+
+  **CANCEL is in the header**, opposite the title, cursored when it is the
+  selection. It is a real row on Gold where Red's party has none, and six
+  two-row mons plus a three-row header plus a three-row footer is eighteen
+  rows out of the eighteen there are: no row is left for it. The alternatives
+  were five visible slots and a scroll -- which the Gen 1 screen's own note
+  rejects, on a page whose whole job is showing you the party at once -- or a
+  CANCEL that sits after the last mon and jumps into the header only when the
+  party is full, which is worse than either, because a control that moves is
+  harder to find than one in an odd place. Nothing about how it is REACHED
+  changed: `isCancel()` is the engine's, the index past the last mon is the
+  engine's, and B still cancels.
+
+  **Only `drawPanel` is replaced.** Input, the seven flavours of the list, the
+  submenu, switching, SOFTBOILED, the TM/HM ABLE column and the item result
+  are the cart's and are never reached from the frame -- the same discipline
+  the Gen 1 arm keeps, and what makes this safe on a screen a player cannot
+  walk out of if it goes wrong. The item result keeps the engine's own textbox
+  at the engine's own coordinates rather than being reworded to fit a one-line
+  footer. A frame that raises hands the cart's own back, once, and stands down
+  for the session; a build missing any method it needs never patches at all.
+
+  The hairline takes its ink from the live box palette, so it reverses with
+  everything else under `UI THEME`'s `DARK` instead of being the one invisible
+  line on a black page.
+
 ## [0.32.27] - 2026-09-04
 
 - No changes; the channel ships as one version.

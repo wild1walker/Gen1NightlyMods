@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.28] - 2026-09-04
+
+- No changes; the channel ships as one version.
+
 ## [0.32.27] - 2026-09-04
 
 - **The autosave POKe BALL was a third of its size on Gold.**

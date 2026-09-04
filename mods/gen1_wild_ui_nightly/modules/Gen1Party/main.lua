@@ -223,18 +223,25 @@ return function(mod)
       default = true },
   }
 
-  -- The two rows that are settings for the Gen 1 screen, and so exist only
-  -- where that screen does.  On Gold the party list is the cart's: its names
-  -- already sit off the icon cell, and moving a member is MOVE POKéMON in the
+  -- A hairline between the icons and the names, the one the dex list draws,
+  -- with the names moved off the icon cell to make room for it.  Ten glyphs
+  -- of name need every pixel from 24 to the digits beside them, so the air is
+  -- bought with the tenth: CHARMANDER reads CHARMANDE.  Off restores the
+  -- full-width name column, and the icons touch the names again.
+  --
+  -- On both generations as of 0.32.28.  It used to be a Gen 1 row on the
+  -- grounds that Gold's names already sit off the icon cell, and that was
+  -- true of the UNSELECTED rows only: `PartyMenu:iconX` slides the selected
+  -- icon eight pixels right, into the very gap the claim was about, so the
+  -- row you are looking at is the one row where the art touches the name.
+  -- Off there also puts the slide back, which is the cue the rule replaces.
+  schema[#schema + 1] = { key = "ruled_icons", type = "toggle",
+    label = "RULED ICONS", default = true }
+
+  -- The one row that is a setting for the Gen 1 screen, and so exists only
+  -- where that screen does: on Gold, moving a member is MOVE POKéMON in the
   -- PC (_MovePKMNWithoutMail) rather than a row on this popup.
   if not isGen2 then
-    -- A hairline between the icons and the names, the one the dex list draws,
-    -- with the names moved off the icon cell to make room for it.  Ten glyphs
-    -- of name need every pixel from 24 to the level column, so the air is
-    -- bought with the tenth: CHARMANDER reads CHARMANDE.  Off restores the
-    -- full-width name column, and the icons touch the names again.
-    schema[#schema + 1] = { key = "ruled_icons", type = "toggle",
-      label = "RULED ICONS", default = true }
     -- The popup's SWITCH row, and what pressing it does.  On: the row says
     -- MOVE, and A lifts that member -- it flashes, UP and DOWN carry it
     -- through the list a row at a time, and the party is reordered under it
@@ -249,6 +256,32 @@ return function(mod)
 
   if isGen2 then
     installGen2(mod)
+    -- and the frame.  Loaded here rather than at the top of the file for the
+    -- reason every sibling is: a mod cannot put itself on package.path, so
+    -- mod:read is what finds it -- and a Gen 1 boot must not pay for reading
+    -- a file whose every line is about Gold.
+    --
+    -- Guarded rather than raised, and that is the difference between this and
+    -- screen.lua below.  A Gen 1 boot with no screen.lua has an enabled mod
+    -- that changes nothing, which is worth the boot error feed.  A Gold boot
+    -- with no frame still has the species colours and the START menu's row --
+    -- it is the cart's party list, which is what every build before 0.32.28
+    -- had -- so a panel that will not load is a warning, not a broken mod.
+    local okPanel, panel = pcall(loadSibling, mod, "gen2panel.lua")
+    if okPanel and type(panel) == "function" then
+      local built = panel(mod)
+      if type(built) == "table" and type(built.install) == "function" then
+        local ranOk, problem = pcall(built.install)
+        if ranOk then
+          mod.exports.gen2panel = built
+        else
+          mod.log:warn("the party keeps the cart's frame: %s", tostring(problem))
+        end
+      end
+    else
+      mod.log:warn("gen2panel.lua did not load; the party keeps the cart's "
+        .. "frame: %s", tostring(panel))
+    end
     installStartMenuRow(mod)
     return
   end

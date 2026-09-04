@@ -388,10 +388,42 @@ cart already has a control that means "next page" — `PAGE` counts on past its
 two into STATS, EVOLVES and MOVES. Six stats, because Gen 2 split Special; all
 five Gen 2 evolution methods; and an unseen evolution still masked.
 
-`PARTY MENU` is there because Gold has the same bug Red does: `drawIcon`
-colours every row out of one palette, so six Pokémon share one set of colours.
-Each one wears its own on Gold now, out of the cart's own `monColors` — so a
-CHARMANDER in the party is the orange it is in a fight.
+`PARTY MENU` is there for two reasons. Gold has the same bug Red does —
+`drawIcon` colours every row out of one palette, so six Pokémon share one set
+of colours — and each one wears its own there now, out of the cart's own
+`monColors`, so a CHARMANDER in the party is the orange it is in a fight.
+
+And, as of 0.32.28, the page has the set's own frame. Everything ON Gold's
+party list was already better than Red's: animated icons, a held-item marker
+that replaces a quadrant rather than sitting beside it, an HP bar and a level
+and a status tag on every row. What it had was no frame at all —
+`drawPanel` opens with `Chrome.clear()` and the rows stand on bare paper with
+the prompt box at the bottom as the only chrome on the screen. That is
+faithful to the cart, and it made the party the one page in this suite you
+could open next to the Pokédex and see a different game.
+
+So the frame moved and the columns did not: the six rows step down two tile
+rows to make room for a header box, the footer becomes the set's three, and
+every second-line coordinate — status at 5, level at 8, the bar at 11 —
+stays exactly the ASM's. The one column that moves is the name, and only
+because `RULED ICONS` now runs here too: Gold slides the selected icon eight
+pixels right, into the very gap between the art and the first letter, so the
+row you are looking at is the one row where they touch.
+
+`CANCEL` is in the header, opposite the title. It is a real row on Gold where
+Red's party has none, and six two-row mons plus a three-row header plus a
+three-row footer is eighteen rows out of eighteen — there is no row left for
+it. The alternatives were five visible slots and a scroll, which the Gen 1
+screen's own note rejects on a page whose job is showing you the party at
+once, or a CANCEL that moves into the header only when the party is full,
+which is worse than either. Nothing about how it is reached changed: the index
+past the last mon is still the engine's, and B still cancels.
+
+Only `drawPanel` is replaced. Input, the seven flavours of the list, the
+submenu, switching, SOFTBOILED and the item result are the cart's and are
+never reached from the frame — the same discipline the Gen 1 arm keeps, and
+what makes this safe on a screen a player cannot walk out of. A frame that
+raises hands the cart's own back, once, and stops trying.
 
 `UI THEME` gets there by a different mechanism, because Gold gives it no
 choice. Red colours a page *after* it is drawn, by blitting the frame through
