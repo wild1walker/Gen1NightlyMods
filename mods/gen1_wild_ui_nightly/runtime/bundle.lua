@@ -55,6 +55,12 @@ function Bundle.install(mod, spec, features)
   -- instead.  Same two themes, same stored row, same promise that a theme
   -- cannot move a glyph; nothing else in common.  See runtime/theme2.lua.
   local Theme = loadRuntime(isGen2 and "theme2" or "theme")
+  -- Gen 2 only, and not part of the theme even though it exists because of
+  -- one: the YES/NO box is the single piece of Gold's furniture that paints
+  -- like a Gen 1 screen and so cannot be reached by swapping four numbers.
+  -- It is a separate file because it DRAWS, which is the one thing
+  -- runtime/theme2.lua promises never to do.  See runtime/choicebox2.lua.
+  local ChoiceBox2 = isGen2 and loadRuntime("choicebox2") or nil
   -- Gen 1 only, and not a gap.  A matte paints the page colour under a
   -- true-colour rectangle, because Red blits one RAW past the shade pass and
   -- the white page it was cut out of comes back with it.  Gold has no such
@@ -309,6 +315,18 @@ function Bundle.install(mod, spec, features)
             end
           else
             mod.log:warn("true-colour mattes not built: %s", tostring(mattes))
+          end
+        end
+        -- and, on Gold, the one box the four numbers cannot reach.  Guarded
+        -- on its own for the reason the mattes are: a themed build with a
+        -- white YES/NO box is worse than it should be and still a themed
+        -- build, so a patch that will not take must not cost the theme.
+        if type(ChoiceBox2) == "table"
+            and type(ChoiceBox2.install) == "function" then
+          local choiceOk, choiceProblem = pcall(ChoiceBox2.install, context)
+          if not choiceOk then
+            mod.log:warn("the YES/NO box keeps its own colours: %s",
+                         tostring(choiceProblem))
           end
         end
       else

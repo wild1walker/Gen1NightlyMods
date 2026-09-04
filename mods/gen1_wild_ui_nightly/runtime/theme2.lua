@@ -171,20 +171,26 @@ local PAGE_MODULES = {
 -- lit white portrait on a black page with a white seam around it, which is
 -- worse than the light screen it replaced.
 --
--- ------- the one box this mechanism cannot reach
+-- ------- the one box that is not reached by four numbers
 --
--- The YES/NO box (`src/ui/ChoiceBox.lua`) stays white under DARK, and not by
--- choice: it is the one piece of Gold's furniture that never asks Chrome for
--- anything.  It paints its interior with `Font.drawBox`, whose fill is a
--- colour argument and whose border and labels are font-page tiles -- "black
--- glyphs on transparent, so they come out black whatever the color is"
--- (src/render/Font.lua:532).  A dark fill under black glyphs is a box with
--- nothing legible in it, so there is no four-number answer here at all and
--- this file does not pretend to one.  It is an engine gap rather than a
--- theme's, it predates DARK reaching the overworld -- a confirm over the
--- PACK has always come out white on a themed page -- and closing it means
--- drawing, which is the one thing a theme that cannot move a glyph is not
--- allowed to do.
+-- The YES/NO box (`src/ui/ChoiceBox.lua`) is shared between the generations
+-- and paints like a Gen 1 screen: `Font.drawBox` for the box, `Font.draw` and
+-- `Font.drawCode` for the labels and the cursor.  None of those reads the
+-- table this file rewrites, so no swap of four numbers can move it, and it
+-- stayed white under DARK while every box around it went black.
+--
+-- 0.32.25 said that could not be closed without drawing.  The second half of
+-- that is true and the first half was wrong: `Chrome.paletteBox` IS
+-- `Font.drawBox` with a palette shader around it, so drawing the same box out
+-- of the same glyphs through the same four numbers is a fold, not a redesign.
+-- runtime/choicebox2.lua is that fold, and it is a file of its own precisely
+-- because it draws -- which is the one thing this file promises never to do,
+-- and the promise is worth more than the convenience of putting them
+-- together.
+--
+-- What is left here is the walk: the box is FURNITURE below, so a question
+-- standing on a page leaves the page themed.  It was not, and that cost more
+-- than the box's own colours -- see the note on the list itself.
 local Theme2 = {}
 Theme2.PAGES = PAGE_MODULES
 
@@ -297,6 +303,13 @@ end
 -- the menus"); this is the walk finally saying it.
 local FURNITURE_MODULES = {
   "src.render.TextBox",
+  -- The YES/NO box, which stands on top of the text box that asked the
+  -- question -- so leaving it out did not merely leave IT unthemed, it ended
+  -- the walk one state early and took the page underneath with it: answer a
+  -- `yesorno` on a dark PACK and the PACK went white for as long as the
+  -- question was up.  It is furniture for the same reason the text box is,
+  -- once runtime/choicebox2.lua has it drawing through this table.
+  "src.ui.ChoiceBox",
 }
 
 local VEIL_MODULES = {

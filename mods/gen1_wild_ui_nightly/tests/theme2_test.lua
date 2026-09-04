@@ -64,6 +64,7 @@ local TextBoxClass = {}
 local StartMenuClass = {}
 local ElevatorMenuClass = {}
 local MenuFadeClass = {}
+local ChoiceBoxClass = {}
 
 package.loaded["src.ui.gen2.PartyMenu"] = PartyMenuClass
 package.loaded["src.ui.gen2.BattleState"] = BattleStateClass
@@ -71,6 +72,7 @@ package.loaded["src.render.TextBox"] = TextBoxClass
 package.loaded["src.ui.gen2.StartMenu"] = StartMenuClass
 package.loaded["src.ui.gen2.ElevatorMenu"] = ElevatorMenuClass
 package.loaded["src.ui.gen2.MenuFade"] = MenuFadeClass
+package.loaded["src.ui.ChoiceBox"] = ChoiceBoxClass
 
 local Theme2 = chunkOf("runtime/theme2.lua")
 
@@ -227,6 +229,27 @@ do
                                  { class = PartyMenuClass })
   ok(Theme2.pageOf(partyOverStart) ~= nil,
      "the party menu opened from the START menu is a page")
+
+  -- The YES/NO box is furniture too, and leaving it out cost more than its
+  -- own colours: it stands on top of the text box that asked the question, so
+  -- it ended the walk one state early and took the PAGE under it with it.
+  local yesNoOverPage = stackOf({ class = PartyMenuClass },
+                                { class = TextBoxClass },
+                                { class = ChoiceBoxClass })
+  ok(Theme2.pageOf(yesNoOverPage) ~= nil,
+     "a question asked on a page leaves the page themed -- it used to turn "
+     .. "the page white for as long as the question was up")
+
+  local yesNoOverWorld = stackOf({ class = TextBoxClass },
+                                 { class = ChoiceBoxClass })
+  eq(Theme2.pageOf(yesNoOverWorld), yesNoOverWorld.stack.states[2],
+     "and over the map the box under it is still the page")
+
+  local yesNoOverBattle = stackOf({ class = BattleStateClass },
+                                  { class = TextBoxClass },
+                                  { class = ChoiceBoxClass })
+  eq(Theme2.pageOf(yesNoOverBattle), nil,
+     "a question asked in a battle still finds a picture under it")
 
   -- And an unknown full-screen owner ends the walk rather than being stepped
   -- over: whatever is under it is not what is on the screen.

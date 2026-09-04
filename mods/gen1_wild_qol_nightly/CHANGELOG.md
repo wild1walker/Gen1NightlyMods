@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.26] - 2026-09-04
+
+- No changes; the channel ships as one version.
+
 ## [0.32.25] - 2026-09-04
 
 - **AUTO SAVE had never written a file on Gold, Silver or Crystal.**

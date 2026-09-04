@@ -6,6 +6,64 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.26] - 2026-09-04
+
+- **The white YES/NO box is fixed, and 0.32.25 was wrong about why it could
+  not be.**
+
+  Under `DARK` on Gold every box went black with white ink except one: answer
+  a `yesorno` on a dark page and a lit white rectangle landed on top of it.
+  0.32.25 wrote that off as an engine gap that could not be closed without
+  drawing. The second half of that was true; the first half was not.
+
+  `src/ui/ChoiceBox.lua` is shared between the generations and paints like a
+  Gen 1 screen -- `Font.drawBox` for the box, `Font.draw` and `Font.drawCode`
+  for the labels and the cursor -- and none of those reads
+  `Chrome.DEFAULT_BOX_PALETTE`, which is the one table the Gen 2 theme
+  rewrites. So no swap of four numbers could ever move it. What the last
+  release got wrong was the conclusion: **`Chrome.paletteBox` IS
+  `Font.drawBox` with a palette shader around it**
+  (src/ui/gen2/Chrome.lua:152-162), and `printThrough` and `cursorThrough` are
+  `Font.draw` and `Font.drawCode` with the same shader. The "black glyphs on
+  transparent, so they come out black whatever the color is" note in
+  `Font.drawBox` is about tinting with `setColor`, not about the palette pass
+  -- which is exactly how every other Gold box already themes.
+
+  So the box is a **fold, not a redesign**: `runtime/choicebox2.lua` draws the
+  same box in the same place out of the same glyphs, through the three
+  palette-aware Chrome helpers. Its sibling already did this -- Gold's
+  dialogue box asks `Chrome.paletteBox` for its box and takes its glyph
+  colours from `Chrome.paletteGlyphs` (src/render/TextBox.lua:660-679) -- and
+  the choice box standing on top of it never got the same fold.
+
+  **It is a file of its own because it draws**, which is the one thing
+  `runtime/theme2.lua` promises never to do. Keeping that promise is worth
+  more than keeping the two together.
+
+  **And it is always on rather than only under DARK.** The palette it paints
+  through is the LIVE `Chrome.DEFAULT_BOX_PALETTE` -- the table the theme
+  rewrites in place, held by reference so it is never a snapshot -- so under
+  `LIGHT` it paints Gold's own four numbers and the box is what it has always
+  been. A patch that engages only under one setting is exercised only by the
+  players who chose it; this way the ordinary boot is the regression test.
+
+  `game:textboxPaper()` still wins where a screen has paper of its own: a box
+  on the Pokegear stays on the gear's cream under either theme, by the same
+  fold TextBox uses. And on the first failure the patch stands down for the
+  session and hands the engine's own draw back -- a box in the wrong colours
+  is a nuisance, a box that raises every frame it is up is a game that cannot
+  answer a question.
+
+- **A question asked on a page no longer turns the page white.**
+
+  The other half of the same bug, and the more visible one. The choice box was
+  not in the walk's furniture list, so it ended the walk one state early: the
+  whole frame came back unthemed for as long as the question was up. Under
+  `DARK`, a confirm over the PACK flipped the PACK to white and then back
+  again. It is furniture now, so the page under it stays themed -- and a
+  question asked inside a BATTLE still finds a picture under it and is left
+  alone.
+
 ## [0.32.25] - 2026-09-04
 
 - **UI THEME's DARK left the START menu white on Gold, and every line of

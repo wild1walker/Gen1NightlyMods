@@ -139,11 +139,35 @@ over the PACK still leaves the PACK themed; they differ only at the bottom of
 the walk, where a veil over the map is the map and a box over the map is a
 box. A box that comes out of a battle still finds a picture under it.
 
-One box this cannot reach, and it is written down beside the exclusions
-rather than left to be rediscovered: the YES/NO box never asks Chrome for
-anything — it fills with `Font.drawBox` and its glyphs are font-page tiles
-that come out black whatever the fill is, so there is no four-number answer
-there at all.
+### The white YES/NO box, and the wrong reason it was left
+
+0.32.25 left one box white under `DARK` and wrote it off as an engine gap that
+could not be closed without drawing. The second half was true and the first
+half was not.
+
+`src/ui/ChoiceBox.lua` is shared between the generations and paints like a
+Gen 1 screen, so it reads none of the four numbers the Gen 2 theme rewrites.
+But `Chrome.paletteBox` IS `Font.drawBox` with a palette shader around it, and
+`printThrough` and `cursorThrough` are `Font.draw` and `Font.drawCode` with
+the same one. The "black glyphs on transparent, so they come out black
+whatever the color is" note that made this look impossible is about tinting
+with `setColor`, not about the palette pass — which is how every other Gold
+box already themes. Its own sibling proves it: Gold's dialogue box takes that
+fold, and the choice box standing on top of it never got it.
+
+So it is a fold rather than a redesign, and `runtime/choicebox2.lua` is that
+fold: the same box, in the same place, out of the same glyphs, through the
+live box palette. It is a file of its own because it DRAWS, which is the one
+thing the theme promises never to do. It is on under `LIGHT` too, where it
+paints Gold's own four numbers and the box is what it always was — a patch
+that engages only under one setting is exercised only by the players who chose
+it.
+
+The other half of the same bug was worse than the box: the choice box was not
+furniture in the walk, so it ended the walk one state early and took the page
+under it with it. A confirm over a dark PACK flipped the PACK to white for as
+long as the question was up. A question asked inside a battle still finds a
+picture under it and is left alone.
 
 ### `AREA BANNER` is Gen 1 only
 
