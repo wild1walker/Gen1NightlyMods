@@ -118,6 +118,18 @@ local PAGE_MODULES = {
   -- The move screens.
   "src.ui.gen2.MoveDeleter",
   "src.ui.gen2.MoveTutor",
+  -- The START menu, and the lift panel that is the same idea on a smaller
+  -- box.  Both stand OVER the world rather than replacing it, and that is
+  -- exactly why the Gen 1 arm leaves Red's START menu alone -- there, the
+  -- box takes its four colours from the zone the map is wearing, so
+  -- reversing them reverses the map with it.  Here nothing of the sort is
+  -- true: the world is drawn from its own tile palettes and never reads this
+  -- table (there is not one `Chrome.` call in src/world/gen2/World.lua),
+  -- while the box, its rows and its cursor are `Chrome.box` / `Chrome.print`
+  -- and read nothing else.  So the reversal lands on the box and stops
+  -- there, and the reason Red's is excluded does not survive the crossing.
+  "src.ui.gen2.StartMenu",
+  "src.ui.gen2.ElevatorMenu",
   -- Naming, and the boot menu behind the title.
   "src.ui.gen2.NamingScreen",
   "src.ui.gen2.NamePick",
@@ -150,9 +162,6 @@ local PAGE_MODULES = {
 -- The transitions, which are a fade and nothing else: `BattleTransition`,
 -- `MenuFade`, `BlankScreen`, `WaitPlaySFX`.
 --
--- `StartMenu`, because it is a box standing over the overworld rather than a
--- page -- which is the same reason Red's is not in the Gen 1 arm's list.
---
 -- `OakSpeech`, and this one differs from Gen 1 on purpose.  The Gen 1 arm
 -- themes it and gets away with it because Red's portraits are true-colour
 -- rectangles the shade pass never touches, with runtime/matte.lua painting
@@ -161,6 +170,21 @@ local PAGE_MODULES = {
 -- is nothing raw to repair.  Reversing the box palette there would put a
 -- lit white portrait on a black page with a white seam around it, which is
 -- worse than the light screen it replaced.
+--
+-- ------- the one box this mechanism cannot reach
+--
+-- The YES/NO box (`src/ui/ChoiceBox.lua`) stays white under DARK, and not by
+-- choice: it is the one piece of Gold's furniture that never asks Chrome for
+-- anything.  It paints its interior with `Font.drawBox`, whose fill is a
+-- colour argument and whose border and labels are font-page tiles -- "black
+-- glyphs on transparent, so they come out black whatever the color is"
+-- (src/render/Font.lua:532).  A dark fill under black glyphs is a box with
+-- nothing legible in it, so there is no four-number answer here at all and
+-- this file does not pretend to one.  It is an engine gap rather than a
+-- theme's, it predates DARK reaching the overworld -- a confirm over the
+-- PACK has always come out white on a themed page -- and closing it means
+-- drawing, which is the one thing a theme that cannot move a glyph is not
+-- allowed to do.
 local Theme2 = {}
 Theme2.PAGES = PAGE_MODULES
 
@@ -232,8 +256,6 @@ local function classes()
   return pageClasses
 end
 
-Theme2.forgetClasses = function() pageClasses = nil end
-
 -- Is this frame a page of ours?
 --
 -- Top of the stack downwards, and the first state that answers ends the walk:
@@ -248,30 +270,75 @@ Theme2.forgetClasses = function() pageClasses = nil end
 -- a page, and left alone.  That is also what makes a text box over the
 -- overworld come out unthemed, which is the answer Gen 1 gives for the same
 -- frame.
-local OVERLAY_MODULES = {
+-- Two kinds of thing stand on top of a page, and they want opposite answers
+-- when there is no page underneath.
+--
+-- FURNITURE is drawn through this very table: Gold's dialogue box asks for
+-- `Chrome.paletteBox(..., Chrome.DEFAULT_BOX_PALETTE)` and takes its glyph
+-- colours out of the same four (src/render/TextBox.lua:669-678).  So a
+-- message box is not something standing in front of the page -- on the frames
+-- it is the only box on the screen it IS the page, in the only sense this
+-- file means the word: the thing whose colours these four numbers are.
+--
+-- A VEIL is drawn through nothing.  MenuFade, BlankScreen and WaitPlaySFX are
+-- a rectangle and a wait; reversing the palette under one changes no pixel
+-- while it is up and the wrong pixels the frame it comes off.
+--
+-- Both are stepped over on the way down -- a confirm box over the PACK leaves
+-- the PACK themed, which is the answer either kind wants there.  They differ
+-- only at the bottom of the walk, and that difference is the overworld: a
+-- veil over the map is the map, and the map is a picture; a message box over
+-- the map is a box, and every box in this game is ours to colour.
+--
+-- That is a change from 0.32.23, which treated the two alike and so left
+-- Gold's most-seen box -- every line of dialogue in the game -- white on a
+-- dark boot, while the menu it had just come out of was black.  The header
+-- above already promised the opposite ("Gold's own message boxes go dark with
+-- the menus"); this is the walk finally saying it.
+local FURNITURE_MODULES = {
   "src.render.TextBox",
+}
+
+local VEIL_MODULES = {
   "src.ui.gen2.MenuFade",
   "src.ui.gen2.BlankScreen",
   "src.ui.gen2.WaitPlaySFX",
 }
 
-local overlayClasses
+local function resolver(paths)
+  local resolved
+  return function()
+    if resolved then return resolved end
+    resolved = {}
+    for _, path in ipairs(paths) do
+      local ok, class = pcall(require, path)
+      if ok and type(class) == "table" then resolved[class] = true end
+    end
+    return resolved
+  end, function() resolved = nil end
+end
 
-local function overlays()
-  if overlayClasses then return overlayClasses end
-  overlayClasses = {}
-  for _, path in ipairs(OVERLAY_MODULES) do
-    local ok, class = pcall(require, path)
-    if ok and type(class) == "table" then overlayClasses[class] = true end
-  end
-  return overlayClasses
+local furniture, forgetFurniture = resolver(FURNITURE_MODULES)
+local veils, forgetVeils = resolver(VEIL_MODULES)
+
+-- Below all three resolvers, because it calls all three.  A `local` read
+-- above its own declaration is a GLOBAL read and therefore nil, which is the
+-- mistake that took the battle UI out in 0.32.3; tools/check.py fails on it
+-- now, and this is the shape it looks for.
+Theme2.forgetClasses = function()
+  pageClasses = nil
+  forgetFurniture()
+  forgetVeils()
 end
 
 function Theme2.pageOf(game)
   local stack = game and game.stack
   local states = stack and stack.states
   if type(states) ~= "table" then return nil end
-  local pages, skip = classes(), overlays()
+  local pages, boxes, fades = classes(), furniture(), veils()
+  -- The topmost piece of furniture stepped over, kept in case the walk
+  -- reaches the bottom without finding a page under it.
+  local carried
   for i = #states, 1, -1 do
     local state = states[i]
     if type(state) == "table" then
@@ -281,13 +348,23 @@ function Theme2.pageOf(game)
       if state.gen1wildTheme then return state end
       local class = getmetatable(state)
       if class and pages[class] then return state end
-      -- An overlay is stepped over so a confirm box on top of the PACK
-      -- leaves the PACK themed; anything else that is not a page ends the
-      -- walk, because whatever is under it is not what is on the screen.
-      if not (class and skip[class]) then return nil end
+      if class and boxes[class] then
+        -- stepped over, but remembered: if there is a page under it that
+        -- page is what is on the screen, and if there is not, this is.
+        carried = carried or state
+      elseif not (class and fades[class]) then
+        -- Anything else is a picture and ends the walk, because whatever is
+        -- under it is not what is on the screen.  A battle's own message box
+        -- comes out here rather than themed, which is right: the field
+        -- behind it is `Chrome.clear` and cannot go with it.
+        return nil
+      end
     end
   end
-  return nil
+  -- The bottom of the stack, which on Gold is the overworld.  A veil there
+  -- leaves nothing carried and the map is left alone; a box there is the one
+  -- thing on the screen wearing these four colours.
+  return carried
 end
 
 function Theme2.new(context)

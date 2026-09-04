@@ -1,0 +1,257 @@
+-- AUTO SAVE on Gold, Silver and Crystal.
+--
+-- The bug this file is the regression test for did not look like a bug from
+-- anywhere: no error, no warning, no line on the boot feed, the row reading
+-- ON in the menu and the INTERVAL row under it.  AUTO SAVE simply never wrote
+-- a file on a Gen 2 boot, because every question it asks about the map was
+-- asked as `game.overworld` -- Red's OverworldState singleton, which Gold
+-- does not have.  `writeWindow` opens with `if not (ow and ow.player)`, so it
+-- answered false on every frame of every playthrough, and `writeUnderCover`
+-- returned before it looked at anything.
+--
+-- So the assertions here are mostly of the form "this is ever true", which is
+-- a weak-looking shape for a test and is exactly the right one: the thing
+-- that was wrong is that a whole family of answers was constant.
+--
+-- The two questions with the most ways to go wrong are the ones whose answer
+-- is REVERSED between the games -- an empty stack is "no menu is open" on Red
+-- and "the player is standing on the map" on Gold -- so both are driven from
+-- both sides here.
+--
+-- Run:  luajit tests/autosave_gen2_test.lua
+
+package.path = "./?.lua;" .. package.path
+
+local passed, failed = 0, 0
+local function ok(condition, description)
+  if condition then
+    passed = passed + 1
+  else
+    failed = failed + 1
+    io.write("  FAIL  ", description, "\n")
+  end
+end
+local function eq(actual, expected, description)
+  local same = actual == expected
+  if not same then
+    description = ("%s (got %s, wanted %s)")
+      :format(description, tostring(actual), tostring(expected))
+  end
+  ok(same, description)
+end
+
+local function load_(path, ...)
+  local handle = assert(io.open(path, "r"), path .. " is missing")
+  local source = handle:read("*a")
+  handle:close()
+  return assert(load(source, "@" .. path))(...)
+end
+
+-- ------------------------------------------------------------- the harness
+
+local generation = 2
+package.loaded["src.core.GameVersion"] = {
+  generation = function() return generation end,
+  get = function() return generation == 2 and "gold" or "red" end,
+}
+
+local function fakeMod(stored)
+  local self = {
+    id = "gen1_wild_qol_nightly",
+    path = ".",
+    exports = {},
+    stored = stored or {},
+    hooked = {},
+  }
+  self.options = {
+    define = function() end,
+    get = function(_, key) return self.stored[key] end,
+    set = function(_, key, value) self.stored[key] = value end,
+  }
+  self.save = { get = function(_, _, fallback) return fallback end,
+                set = function() end }
+  self.cache = { read = function() end, write = function() end }
+  self.storage = { read = function() end, write = function() end,
+                   delete = function() end }
+  self.log = {}
+  for _, level in ipairs({ "info", "warn", "error", "debug" }) do
+    self.log[level] = function() end
+  end
+  self.hooks = { wrap = function(_, name, fn) self.hooked[name] = fn end }
+  self.events = { on = function() end, once = function() end }
+  self.content = {}
+  self.ui = { push = function() end }
+  self.world = {}
+  self.find = function() return nil end
+  function self:read() return nil end
+  return self
+end
+
+-- SAVE ON LOADS off, which is what puts a window back on the route -- with it
+-- on there is deliberately none, and "no window on the route" is the right
+-- answer on both games rather than the bug under test.
+local function install(gen)
+  generation = gen
+  local mod = fakeMod({ on_load = false })
+  load_("modules/Gen1AutoSave/main.lua")(mod)
+  return mod
+end
+
+local function stackOf(...)
+  local states = { ... }
+  return { states = states, top = function() return states[#states] end }
+end
+
+-- A world Gold's shape: not a stack state, with a player on it.
+local function goldGame(world, ...)
+  world = world or {}
+  world.player = world.player or { moving = false }
+  return { world = world, stack = stackOf(...) }, world
+end
+
+-- ---------------------------------------------------------------- on Gold
+
+do
+  io.write("a window exists at all on Gold\n")
+  local mod = install(2)
+  local writeWindow = mod.exports.writeWindow
+  local state = mod.exports.veilState
+  ok(type(writeWindow) == "function", "writeWindow is exposed")
+
+  -- A real stop: STILL_FOR seconds of standing on the map doing nothing.
+  local game, world = goldGame()
+  state.stillFor = 5
+  state.inBattle, state.outcomePending = false, false
+
+  eq(writeWindow(game), true,
+     "standing still on Gold's map is a window -- which before 0.32.24 it "
+     .. "could not be, because `game.overworld` is nil there and the first "
+     .. "line refused the frame")
+
+  world.player.moving = true
+  eq(writeWindow(game), false, "mid-stride is not")
+  world.player.moving = false
+
+  world.heldDir = "up"
+  eq(writeWindow(game), false,
+     "and neither is a direction held: Gold keeps that answer as a field "
+     .. "where Red keeps it as OverworldState:dirHeld")
+  world.heldDir = nil
+
+  world.textbox = true
+  eq(writeWindow(game), false, "a conversation is not a window")
+  world.textbox = nil
+
+  world.mapSetup = { phase = "out" }
+  eq(writeWindow(game), false,
+     "nor is a door: RunMapSetupScript is Gold's transitioning, and a write "
+     .. "taken there is the animation being cut rather than covered")
+  world.mapSetup = nil
+
+  world.fieldMove = { phase = "step" }
+  eq(writeWindow(game), false,
+     "nor a field move's tail, which is a queued script on the cart")
+  world.fieldMove = nil
+
+  eq(writeWindow(game), true, "and with all of them clear, a window again")
+
+  local menu = goldGame(world, { screenId = "Gen2PackMenu" })
+  eq(writeWindow(menu), false,
+     "a screen over the world is a refusal, not a window -- the write that "
+     .. "wants a covered screen comes through loadScreenWrite instead")
+end
+
+do
+  io.write("the two reversed questions\n")
+  local mod = install(2)
+  local screenOver, freeRoam = mod.exports.screenOver, mod.exports.freeRoam
+
+  local plain = goldGame()
+  eq(screenOver(plain), false,
+     "an empty stack on Gold is the player standing on the map")
+  eq(freeRoam(plain), true, "which is free roam")
+
+  local open = goldGame(nil, { screenId = "Gen2StartMenu" })
+  eq(screenOver(open), true, "one state on the stack is a screen over it")
+  eq(freeRoam(open), false, "and not free roam")
+
+  eq(screenOver({ stack = stackOf() }), false,
+     "with no world at all there is nothing to be over")
+end
+
+do
+  io.write("Gold's veil belongs to the world\n")
+  local mod = install(2)
+  local veilStepping, fullyVeiled = mod.exports.veilStepping,
+                                    mod.exports.fullyVeiled
+  local state = mod.exports.veilState
+
+  -- World:runMapSetup's ramp: fadeLevel walks 1/4 .. 1 in FADE_STEPS, holds
+  -- at 1 for MAP_LOAD_WHITE_FRAMES while the map loads, then walks back down.
+  local game, world = goldGame()
+  world.fade, world.fadeLevel = "white", 0.5
+  eq(veilStepping(game), true, "half way down the ramp is an animation")
+  eq(fullyVeiled(game), false, "and no window")
+
+  state.veiled = 0
+  world.fadeLevel = 1
+  eq(veilStepping(game), false, "at full white it is not moving")
+  eq(fullyVeiled(game), false,
+     "the first frame of the hold is still not enough: this frame being "
+     .. "solid says nothing about the next")
+  eq(fullyVeiled(game), true,
+     "the second is -- and Gold's hold is thirteen frames, so asking for two "
+     .. "costs the same one frame it costs on Red's staircase")
+
+  world.fade, world.fadeLevel = nil, nil
+  eq(fullyVeiled(game), false, "and the moment the veil lifts, no")
+
+  -- A mod's own fade is still a STATE on either game, and still has the first
+  -- word about what is on the screen.
+  local ramp = { alpha = function() return 0.4 end }
+  local overRamp = goldGame(nil, ramp)
+  eq(veilStepping(overRamp), true, "a state's own alpha() is asked first")
+end
+
+-- ----------------------------------------------------------------- on Red
+
+do
+  io.write("and none of it changed on Red\n")
+  local mod = install(1)
+  local writeWindow = mod.exports.writeWindow
+  local screenOver, freeRoam = mod.exports.screenOver, mod.exports.freeRoam
+  local state = mod.exports.veilState
+
+  -- Red's overworld IS the stack state, and Game holds it at `overworld`.
+  local ow = { player = { moving = false }, scriptMoves = {} }
+  local game = { overworld = ow, stack = stackOf(ow) }
+
+  state.stillFor = 5
+  state.inBattle, state.outcomePending = false, false
+  eq(writeWindow(game), true, "standing still on the route is still a window")
+  eq(screenOver(game), false,
+     "the overworld being the top state is NOT a screen over it")
+  eq(freeRoam(game), true, "it is free roam")
+
+  local menu = { overworld = ow, stack = stackOf(ow, { name = "BAG" }) }
+  eq(screenOver(menu), true, "a menu on top of it is")
+  eq(freeRoam(menu), false, "and is not free roam")
+  eq(writeWindow(menu), false, "and is a refusal")
+
+  ow.transitioning = true
+  eq(writeWindow(game), false, "a warp's fade is still read off the overworld")
+  ow.transitioning = nil
+
+  ow.engaging = true
+  eq(writeWindow(game), false,
+     "and so is the trainer-spotted hold, which Gold has no pair of flags "
+     .. "for because there it is an applymovement inside a script")
+  ow.engaging = nil
+
+  -- The empty stack, which is the reversal in one line.
+  eq(freeRoam({ overworld = ow, stack = stackOf() }), false,
+     "an empty stack on Red is NOT free roam -- there is no overworld on it")
+end
+
+io.write(("autosave gen2: %d passed, %d failed\n"):format(passed, failed))
+os.exit(failed == 0 and 0 or 1)

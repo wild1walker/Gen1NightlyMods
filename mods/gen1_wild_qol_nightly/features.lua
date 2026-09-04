@@ -198,6 +198,29 @@ return {
       -- seconds rather than a boolean.
       default = 3,
       aliases = { "qol_location_banners" },
+      -- Gen 1 only, because Gold already ships this sign.
+      --
+      -- The whole feature is a transcription of one Gen 2 idea into a game
+      -- that never had it.  Every line of the design note at the top of
+      -- bundle_location_banners.lua names Gold as the thing being copied: a
+      -- plaque sized to the name rather than a dialogue box, anchored
+      -- top-left, slid on and off.  Gold does not need the copy -- the sign
+      -- IS the cart's (src/world/gen2/MapNameSign.lua, a transcription of
+      -- engine/events/map_name_sign.asm), it is drawn on every map entry that
+      -- earns one, and it already knows the six landmarks that get no sign
+      -- and the park gates that get one late.
+      --
+      -- So the Gen 2 arm was not a port, it was a second sign.  It rode a
+      -- monkey-patch on `World.draw` and drew its own plaque out of
+      -- `map.entered` -- in the same corner, over the same frames, saying the
+      -- same name as the one underneath it.  Two signs for one door is worse
+      -- than either alone, and the one this bundle would be adding is the
+      -- imitation.
+      --
+      -- The arm is gone rather than switched off: it was the only caller of
+      -- `World.draw`'s wrap, and a patch on the engine's own draw that exists
+      -- to be skipped is a patch that will one day not be.
+      gen1_only = true,
     },
 
     -- ---- your POKeMON

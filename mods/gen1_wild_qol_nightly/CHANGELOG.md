@@ -7,6 +7,101 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.25] - 2026-09-04
+
+- **AUTO SAVE had never written a file on Gold, Silver or Crystal.**
+
+  Not "sometimes", not "in the wrong place" -- never, on any Gen 2 boot since
+  the bundle started claiming one. No error, no warning, nothing on the boot
+  feed, and the row reading ON with its INTERVAL and AFTER EVENTS rows under
+  it. The mod installed, ran its timer, marked the save dirty after every
+  battle and every door, and then refused every frame it was ever offered.
+
+  **Every question it asks about the map was asked as `game.overworld`.**
+  That is Red's `OverworldState` singleton. Gold does not have one: its world
+  lives at `game.world`, and it is not a stack state at all -- an EMPTY stack
+  is free roam there, which `src/core/Game2.lua:pipelineGate` says outright.
+  So `writeWindow` opened with `if not (ow and ow.player) then return false
+  end` and answered false on every frame of every playthrough;
+  `writeUnderCover` returned before it looked at anything; and `screenOver`,
+  which asks whether a screen is standing over the world, answered `top ~= ow`
+  against a world that is never on the stack -- backwards on the map and
+  backwards inside every menu.
+
+  **The six questions are spelled once now**, in one block at the top of the
+  mod, and nothing below it knows which game it is on: where the world is,
+  whether the player is mid-step, whether a direction is held, whether a
+  script has the controls, whether a fade is running, and whether a screen is
+  standing over the map. Each has an answer in both games and every one of
+  them is spelled differently.
+
+  **The veil questions grew a second arm for the same reason.** `fullyVeiled`
+  and `veilStepping` looked for a stack state with an `alpha()`, and Gold's
+  fades are not states: a door, a warp and the ride back out of a battle are
+  all `World:runMapSetup`, whose ramp is `world.fade` with `world.fadeLevel`
+  from 0 to 1 under it. So the covered write -- the whole design, a save taken
+  on a screen nobody can see -- had no screen to take. It has thirteen frames
+  of held white to take it on now, fifteen through a warp, which is the same
+  hold the cart loads the map under.
+
+  A mod's own fade is still a state on either game and is still asked first,
+  so Gen1WildUI's BLACK OUTRO keeps the hold it was given in 0.32.20.
+
+  Nothing about Red changed. `tests/autosave_gen2_test.lua` drives both
+  generations through the same questions, including the two whose answer is
+  *reversed* between them -- an empty stack is "no menu is open" on Red and
+  "the player is standing on the map" on Gold.
+
+- **AUTO CONTINUE did nothing at all on Gold, Silver and Crystal.**
+
+  Reported as the intro cutscene, the copyright card and the whole continue
+  flow still playing with the row on, and that is exactly what was happening.
+  The mod knew one boot: `isGen1Title` asks for `openMenu` and `toMenu`, which
+  Gold's title has neither of, and `isIntro` matched `IntroMovie` and
+  `YellowIntro`, which are not Gold's cards. Both refusals were *correct* --
+  they are what kept the mod from erroring on Gold -- and both together are a
+  feature that reads ON and is not there.
+
+  **Gold's boot is a different set of screens end to end**, so this is a
+  second arm rather than a branch:
+
+  - `SKIP INTRO` now ends all four cards of the cinema -- the copyright card,
+    the GAME FREAK splash (the Ditto one on Crystal) and the attract movie --
+    **in one update**, not one card per update. Each card's `onDone` pushes
+    the next, so ending them one at a time would have drawn each one for a
+    frame on the way past; drained in one update, the title is the first thing
+    the boot ever draws. The copyright card is the awkward one: it has neither
+    a `finish` nor a `skip`, and ends by running its own `onDone` behind its
+    own latch. The two splashes hand their `skipped` flag to
+    `Game2:showGameFreak`, which reads it as "go straight to the title" -- so
+    ending the splash as skipped takes the attract movie with it, which is the
+    cart's own answer to a button press there.
+  - `START` / `A` loads the save. The menu Gold builds is answered from inside
+    the title's own `onContinue`, which is the one place where the menu exists
+    and the frame has not been drawn yet -- so the CONTINUE menu is never seen,
+    and neither is the save panel and the second A press it waits for. What
+    runs is the menu's OWN payload with the save the menu read for itself;
+    nothing here goes looking for a file.
+  - `B` runs the menu's own EXIT GAME row, and `SELECT` leaves the ordinary
+    menu up. Both are dead inputs on Gold's title, the same as on Red's.
+
+  With no save, or a build whose menu carries no CONTINUE, the ordinary menu
+  is what the player gets -- which is what a first boot wants.
+
+- **AREA BANNER is Gen 1 only, and its Gen 2 arm is gone.**
+
+  Gold ships this sign. `src/world/gen2/MapNameSign.lua` is the cart's own,
+  drawn on every map entry that earns one, and it already knows the six
+  landmarks that get none and the park gates that get one late. Every line of
+  this feature's design note names Gold as the thing being copied -- a plaque
+  sized to the name rather than a dialogue box, anchored top-left, slid on and
+  off -- so on Gold the copy was a SECOND sign: same corner, same frames, same
+  name as the one underneath it.
+
+  The arm is removed rather than switched off. It was the only caller of a
+  monkey-patch on `World.draw`, and a patch on the engine's own draw that
+  exists to be skipped is a patch that will one day not be.
+
 ## [0.32.24] - 2026-09-03
 
 - **TRAINER REMATCH stopped answering for the engine, and gym leaders became

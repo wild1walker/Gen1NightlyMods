@@ -61,10 +61,16 @@ end
 local PartyMenuClass = {}
 local BattleStateClass = {}
 local TextBoxClass = {}
+local StartMenuClass = {}
+local ElevatorMenuClass = {}
+local MenuFadeClass = {}
 
 package.loaded["src.ui.gen2.PartyMenu"] = PartyMenuClass
 package.loaded["src.ui.gen2.BattleState"] = BattleStateClass
 package.loaded["src.render.TextBox"] = TextBoxClass
+package.loaded["src.ui.gen2.StartMenu"] = StartMenuClass
+package.loaded["src.ui.gen2.ElevatorMenu"] = ElevatorMenuClass
+package.loaded["src.ui.gen2.MenuFade"] = MenuFadeClass
 
 local Theme2 = chunkOf("runtime/theme2.lua")
 
@@ -185,11 +191,42 @@ do
   ok(Theme2.pageOf(boxOverPage) ~= nil,
      "a text box over a page leaves the page themed")
 
-  -- ...but a text box over the OVERWORLD finds nothing under it, which is the
-  -- same answer Gen 1 gives for the same frame.
+  -- ...and a text box over the OVERWORLD is the page itself.  It is drawn
+  -- through DEFAULT_BOX_PALETTE and the map under it is not, so the reversal
+  -- lands on the box and nothing else -- and this is Gold's most-seen box, so
+  -- leaving it out was leaving every line of dialogue in the game white on a
+  -- dark boot.
   local boxOverWorld = stackOf({ class = TextBoxClass })
-  eq(Theme2.pageOf(boxOverWorld), nil,
-     "a text box over the overworld is not a page")
+  eq(Theme2.pageOf(boxOverWorld), boxOverWorld.stack.states[1],
+     "a text box over the overworld IS the page")
+
+  -- A veil over the overworld is not, and that is the difference between the
+  -- two kinds of thing that stand on top: a fade draws through nothing.
+  local fadeOverWorld = stackOf({ class = MenuFadeClass })
+  eq(Theme2.pageOf(fadeOverWorld), nil,
+     "a fade over the overworld is not a page")
+
+  -- The box that comes out of a BATTLE still finds a picture under it.
+  local boxOverBattle = stackOf({ class = BattleStateClass },
+                                { class = TextBoxClass })
+  eq(Theme2.pageOf(boxOverBattle), nil,
+     "a text box over a battle is not a page: the field behind it is "
+     .. "Chrome.clear and cannot go dark with it")
+
+  -- The two pages 0.32.23 left white.  Both are boxes standing over the
+  -- world, which is the reason Red's START menu is excluded on Gen 1 -- and
+  -- the reason does not cross, because Gold's world reads no box palette.
+  local startMenu = stackOf({ class = StartMenuClass })
+  ok(Theme2.pageOf(startMenu) ~= nil, "Gold's START menu is a page")
+
+  local lift = stackOf({ class = ElevatorMenuClass })
+  ok(Theme2.pageOf(lift) ~= nil, "and so is Gold's lift panel")
+
+  -- The START menu with a submenu over it is still one themed frame.
+  local partyOverStart = stackOf({ class = StartMenuClass },
+                                 { class = PartyMenuClass })
+  ok(Theme2.pageOf(partyOverStart) ~= nil,
+     "the party menu opened from the START menu is a page")
 
   -- And an unknown full-screen owner ends the walk rather than being stepped
   -- over: whatever is under it is not what is on the screen.

@@ -76,6 +76,86 @@ each fork stands on.
 
 Everything below is written up properly in each mod's own `CHANGELOG.md`.
 
+### Autosave had never written a file on Gold
+
+Not "sometimes", not "in the wrong place" — never, on any Gen 2 boot since
+the bundle started claiming one, and with no error, no warning and the row
+reading ON the whole time.
+
+Every question autosave asks about the map was asked as `game.overworld`.
+That is Red's `OverworldState` singleton, and Gold does not have one: its
+world lives at `game.world` and is not a stack state at all, so an EMPTY
+stack is free roam there. `writeWindow` opens with `if not (ow and
+ow.player)`, so it answered false on every frame of every playthrough, and
+`screenOver` — "is a screen standing over the world" — asked `top ~= ow`
+against a world that is never on the stack, which is backwards on the map and
+backwards inside every menu.
+
+The six questions are spelled once now, in one block, and nothing below it
+knows which game it is on. The veil pair needed the same treatment for the
+same reason: Gold's fades are not stack states either. A door, a warp and the
+ride back out of a battle are all `World:runMapSetup`, whose ramp is
+`world.fade` with `world.fadeLevel` under it — so the covered write, which
+is the whole design, had no screen to take. It has the thirteen frames of
+held white the cart loads a map under now, fifteen through a warp.
+
+### Auto continue did nothing at all on Gold
+
+The copyright card, the GAME FREAK splash, the attract movie, the title, the
+CONTINUE menu and the save panel: all of them, with the row on. The mod knew
+one boot. `isGen1Title` asks for `openMenu` and `toMenu`, which Gold's title
+has neither of; `isIntro` matched `IntroMovie` and `YellowIntro`, which are
+not Gold's cards. Both refusals were right — they are what kept the mod from
+erroring there — and both together are a feature that reads ON and is not
+there.
+
+Gold's boot is a different set of screens end to end, so it has an arm of its
+own. `SKIP INTRO` ends all four cards of the cinema **in one update** rather
+than one card per update, because each card's `onDone` pushes the next and
+ending them one at a time draws each one for a frame on the way past. `START`
+and `A` answer the menu from inside the title's own `onContinue` — the one
+place the menu exists and the frame has not been drawn — so the CONTINUE
+menu is never seen, and neither is the save panel and the second press it
+waits for. What runs is the menu's own payload with the save the menu read
+for itself. `B` and `SELECT` mean what they mean on Red.
+
+### `DARK` reaches the START menu, the lift and every line of dialogue
+
+The walk that decides whether a frame is a *page* was written to the Gen 1
+arm's rule, and that rule does not cross.
+
+The START menu and the lift panel were left out for being boxes over the
+world, which is exactly why Red's START menu is left out on Gen 1 — and
+there the reason is real: the box takes its four colours from the SGB zone the
+map is wearing, so reversing them reverses the map. Here the world is drawn
+from its own tile palettes and never reads the box palette at all, so the
+reversal lands on the box and stops.
+
+The dialogue box was stepped over as an overlay and came out white over the
+map while the menu the player had just closed was black. The walk tells two
+kinds of thing apart now: FURNITURE is drawn through this very palette, a VEIL
+draws through nothing. Both are stepped over on the way down, so a confirm
+over the PACK still leaves the PACK themed; they differ only at the bottom of
+the walk, where a veil over the map is the map and a box over the map is a
+box. A box that comes out of a battle still finds a picture under it.
+
+One box this cannot reach, and it is written down beside the exclusions
+rather than left to be rediscovered: the YES/NO box never asks Chrome for
+anything — it fills with `Font.drawBox` and its glyphs are font-page tiles
+that come out black whatever the fill is, so there is no four-number answer
+there at all.
+
+### `AREA BANNER` is Gen 1 only
+
+Gold ships this sign. `src/world/gen2/MapNameSign.lua` is the cart's own,
+drawn on every map entry that earns one, and it knows the six landmarks that
+get none and the park gates that get one late. Every line of the feature's own
+design note names Gold as the thing being copied, so on Gold the copy was a
+second sign in the same corner saying the same name as the one underneath it.
+The arm is removed rather than switched off: it was the only caller of a
+monkey-patch on `World.draw`, and a patch on the engine's own draw that exists
+to be skipped is a patch that will one day not be.
+
 ### The white block over the party screen's message box
 
 Pick the POKéMON already out when a trainer offers you the switch and the "is
@@ -252,10 +332,18 @@ and the test bench, installed on their own.
 **Nearly all of the quality-of-life half runs there unchanged**, because it was
 written against hooks rather than modules and Gold raises the same hooks under
 the same names. Sprinting is the clearest case: `movement.speed` is raised by
-both worlds, so holding B to run needed not one line. Three features are Gen 1
+both worlds, so holding B to run needed not one line. Four features are Gen 1
 only — `ALL 151`, whose placement table is Kanto research; `TRAINER REMATCH`,
-which on Gold is the POKéGEAR; and `NPC WALK`, because Gold's NPCs already walk
-at the player's pace.
+which on Gold is the POKéGEAR; `NPC WALK`, because Gold's NPCs already walk
+at the player's pace; and `AREA BANNER`, because Gold ships that sign itself.
+
+"Runs against hooks" is not the same as "runs", and `AUTO SAVE` and
+`AUTO CONTINUE` are what that distinction cost: both installed, both raised
+their hooks, both read ON in the menu, and neither did anything at all until
+0.32.25. What a hook hands a mod is the LIVE GAME, and the live game is a
+different object on Gold — so a mod can be perfectly hook-shaped and still
+ask it for a field it does not have. Both are fixed above, and both are the
+same mistake: Red's name for something Gold also has.
 
 **Most of the visual half stands down there, and that is the honest answer
 rather than a shortfall.** This bundle exists to give Red the screens Gold

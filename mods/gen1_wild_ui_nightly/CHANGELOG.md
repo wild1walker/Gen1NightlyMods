@@ -6,6 +6,49 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.25] - 2026-09-04
+
+- **UI THEME's DARK left the START menu white on Gold, and every line of
+  dialogue in the game with it.**
+
+  Two separate misses with one cause: the walk that decides whether a frame is
+  a *page* was written to the Gen 1 arm's rule, and that rule does not cross.
+
+  **The START menu and the lift panel** were left out because they are boxes
+  standing over the world -- which is exactly why Red's START menu is left out
+  on Gen 1, and the reason does not survive the crossing. There, the box takes
+  its four colours from the SGB zone the map is wearing, so reversing them
+  reverses the map with it. Here the world is drawn from its own tile palettes
+  and never reads the box palette at all -- there is not one `Chrome.` call in
+  `src/world/gen2/World.lua` -- while the box, its rows and its cursor read
+  nothing else. The reversal lands on the box and stops there. Both are pages
+  now.
+
+  **The dialogue box** was stepped over as an overlay and, over the world,
+  came out white on a dark boot -- while the menu the player had just closed
+  was black. This file's own header had already promised the opposite. The
+  walk now tells two kinds of thing apart: FURNITURE is drawn through this
+  very palette (Gold's text box asks `Chrome.paletteBox` for it and takes its
+  glyph colours out of the same four), and a VEIL -- MenuFade, BlankScreen,
+  WaitPlaySFX -- draws through nothing. Both are stepped over on the way down,
+  so a confirm over the PACK still leaves the PACK themed. They differ only at
+  the bottom of the walk: a veil over the map is the map, and the map is a
+  picture; a box over the map is a box, and every box in this game is ours to
+  colour. A box that comes out of a BATTLE still finds a picture under it and
+  is left alone, because the field behind it is `Chrome.clear` and cannot go
+  dark with it.
+
+  **One box this mechanism still cannot reach**, and it is written down beside
+  the exclusions rather than left to be rediscovered: the YES/NO box
+  (`src/ui/ChoiceBox.lua`) never asks Chrome for anything. It fills with
+  `Font.drawBox` and its border and labels are font-page tiles -- "black
+  glyphs on transparent, so they come out black whatever the color is" -- so a
+  dark fill under them is a box with nothing legible in it. There is no
+  four-number answer there at all. It is an engine gap rather than a theme's,
+  it predates DARK reaching the overworld (a confirm over the PACK has always
+  come out white on a themed page), and closing it means drawing, which is the
+  one thing a theme that cannot move a glyph is not allowed to do.
+
 ## [0.32.24] - 2026-09-03
 
 - No changes; the channel ships as one version.
