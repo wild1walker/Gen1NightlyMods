@@ -153,7 +153,9 @@ local PAGE_MODULES = {
 
 -- Left out deliberately, and each was read before being left out.
 --
--- The pictures: `BattleState` (its field is `Chrome.clear`, see above),
+-- The pictures: `BattleState` (its field is `Chrome.clear`, see above --
+-- except on the frames BACKDROPS has replaced that call with art, which the
+-- walk asks the instance about),
 -- `TitleState`, `GoldSilverIntro`, `CrystalIntro`, `CopyrightSplash`,
 -- `CrystalSplash`, `GameFreakPresents`, `Credits`, `HallOfFame`, `Diploma`,
 -- `EvolutionAnim`, `EggHatchAnim`, `TradeAnim`, `SlotMachine`, `CardFlip`,
@@ -361,6 +363,22 @@ function Theme2.pageOf(game)
       if state.gen1wildTheme then return state end
       local class = getmetatable(state)
       if class and pages[class] then return state end
+      -- A battle standing on a BACKDROP, which is the one exclusion below
+      -- that stops being true under a condition rather than never.
+      --
+      -- The reason a battle is not a page is exact: Gold's field is
+      -- `Chrome.clear()`, a whole-screen fill through this very table, so
+      -- theming one would paint every field black.  BACKDROPS replaces that
+      -- call with a picture, and when it does the fill never happens -- so
+      -- there is no field for four numbers to reach and the boxes, the HUD
+      -- plates and the message box can go dark with the rest of the game.
+      --
+      -- Set by Gen1Arena on the instance, per frame, and only for the frames
+      -- it actually took (`consumed`): a battle it found no backdrop for is
+      -- still the cart's white field and still not a page.  Read one frame
+      -- behind, because the theme runs before the draw that sets it -- which
+      -- costs the first frame of a battle its theme and nothing after it.
+      if state.gen1wildArenaField then return state end
       if class and boxes[class] then
         -- stepped over, but remembered: if there is a page under it that
         -- page is what is on the screen, and if there is not, this is.

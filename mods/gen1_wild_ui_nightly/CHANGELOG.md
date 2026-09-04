@@ -6,6 +6,72 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.30] - 2026-09-04
+
+- **A backdrop was taking away the paper Gold's battle is drawn against.**
+
+  Four things were reported about the Crystal cart's battle screen. Three of
+  them are one bug, and it is not the one it looked like.
+
+  `BattleState:drawPanel` opens with `Chrome.clear()`, and everything after it
+  -- the HUDs, the pics, the boxes -- is drawn in the knowledge that whatever
+  it does not paint is white. `BACKDROPS` replaces that call with a picture,
+  and two of the cart's own assumptions become visible the moment it does:
+
+  - **Every HUD string paints its own paper cell.** `Chrome.printThrough`
+    fills `width x 8` with the palette's colour 0 before it draws a glyph,
+    because a tilemap cell is opaque. Over art, the name, the level, the
+    gender symbol and the HP numbers each arrived as a white block hugging its
+    own text, ragged against the picture. Reported as "white blocks that
+    wouldn't look ok in light mode either", which is exactly right: it was
+    never a dark-mode bug.
+  - **The pics have transparent interiors.** On white paper a mon's hollow
+    reads as part of the mon; over a picture you see the field through the
+    player's jacket. The Gen 1 arm has laid paper under a pic since it
+    existed, for precisely this, and the Gold arm never did.
+
+  Both are answered with the engine's own numbers: put the paper back where
+  the cart is entitled to assume it, and nowhere else. A **plate** goes behind
+  each HUD block -- `(1,0)` 11x4 for the enemy, `(10,7)` 10x5 for the player --
+  and only for a HUD that is actually on screen, because a plate on one
+  `ClearActorHud` has blanked is a white rectangle the cart does not have. And
+  paper goes under each pic at the measured box the Gen 1 arm already
+  computes: the enclosed interior of the art, so it fills the mon rather than a
+  square around it.
+
+  Nothing is repainted. The HUD, its frame, the bar and the pic are all still
+  the cart's, drawn by the cart, in the cart's own order. The pic's placement
+  is **read off the blit** rather than re-derived -- `drawPic` works out the
+  box, the centring, the ground line, the resize square and the slide, and a
+  second copy of that arithmetic here would be wrong the first time any of it
+  moved.
+
+  The two papers are deliberately different colours, and that is the one
+  judgement in this change. A plate is chrome, so it goes through the palette
+  and darkens with everything else. A pic's paper is **white**, because it is
+  the shade the mon's own palette maps colour 0 to and the hole it fills is
+  *inside* the art -- the page's paper there would put black patches through a
+  mon's white in a dark game.
+
+  `HUD PAPER` turns the plates off (Gold only; Red's HUD glyphs carry no paper
+  and never had the problem). `MON PAPER` already existed and now does
+  something on Gold too.
+
+- **`UI THEME`'s `DARK` reaches a battle that is standing on a backdrop.**
+
+  The theme excludes battles, and the reason it gives is exact: Gold's field
+  *is* `Chrome.clear()`, a whole-screen fill through the box palette, so
+  theming one would paint every field black. That is true of a battle the
+  backdrop did not take -- and false of one it did, where the fill never
+  happened and the field is art, which no palette reaches.
+
+  So `BACKDROPS` marks the frames it actually took and the theme's walk asks:
+  a battle on a picture is a page, a battle on the cart's white field is not.
+  The message box, the menu box, the move list and the new HUD plates all go
+  dark; the picture stays a picture. Read one frame behind, because the theme
+  runs before the draw that sets it -- which costs the first frame of a battle
+  its theme and nothing after it.
+
 ## [0.32.29] - 2026-09-04
 
 - No changes; the channel ships as one version.

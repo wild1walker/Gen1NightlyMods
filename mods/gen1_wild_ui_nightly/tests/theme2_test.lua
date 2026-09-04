@@ -182,6 +182,22 @@ do
      "a battle is NOT a page -- its field is Chrome.clear, and theming it "
      .. "would paint every battle black")
 
+  -- ...unless BACKDROPS replaced that call with a picture, which is the one
+  -- exclusion here that stops being true under a condition rather than
+  -- never.  Then the fill never happened, there is no field for four numbers
+  -- to reach, and the boxes and the HUD plates can go dark with the rest.
+  local onArt = stackOf({ class = BattleStateClass,
+                          state = { gen1wildArenaField = true } })
+  ok(Theme2.pageOf(onArt) ~= nil,
+     "a battle standing on a backdrop IS a page: the field is art, and art "
+     .. "is not something a palette reaches")
+
+  local noArt = stackOf({ class = BattleStateClass,
+                          state = { gen1wildArenaField = false } })
+  eq(Theme2.pageOf(noArt), nil,
+     "and a battle the backdrop did not take is still the cart's white "
+     .. "field, and still not a page")
+
   -- One of ours needs no entry in the class list: the marker is enough.
   local ours = stackOf({ state = { gen1wildTheme = "settings" } })
   ok(Theme2.pageOf(ours) ~= nil, "a screen this suite registered is a page")

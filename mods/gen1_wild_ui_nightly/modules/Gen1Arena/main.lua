@@ -1454,6 +1454,9 @@ local function measurePic(img)
            w = bw / ratio, h = bh / ratio }
 end
 
+-- Exposed for the headless suite: it is a pure question about one image --
+-- which box of it is the mon rather than the space around it -- and getting
+-- it wrong lays a white rectangle in the wrong place over a picture.
 local function picPaperBox(img)
   if paperBox[img] == nil then
     local ok, box = pcall(measurePic, img)
@@ -1464,6 +1467,8 @@ local function picPaperBox(img)
   end
   return paperBox[img] or nil
 end
+
+mod.exports.picPaperBox = picPaperBox
 
 -- Whether drawBattlerPic is about to draw the pic whole, at the x/y/scale it
 -- was handed.  Every other path it can take -- the substitute doll, the faint
@@ -1688,6 +1693,148 @@ local function installGen2()
     return realClear(...)
   end
 
+  -- ------- WHAT A BACKDROP TAKES AWAY, AND HAS TO PUT BACK
+  --
+  -- Gold's battle screen is drawn against PAPER.  `drawPanel` opens with
+  -- `Chrome.clear()`, and everything after it -- the HUDs, the pics, the
+  -- boxes -- is drawn in the knowledge that whatever it does not paint is
+  -- white.  Two of those things stop being true the moment a picture is
+  -- there instead, and both were reported as soon as anyone played a battle
+  -- on Gold:
+  --
+  --   * every HUD string paints its own paper cell.  `Chrome.printThrough`
+  --     fills `width x 8` with the palette's colour 0 before it draws a
+  --     glyph, because a tilemap cell is opaque -- so the name, the level,
+  --     the gender symbol and the HP numbers each arrived as a white block
+  --     hugging its own text, ragged against the art.  It is not a dark-mode
+  --     bug and it is not right in LIGHT either; it is the tilemap showing
+  --     through.
+  --   * the pics are drawn with colour 0 TRANSPARENT.  On white paper the
+  --     mon's own white reads as part of the mon; over a picture you see the
+  --     field through the player's jacket.  The Gen 1 arm has laid paper
+  --     under a pic since it existed, for exactly this, and the Gold arm
+  --     never did.
+  --
+  -- Both are answered the same way and with the engine's own numbers: put
+  -- the paper back where the engine is entitled to assume it, and nowhere
+  -- else.  Neither is a repaint of anything -- the HUD, the frame, the bar
+  -- and the pic are all still the cart's, drawn by the cart, in the cart's
+  -- own order.
+  --
+  -- And the paper is laid THROUGH THE PALETTE rather than as white, which is
+  -- what makes the HUD go dark with the rest of the game under UI THEME
+  -- instead of being the one lit rectangle on a dark screen.
+
+  -- DrawEnemyHUD clears (1,0) 4 rows x 11 cols; the player's block is the
+  -- one its own draw writes into -- name (10,7), level (14,8), gender
+  -- (17,8), bar (10,9), HP numbers ending at 18 on row 10, the border stub
+  -- at (18,10) and the exp bar at (10,11).
+  local HUD_PLATES = {
+    enemy = { 1, 0, 11, 4 },
+    player = { 10, 7, 10, 5 },
+  }
+
+  local function plate(side)
+    local rect = HUD_PLATES[side]
+    if not rect then return end
+    if mod.options:get("hud_paper") == false then return end
+    Chrome.paletteFill(rect[1] * 8, rect[2] * 8, rect[3] * 8, rect[4] * 8)
+  end
+
+  -- The two HUD draws, each with its plate under it.  Wrapped rather than
+  -- painted from `drawPanel` because only these know whether their side's
+  -- HUD is on screen at all: a blanked HUD (ClearActorHud, mid-animation) or
+  -- one that has never been drawn must not get a plate, or the battle grows
+  -- a white rectangle where the cart has nothing.
+  local function plated(name, side)
+    local base = BattleState[name]
+    if type(base) ~= "function" then
+      mod.log:warn("src.ui.gen2.BattleState has no %s; the %s HUD keeps the "
+        .. "backdrop behind its text", name, side)
+      return
+    end
+    BattleState[name] = function(self, ...)
+      if not (active and consumed) then return base(self, ...) end
+      local shows = true
+      if side == "enemy" then
+        shows = self.showEnemyHud and not self:hudCleared("enemy")
+      else
+        shows = self.showPlayerHud and not self:hudCleared("player")
+          and self:activeMon("player") ~= nil
+      end
+      local okStatus, visible = pcall(self.statusHUDVisible, self)
+      if okStatus and not visible then shows = false end
+      if shows then pcall(plate, side) end
+      return base(self, ...)
+    end
+  end
+
+  plated("drawEnemyHud", "enemy")
+  plated("drawPlayerHud", "player")
+
+  -- ------- paper under the pics
+  --
+  -- The placement is the ENGINE's, read off the blit rather than re-derived:
+  -- `drawPic` works out the box, the centring, the ground line, the resize
+  -- square and the slide, and a second copy of that arithmetic here would be
+  -- wrong the first time any of it moved.  So `love.graphics.draw` is shimmed
+  -- for the length of one `drawPic` call, and the first image it is handed --
+  -- the pic itself -- gets its paper laid at the same x, y and scale.
+  --
+  -- `picPaperBox` is the Gen 1 arm's own measurement, unchanged: the enclosed
+  -- interior of the art, so the paper fills the mon and not a square around
+  -- it.
+  local basePic = BattleState.drawPic
+  if type(basePic) == "function" then
+    BattleState.drawPic = function(self, mon, back, ...)
+      if not (active and consumed and mod.options:get("pic_paper") ~= false) then
+        return basePic(self, mon, back, ...)
+      end
+      -- Captured per call, not at install: another mod may have wrapped the
+      -- draw since, and restoring a snapshot taken before it would take that
+      -- mod's wrapper off for good.
+      local realDraw = love.graphics.draw
+      local laid = false
+      love.graphics.draw = function(image, a, b, c, d, e, ...)
+        -- Only the first image of the call, and only the plain blit: a quad
+        -- draw is a crop (the faint sink) or a sheet frame (an animation),
+        -- and paper under either would sit behind a picture that is not
+        -- there.
+        if not laid and type(a) == "number" then
+          laid = true
+          local okBox, box = pcall(picPaperBox, image)
+          if okBox and box then
+            local scale = type(d) == "number" and d or 1
+            local r, g, bl, al = love.graphics.getColor()
+            -- WHITE, and deliberately not the page's paper -- which is the
+            -- one place this differs from the HUD plate above.
+            --
+            -- A plate is chrome: it is the paper a box would have had, so it
+            -- takes the theme's and goes dark with the rest.  This is not
+            -- chrome, it is the shade the MON's own palette maps colour 0 to
+            -- (`Palettes.monColors` builds {WHITE, pair, pair, BLACK}), and
+            -- the hole it fills is inside the art.  Laying the page's paper
+            -- there would put black patches through a mon's white in a dark
+            -- game -- its body would be white and its hollow black.  The Gen
+            -- 1 arm says the same thing in one line: white, because that is
+            -- the shade the pic was matted against.
+            love.graphics.setColor(1, 1, 1, al)
+            realRectangle("fill", a + box.x * scale, b + box.y * scale,
+                          box.w * scale, box.h * scale)
+            love.graphics.setColor(r, g, bl, al)
+          end
+        end
+        return realDraw(image, a, b, c, d, e, ...)
+      end
+      local ok, err = pcall(basePic, self, mon, back, ...)
+      love.graphics.draw = realDraw
+      if not ok then error(err, 0) end
+    end
+  else
+    mod.log:warn("src.ui.gen2.BattleState has no drawPic; the pics keep the "
+      .. "backdrop showing through them")
+  end
+
   BattleState.drawPanel = function(self, ...)
     -- A battle with no sides yet draws "NO BATTLE" on a cleared screen; there
     -- is nothing to put a backdrop behind, and picking one would ask the
@@ -1719,6 +1866,19 @@ local function installGen2()
     if consumed then
       bleedImage, bleedW, bleedH = pendingImage, OG_W, OG_H
     end
+    -- What UI THEME needs to know about this frame, on the instance rather
+    -- than through an export, because it is a fact about ONE battle screen
+    -- on ONE frame: is the field a picture, or is it the four numbers the
+    -- theme owns?
+    --
+    -- The theme excludes battles outright, and the reason it gives is exact:
+    -- Gold's field IS `Chrome.clear()`, a whole-screen fill through the box
+    -- palette, so theming a battle would paint every field black.  That is
+    -- true of a battle the backdrop did not take, and false of one it did --
+    -- there the fill never happened and the field is art, which no palette
+    -- reaches.  So the boxes, the plates and the HUD can go dark while the
+    -- picture stays a picture.
+    self.gen1wildArenaField = consumed or nil
     active, pendingImage = false, nil
 
     if not okDraw then error(err, 0) end
@@ -1801,6 +1961,24 @@ local optionRows = {
   -- above and below it.  See bleedInto.
   { key = "bleed", type = "toggle", label = "EDGE TO EDGE", default = true },
 }
+
+-- Gold only, and the other half of MON PAPER: appended rather than declared
+-- above, the same way the DEV rows are, because a row that cannot do anything
+-- is worse than a missing one.
+--
+-- Gold's HUD strings paint their own paper cell -- Chrome.printThrough fills
+-- `width x 8` before it draws a glyph, because a tilemap cell is opaque -- so
+-- over a backdrop the name, the level, the gender symbol and the HP numbers
+-- each arrive as a white block hugging their own text.  The plate is one
+-- rectangle behind the whole HUD block instead, laid through the palette so
+-- it goes dark with the rest of the game.  Off puts the ragged cells back.
+--
+-- Red needs none of it: its HUD glyphs are drawn with no paper under them at
+-- all, which is why this was never a Gen 1 bug.
+if gen2() then
+  optionRows[#optionRows + 1] =
+    { key = "hud_paper", type = "toggle", label = "HUD PAPER", default = true }
+end
 
 if DEV then
   optionRows[#optionRows + 1] =
