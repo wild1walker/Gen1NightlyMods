@@ -35,9 +35,11 @@ import sys
 from datetime import date
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+
+import carts  # noqa: E402  (after sys.path, like every tool here)
 MODS = ROOT / "mods"
 STATE = ROOT / "nightly.json"
-CART = ROOT / "cart.json"
 
 SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
@@ -105,10 +107,10 @@ def main(argv):
     write_json(STATE, document)
     print("  nightly.json")
 
-    cart = json.loads(CART.read_text(encoding="utf-8"))
-    cart["version"] = version
-    write_json(CART, cart)
-    print("  cart.json")
+    for cart in carts.carts():
+        cart.data["version"] = version
+        cart.write()
+        print("  %s" % cart.where)
 
     for directory in sorted(p for p in MODS.iterdir() if p.is_dir()):
         manifest_path = directory / "manifest.json"

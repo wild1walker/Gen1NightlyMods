@@ -5,6 +5,15 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.29] - 2026-09-04
+
+- **Pinned by the new `Wild Crystal Nightly` cart.**
+
+  This mod ships on no release and that has not changed. What changed is that
+  it is now pinned by two nightly carts instead of one -- the Red cart and the
+  Crystal one -- because bug testing is the reason a nightly cart exists and
+  the bench is what bug testing is done on.
+
 ## [0.32.28] - 2026-09-04
 
 - No changes; the channel ships as one version.

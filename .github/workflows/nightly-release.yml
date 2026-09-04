@@ -108,14 +108,29 @@ jobs:
             "https://raw.githubusercontent.com/bryanthaboi/gen1recomp/dev/tools/cartkit.py"
           python3 "$RUNNER_TEMP/cartkit.py" selftest --quiet
 
-      - name: Pack the cart
+      # Every cart the channel ships, named by tools/carts.py rather than
+      # listed here: the root cart.json is Wild Green Nightly and each
+      # directory under carts/ is another, so adding one is a directory and
+      # no edit to this file.  cartkit takes any directory holding a
+      # cart.json, which is why the second one is a folder.
+      - name: Pack every cart
         if: steps.channel.outputs.skip != 'true'
         env:
           CART_VERSION: ${{ steps.channel.outputs.version }}
         run: |
           set -euo pipefail
-          python3 "$RUNNER_TEMP/cartkit.py" pack . \
-            -o "dist/wild_green_nightly-${CART_VERSION}.g1rcart"
+          python3 - > "$RUNNER_TEMP/carts.txt" <<'PY'
+          import sys
+          sys.path.insert(0, "tools")
+          import carts
+          for cart in carts.carts():
+              print(cart.id, cart.dir)
+          PY
+          cat "$RUNNER_TEMP/carts.txt"
+          while read -r id dir; do
+            python3 "$RUNNER_TEMP/cartkit.py" pack "$dir" \
+              -o "dist/${id}-${CART_VERSION}.g1rcart"
+          done < "$RUNNER_TEMP/carts.txt"
           (cd dist && sha256sum ./*.zip ./*.g1rcart > sha256sums.txt)
           cat dist/sha256sums.txt
 
@@ -133,7 +148,9 @@ jobs:
           changes="$(git log --no-merges --pretty='- %s' "$range" | head -50 || true)"
 
           notes=$'**This is a nightly build.** It is for testing changes before they reach the stable cart, and it can be broken in ways a release is not.'
-          notes+=$'\n\nDownload `wild_green_nightly-'"${CART_VERSION}"$'.g1rcart` and open it from the game to install the cart, or install a single mod from its `.zip`.'
+          carts="$(ls dist/*.g1rcart | xargs -n1 basename | sed 's/^/- `/;s/$/`/')"
+          notes+=$'\n\nOpen a `.g1rcart` from the game to install that cart, or install a single mod from its `.zip`:\n\n'"$carts"
+          notes+=$'\n\n`wild_green_nightly` is the Red cart; `wild_crystal_nightly` is the same suite on Crystal, with the test bench, and is where Gen 2 bug testing happens.'
           notes+=$'\n\nThe nightly mods carry their own ids and conflict with their stable twins on purpose: run one or the other, never both. Your stable cart and its saves are untouched.'
           if [ -n "$changes" ]; then
             notes+=$'\n\n## Changes\n\n'"$changes"
@@ -159,7 +176,12 @@ jobs:
         if: steps.channel.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 "$RUNNER_TEMP/cartkit.py" validate . --online --strict
+        run: |
+          set -euo pipefail
+          while read -r id dir; do
+            echo "validating $id"
+            python3 "$RUNNER_TEMP/cartkit.py" validate "$dir" --online --strict
+          done < "$RUNNER_TEMP/carts.txt"
 
       - name: Nothing to release
         if: steps.channel.outputs.skip == 'true'

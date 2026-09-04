@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Pack each nightly mod into the .zip the game installs, and pin the cart to it.
 
-    python3 tools/pack.py             build dist/, then rewrite cart.json's pins
-    python3 tools/pack.py --check     build and compare; fail if cart.json differs
+    python3 tools/pack.py             build dist/, then re-pin every cart
+    python3 tools/pack.py --check     build and compare; fail if a cart differs
     python3 tools/pack.py --no-pin    build only
 
 Two jobs, together because the second needs the first's bytes.
@@ -38,8 +38,12 @@ pin by looking for the tag `v<version>` and, on it, an asset named exactly
 `<mod id>-<version>.zip`, so several mods on one tag are told apart by asset
 name and never collide.
 
-Exits non-zero under --check if the committed cart.json is not what a build
-produces, which is what CI wants.
+Every cart the channel ships is re-pinned, not only the root one: they ride
+one release and therefore one set of archives, so a cart left behind would
+pin a version that exists to bytes that do not.  tools/carts.py is the list.
+
+Exits non-zero under --check if a committed cart is not what a build produces,
+which is what CI wants.
 """
 
 from __future__ import annotations
@@ -54,7 +58,10 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MODS = ROOT / "mods"
 DIST = ROOT / "dist"
-CART = ROOT / "cart.json"
+
+sys.path.insert(0, str(ROOT / "tools"))
+
+import carts  # noqa: E402  (after sys.path, like every tool here)
 
 # One timestamp for every entry in every archive, forever.  Any fixed value
 # does; this is the DOS epoch zipfile itself falls back to.
@@ -197,23 +204,29 @@ def main(argv):
     if args.no_pin:
         return 0
 
-    cart = json.loads(CART.read_text(encoding="utf-8"))
-    before = json.dumps(cart, indent=2, ensure_ascii=False) + "\n"
-    after = json.dumps(pin(cart, built), indent=2, ensure_ascii=False) + "\n"
+    # Every cart in the channel, not just the root one: they share a release
+    # and therefore share the archives these digests are of, so a cart left
+    # un-repinned would pin a version that exists to bytes that do not.
+    stale = []
+    for cart in carts.carts():
+        before = cart.dumps()
+        pin(cart.data, built)
+        after = cart.dumps()
+        if before == after:
+            if not args.check:
+                print("pack: %s already current" % cart.where)
+            continue
+        stale.append(cart.where)
+        if not args.check:
+            cart.write()
+            print("pack: rewrote %s" % cart.where)
 
     if args.check:
-        if before != after:
-            print("pack: cart.json does not pin what a build produces; run "
-                  "python3 tools/pack.py", file=sys.stderr)
+        if stale:
+            print("pack: %s does not pin what a build produces; run "
+                  "python3 tools/pack.py" % ", ".join(stale), file=sys.stderr)
             return 1
-        print("pack: cart.json pins exactly what a build produces")
-        return 0
-
-    if before != after:
-        CART.write_text(after, encoding="utf-8")
-        print("pack: rewrote %s" % CART.relative_to(ROOT))
-    else:
-        print("pack: %s already current" % CART.relative_to(ROOT))
+        print("pack: every cart pins exactly what a build produces")
     return 0
 
 

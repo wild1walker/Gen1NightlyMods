@@ -27,6 +27,35 @@ tell at a glance which one you are opening.
 | **[Gen1WildQOL Nightly](mods/gen1_wild_qol_nightly)** | the quality-of-life half: sprinting, autosave, auto continue, followers, all 151, EXP share, menu layout | [Gen1WildQOL][qol] |
 | **[Test Bench](mods/gen1_bench_nightly)** | **nightly only.** A `BENCH` row on the START menu with everything this channel is changing on one screen | — |
 | **[`cart.json`](cart.json)** | the **Wild Green Nightly** cart: the four above, plus Crystal animated sprites pinned as it is | — |
+| **[`carts/wild_crystal_nightly`](carts/wild_crystal_nightly)** | the **Wild Crystal Nightly** cart: the two bundles and the bench, on Crystal | — |
+
+### Two carts, one channel
+
+`Wild Crystal Nightly` is the same suite on the other base game, and it is
+where Gen 2 bug testing happens — which is why it pins the **test bench** and
+the stable cart it previews will not.
+
+It does not pin `wild_green_nightly`. That mod is Red's player, Red's names
+and Red's title screen, and its manifest says `"games": ["red"]`; a Crystal
+cart has no use for it. Nor does it pin Crystal animated sprites, which is a
+Gen 1 mod bringing Crystal's art to Red and has nothing to bring here.
+
+The cartridge is **dark blue** where the Red nightly is dark purple, and
+neither number was picked by eye: both are a `TITLE_SUITS` shadow from
+`tools/palette.py`, chosen so all three cartridges in the family are the same
+darkness in three of the palette's own colours. `tools/check.py` holds each
+cart to its own.
+
+**Its label art is not drawn yet**, so the launcher draws a bare cartridge in
+that blue. `check.py` says so as a note on every run rather than as a failure:
+a cart with no `label` is legal — cartkit skips the check when the field is
+absent — and it is the right state for art that has not been drawn and the
+wrong one to stay in.
+
+Where each cart's manifest lives, and why the first one stays at the root, is
+written down in [`tools/carts.py`](tools/carts.py). The short version: two
+readers outside this repository fetch `<repo>/cart.json` by that exact path,
+so the first cart never moves and every cart after it gets a directory.
 
 ### The bench ships on no release
 
@@ -46,12 +75,18 @@ time the mod is edited, and this channel edits them constantly.
 The whole channel shares **one version**, and that is the design rather than a
 convenience. cartkit resolves a pin by looking for the tag `v<version>` and, on
 it, an asset named exactly `<mod id>-<version>.zip` — so several mods can ride
-one release, be told apart by asset name, and go out together with the cart
-that pins them. `tools/check.py` fails if any manifest disagrees.
+one release, be told apart by asset name, and go out together with the carts
+that pin them. `tools/check.py` fails if any manifest disagrees.
+
+Every cart rides that same release, one `.g1rcart` each, named the same way:
+`<cart id>-<version>.g1rcart`. That naming is what lets the index tell them
+apart, and the index refuses to resolve a cart listing to a cartridge that is
+not named for it rather than handing somebody the wrong game.
 
 ```
 python3 tools/check.py       everything below, in one command
-python3 tools/pack.py        build mods/ into dist/, re-pin cart.json to it
+python3 tools/pack.py        build mods/ into dist/, re-pin every cart to it
+python3 tools/carts.py       list the carts the channel ships
 python3 tools/make_label.py  redraw the cartridge
 python3 tools/bump.py        cut the next version, everywhere it is written
 python3 tools/rebase.py      bring a fork up to a newer stable release

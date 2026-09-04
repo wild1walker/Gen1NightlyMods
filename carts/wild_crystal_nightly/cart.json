@@ -1,14 +1,13 @@
 {
   "schema": 1,
-  "id": "wild_green_nightly",
-  "title": "Wild Green Nightly",
+  "id": "wild_crystal_nightly",
+  "title": "Wild Crystal Nightly",
   "version": "0.32.29",
   "author": "wild1walker",
   "repo": "wild1walker/Gen1NightlyMods",
-  "summary": "Wild Green with the changes that are not in a release yet. For testing, not for a playthrough you care about.",
-  "shell": "#54377e",
-  "label": "label.png",
-  "base": "red",
+  "summary": "The suite on Crystal, with the test bench. For testing, not for a playthrough you care about.",
+  "shell": "#24467a",
+  "base": "crystal",
   "engine": ">=0.1.37 <2.0.0",
   "seal": "sealed",
   "mods": [
@@ -20,28 +19,11 @@
       "sha256": "1b40ff2d8d78e583445ca0ffdac3e974ff07362fa9a8904459f6e0635cdae41a"
     },
     {
-      "id": "crystal_animated_sprites_with_shiny_visuals",
-      "source": "github",
-      "repo": "distilledorion-sketch/crystal_animated_sprites_with_shiny_visuals",
-      "version": "2.0.2",
-      "sha256": "59b6204e66dc14c32b3035fea115236080dfc33ec86f928f04ac6974a1aca86c"
-    },
-    {
       "id": "gen1_wild_ui_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
       "version": "0.32.29",
       "sha256": "2eaa4ba434782b8985ef9c2a488e996294b3cf724d02e94b5d54a1699452dd7e"
-    },
-    {
-      "id": "wild_green_nightly",
-      "source": "github",
-      "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.29",
-      "sha256": "3c58cb4ffacba03362bac0ac057513db331d187dd681ff73b7bbac2eb60d3e1b",
-      "options": {
-        "ribbon": true
-      }
     },
     {
       "id": "gen1_bench_nightly",
@@ -53,9 +35,7 @@
   ],
   "load_order": [
     "gen1_wild_qol_nightly",
-    "crystal_animated_sprites_with_shiny_visuals",
     "gen1_wild_ui_nightly",
-    "wild_green_nightly",
     "gen1_bench_nightly"
   ]
 }

@@ -12,22 +12,34 @@ the channel, and this is that list:
     mod written for this channel is not the one thing nothing looks at.
   * every mod in `mods/` carries the CHANNEL's version.  The nightly ships as
     one tag with one release on it and several archives, which is what lets
-    the cart and every mod it pins go out together; cartkit resolves a github
-    pin by looking for the tag `v<version>` and, on it, an asset named exactly
-    `<mod id>-<version>.zip`.  A mod on a version of its own would be looking
-    for a tag nobody cut.
-  * `cart.json`'s version is that version too, for the same reason.
-  * `cart.json`'s shell is the palette's `SHELL`.  The cartridge is the colour
-    of the channel's purple because they are the same number, not because
-    somebody matched them by eye once.
-  * `cart.json` pins exactly what a build of `mods/` produces -- the same
-    check `tools/pack.py --check` makes, run here so one command covers the
-    tree.
+    every cart and every mod they pin go out together; cartkit resolves a
+    github pin by looking for the tag `v<version>` and, on it, an asset named
+    exactly `<mod id>-<version>.zip`.  A mod on a version of its own would be
+    looking for a tag nobody cut.
+  * every CART's version is that version too, for the same reason.  There are
+    two of them now -- `cart.json` is Wild Green Nightly and `carts/*/` holds
+    the rest; see tools/carts.py for why the first one stays at the root.
+  * each cart's shell is the palette's colour FOR THAT CART.  A cartridge is
+    the channel's purple, or Crystal's blue, because those are the same
+    numbers `tools/palette.py` carries and not because somebody matched them
+    by eye -- and no two carts may wear one, because the launcher draws a
+    cart as its shell with its label on it and that plastic is the whole of
+    how you tell two of them apart on a shelf.
+  * every cart pins exactly what a build of `mods/` produces -- the same check
+    `tools/pack.py --check` makes, run here so one command covers the tree.
   * `label.png` is what `tools/make_label.py` draws.  A committed PNG the tool
     no longer produces is a picture nobody can regenerate, and the index
-    serves this same file as the cart's card thumbnail.
-  * every id in `load_order` is a mod the cart actually pins, and every pin
-    that names this repository is a directory under `mods/`.
+    serves this same file as the cart's card thumbnail.  A cart that declares
+    NO label is legal and says so as a note rather than a failure: cartkit
+    skips the check when the field is absent and the launcher draws a bare
+    cartridge, which is the right state for art that has not been drawn yet
+    and the wrong one to stay in.
+  * every id in `load_order` is a mod its own cart actually pins, and every
+    pin that names this repository is a directory under `mods/`.
+  * every mod the channel builds is pinned by SOME cart.  Not by every cart:
+    `wild_green_nightly` is Red's player and its manifest says so, so a
+    Crystal cart must not pin it, and a rule that made every cart pin
+    everything would forbid a second base game.
   * every mod's directory is named after its id, which is what makes an asset
     name derivable from either.
 
@@ -46,20 +58,28 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MODS = ROOT / "mods"
-CART = ROOT / "cart.json"
 LABEL = ROOT / "label.png"
 
 sys.path.insert(0, str(ROOT / "tools"))
 
-from palette import SHELL  # noqa: E402
+import carts  # noqa: E402
+from palette import SHELLS  # noqa: E402
 
 REPO = "wild1walker/Gen1NightlyMods"
 
 findings: list[str] = []
+# Said on every run and fatal on none.  The one thing this reports is a cart
+# whose art has not been drawn yet: legal, shippable, and not a state to
+# forget about, which is exactly what a warning is for.
+notes: list[str] = []
 
 
 def fail(where, message):
     findings.append("%s: %s" % (where, message))
+
+
+def warn(where, message):
+    notes.append("%s: %s" % (where, message))
 
 
 def mod_dirs():
@@ -69,11 +89,12 @@ def mod_dirs():
                   if p.is_dir() and (p / "manifest.json").is_file())
 
 
-def read_cart():
+def read_carts():
+    """Every cart in the channel, or None if any of them will not parse."""
     try:
-        return json.loads(CART.read_text(encoding="utf-8"))
+        return carts.carts()
     except (OSError, ValueError) as problem:
-        fail("cart.json", "could not be read: %s" % problem)
+        fail("carts", "could not be read: %s" % problem)
         return None
 
 
@@ -110,30 +131,65 @@ def check_versions(cart, quiet):
 
 
 def check_shell(cart):
-    if cart.get("shell") != SHELL:
-        fail("cart.json", "shell is %s; tools/palette.py says %s"
-             % (cart.get("shell"), SHELL))
-    label = cart.get("label")
-    if not label:
-        fail("cart.json", "no label; the launcher draws a blank cartridge")
-    elif not (ROOT / label).is_file():
-        fail("cart.json", "label %r is not in the cart directory" % label)
+    """Each cart wears a colour from the palette, and nobody else's.
+
+    Two cartridges the same colour is the whole signal gone: the launcher
+    draws a cart as its shell with its label on it, so on a shelf of them the
+    plastic is what says which one you are about to open.
+    """
+    wanted = SHELLS.get(cart.id)
+    if wanted is None:
+        fail(cart.where, "tools/palette.py has no shell for %r; every cart in "
+                         "the channel needs one, and picking it by eye is how "
+                         "two of them end up the same colour" % cart.id)
+    elif cart.data.get("shell") != wanted:
+        fail(cart.where, "shell is %s; tools/palette.py says %s"
+             % (cart.data.get("shell"), wanted))
+
+    # A cart with no label art is LEGAL -- cartkit skips the check when the
+    # field is absent and the launcher draws the shell with no sticker on it
+    # -- so this is a warning's job rather than a failure's.  It is the right
+    # state for a cart whose art has not been drawn yet and the wrong one to
+    # stay in, and saying so on every run is what stops it staying in.
+    path = cart.label_path()
+    if path is None:
+        warn(cart.where, "no label art yet; the launcher draws a bare "
+                         "cartridge in the shell colour")
+    elif not path.is_file():
+        fail(cart.where, "label %r is not in the cart directory"
+             % cart.data.get("label"))
 
 
 def check_pins(cart):
-    pinned = [entry.get("id") for entry in cart.get("mods", [])]
-    for entry in cart.get("mods", []):
+    pinned = [entry.get("id") for entry in cart.data.get("mods", [])]
+    for entry in cart.data.get("mods", []):
         if entry.get("repo") == REPO and not (MODS / str(entry.get("id"))).is_dir():
-            fail("cart.json", "pins %r out of this repository, but there is "
-                              "no mods/%s" % (entry.get("id"), entry.get("id")))
-    for name in cart.get("load_order", []):
+            fail(cart.where, "pins %r out of this repository, but there is "
+                             "no mods/%s" % (entry.get("id"), entry.get("id")))
+    for name in cart.data.get("load_order", []):
         if name not in pinned:
-            fail("cart.json", "load_order names %r, which the cart does not "
-                              "pin" % name)
+            fail(cart.where, "load_order names %r, which the cart does not "
+                             "pin" % name)
+    return pinned
+
+
+def check_reach(all_pinned):
+    """Every mod the channel builds is pinned by SOME cart.
+
+    This used to be "the cart pins every mod", and with one cart the two are
+    the same sentence.  With two they are not, and the difference is the
+    point: `wild_green_nightly` is Red's player, Red's names and Red's title
+    screen -- its manifest says `"games": ["red"]` -- so the Crystal cart must
+    not pin it, and a rule that made every cart pin everything would be a rule
+    that forbade a second base game.
+
+    What still has to hold is that nothing is BUILT and released and then
+    reachable from no cart at all, which is a mod nobody gets.
+    """
     for directory in mod_dirs():
-        if directory.name not in pinned:
-            fail("cart.json", "does not pin mods/%s; a mod the channel builds "
-                              "and the cart ignores is a mod nobody gets"
+        if directory.name not in all_pinned:
+            fail("carts", "no cart pins mods/%s; a mod the channel builds, "
+                          "releases and no cart reaches is a mod nobody gets"
                  % directory.name)
 
 
@@ -258,15 +314,33 @@ def main(argv):
     if not args.quiet:
         print("checking the nightly channel")
 
-    cart = read_cart()
-    if cart is not None:
-        check_versions(cart, args.quiet)
-        check_shell(cart)
-        check_pins(cart)
+    channel = read_carts()
+    if channel:
+        # Versions are the channel's, so they are checked once against the
+        # first cart and every other cart is held to the same number below.
+        check_versions(channel[0].data, args.quiet)
+        pinned = set()
+        for cart in channel:
+            if str(cart.data.get("version", "")) != str(
+                    channel[0].data.get("version", "")):
+                fail(cart.where, "is version %s; the channel is at %s, and "
+                                 "every cart on a nightly release shares its "
+                                 "tag" % (cart.data.get("version"),
+                                          channel[0].data.get("version")))
+            check_shell(cart)
+            pinned.update(check_pins(cart))
+        check_reach(pinned)
+        if not args.quiet:
+            print("  carts:      %d (%s)"
+                  % (len(channel),
+                     ", ".join("%s on %s" % (c.id, c.data.get("base"))
+                               for c in channel)))
     check_generated()
     check_packed()
     check_each_mod(args.quiet)
 
+    for note in notes:
+        print("check: note: %s" % note)
     for finding in findings:
         print("check: %s" % finding)
     if findings:

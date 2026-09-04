@@ -78,6 +78,35 @@ NIGHTLY_MID = TITLE_SUITS["purple"][0]
 
 SHELL = "#%02x%02x%02x" % NIGHTLY_INK
 
+# ------- and the second cartridge
+#
+# `Wild Crystal Nightly` is the same channel on the other base game, so it
+# wants the same signal answered differently: as dark as the other two, and
+# not a shade of either.
+#
+# Picked the same way and for the same reason, which is why there is nothing
+# to argue about here.  `TITLE_SUITS["blue"]`'s shadow is already in the
+# palette -- it is what sits under PLAYER = BLUE's version ribbon, derived by
+# the rule every suit's is -- and its relative luminance is 0.062 against the
+# purple shell's 0.061 and the stable green's 0.269-family neighbour.  So the
+# three cartridges are the same darkness in three of the palette's own
+# colours, and not one of the numbers was chosen for a cartridge.
+#
+# Blue rather than any of the other five because the base game decides it:
+# Crystal's own box, its title screen and its logo are ice blue, and a
+# cartridge is the one place a cart says which game it is before it is opened.
+CRYSTAL_INK = TITLE_SUITS["blue"][1]
+CRYSTAL_MID = TITLE_SUITS["blue"][0]
+
+SHELL_CRYSTAL = "#%02x%02x%02x" % CRYSTAL_INK
+
+# Which shell belongs to which cart, so tools/check.py can hold every cart in
+# the channel to a colour from this file rather than to one literal.
+SHELLS = {
+    "wild_green_nightly": SHELL,
+    "wild_crystal_nightly": SHELL_CRYSTAL,
+}
+
 # The hue the label art's green swirl is rotated to, in degrees.  Read off
 # NIGHTLY_INK rather than typed, so the plastic and the sticker cannot end up
 # two different purples.

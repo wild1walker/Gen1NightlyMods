@@ -6,15 +6,17 @@ be perfect on GitHub and still be invisible to the game.
 ## The sequence
 
 1. **Bump.** `python3 tools/bump.py` for the next minor, `--patch` for a fix,
-   or name the version. One version across `nightly.json`, `cart.json` and all
-   four `manifest.json` files — anything less fails step 3.
+   or name the version. One version across `nightly.json`, every cart and all
+   four `manifest.json` files — anything less fails step 3. `tools/carts.py`
+   is the list of carts, and bump walks it, so a cart added later needs no
+   edit here.
 
 2. **Write the changelogs.** Every mod gets a heading; the one that changed
    gets the words. The others say so rather than being left as the stub the
    bump wrote, because a heading with `_Write what changed._` under it is the
    only evidence that a release was cut in a hurry.
 
-3. **Pack and check.** `python3 tools/pack.py` re-pins `cart.json` to the
+3. **Pack and check.** `python3 tools/pack.py` re-pins **every** cart to the
    archives the new version produces, then `python3 tools/check.py` proves the
    versions agree, the Lua compiles, each mod's own checks pass, and the pins
    match what a build actually makes.
@@ -24,7 +26,10 @@ be perfect on GitHub and still be invisible to the game.
 
 5. **Verify the release.** When `v<version>` appears, read the release's asset
    digests and compare them to what `pack.py` printed in step 3. They are the
-   same four numbers or something rebuilt differently than you did.
+   same four numbers or something rebuilt differently than you did. There is
+   one `.g1rcart` per cart on that release, each named `<cart id>-<version>
+   .g1rcart`; a missing one is a cart listing in the index that will resolve
+   to nothing rather than to the wrong game.
 
 6. **Rebuild the index, and confirm the feed moved.** Dispatch `index.yml` on
    `wild1walker/Gen1NightlyIndex`, then read `site/data/index.json` on that
