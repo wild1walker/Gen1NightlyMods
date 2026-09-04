@@ -2128,6 +2128,51 @@ return function(mod)
     return (ok and type(cap) == "number" and cap > 0) or false
   end
 
+  -- HOW BIG A GB PIXEL IS, and the two games do not answer it in the same
+  -- units under the same name.
+  --
+  -- On Red, `viewport.scale` is Sp: FRAMEBUFFER pixels per GB pixel, while
+  -- gameX/gameY/gameWidth/gameHeight are LOVE units -- Sp divided by the
+  -- display's DPI scale (src/render/Renderer.lua:818-822, `r.Sp, r.Sx,
+  -- r.Sy = Sp, Sp / dpiX, Sp / dpiY`).  Drawing at Sp inside a unit-space
+  -- transform multiplies the panel by the DPI factor, which on a 3x phone
+  -- screen is a box three times too wide that runs off the edge.  So the
+  -- unit scale there is scale/dpi, and that is what this did.
+  --
+  -- On Gold, `viewport.scale` is ALREADY the unit scale.  Game2:viewport
+  -- builds the whole payload out of `Chrome.fitScale(w, h)`, which is
+  -- computed from the window's LOVE units, and publishes `gameWidth =
+  -- 160 * scale` beside it -- so scale and gameWidth are in the same units
+  -- and there is no Sp anywhere in it.
+  --
+  -- Dividing by dpi there divides a second time, and the indicator came out
+  -- at 1/dpi of its size: correct on a plain 1x desktop, a third of a POKe
+  -- BALL on a phone.  Reported as exactly that.
+  --
+  -- Both arms are written out rather than derived from the payload, because
+  -- the two CAN agree by accident -- at dpi 1, or on a widescreen frame
+  -- where Red's own UI width is 160 * dpi -- and a rule that reads the
+  -- right answer off a coincidence is a rule that is wrong the first time
+  -- the coincidence breaks.
+  --
+  -- Pulled out and exposed for the same reason the veil questions are: it is
+  -- a pure function of one payload, and it was wrong in a way nothing else in
+  -- the tree could have caught -- the indicator was the right shape in the
+  -- right corner and a third of its size, on one of the two games.
+  local function hudScale(viewport, gameWidth)
+    local sx, sy = viewport.scale, viewport.scale
+    if sx and not IS_GEN2 then
+      sx = sx / (viewport.dpiX or 1)
+      sy = sy / (viewport.dpiY or 1)
+    end
+    -- the playfield width is the fallback when a field is missing
+    if not sx or sx <= 0 then sx = (gameWidth or 0) / (BOX_W * 8) end
+    if not sy or sy <= 0 then sy = sx end
+    return sx, sy
+  end
+
+  mod.exports.hudScale = hudScale
+
   local function drawNotify(viewport)
     if state.notify <= 0 then return end
     local mode = mod.options:get("notify")
@@ -2170,16 +2215,7 @@ return function(mod)
 
     local boxed = mode == "box"
 
-    -- viewport.scale is Sp: FRAMEBUFFER pixels per GB pixel.  gameX/gameY/
-    -- gameWidth/gameHeight are LOVE units -- Sp divided by the display's DPI
-    -- scale.  Drawing at Sp inside a unit-space transform multiplies the panel
-    -- by the DPI factor, which on a 3x phone screen is a box three times too
-    -- wide that runs off the edge.  Sx/Sy (scale/dpi) is the unit scale, and
-    -- the playfield width is the fallback when a field is missing.
-    local sx = viewport.scale and viewport.scale / (viewport.dpiX or 1)
-    local sy = viewport.scale and viewport.scale / (viewport.dpiY or 1)
-    if not sx or sx <= 0 then sx = gw / (BOX_W * 8) end
-    if not sy or sy <= 0 then sy = sx end
+    local sx, sy = hudScale(viewport, gw)
 
     -- The ball is its own little panel: sprite-sized, top right, and it fades
     -- on the way out instead of blinking off.  The held cross shares the slot

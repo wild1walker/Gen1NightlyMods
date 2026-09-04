@@ -1641,5 +1641,63 @@ end
 
 -- ------------------------------------------------------------------ done
 
+do
+  io.write("a screen the suite registers is one of ours\n")
+  -- This half carries no theme, and that is exactly why the mark has to be
+  -- here: MENU LAYOUT and MOD MANAGER are `shared`, the first bundle to load
+  -- claims them, and this half is first in the cart's load order -- so on
+  -- every cart the layout editor is registered through THIS facade and never
+  -- reaches the other one's.  It stayed white in a dark game for that reason
+  -- and no other: the marking lived only where the theme does, and the screen
+  -- is registered where the theme is not.
+  --
+  -- The mark is a field nothing in this bundle reads, so a player running
+  -- this half alone is unaffected.
+  local Facade = load_("runtime/facade.lua")
+
+  local registered = {}
+  local screens = {
+    register = function(self, id, factory) registered[id] = factory end,
+  }
+  local mod = fakeMod()
+  mod.content = { screens = screens }
+
+  local facade = Facade.new({ id = "only", dir = "Only" },
+                            { mod = mod, shared = {} })
+
+  facade.content.screens:register("Opaque", {
+    new = function() return { isOpaque = true, what = "a page" } end,
+  })
+  facade.content.screens:register("Overlay", {
+    new = function() return { what = "a box over the map" } end,
+  })
+
+  local page = registered["Opaque"].new()
+  ok(page.gen1wildTheme ~= nil,
+    "an opaque screen is marked, so the theme takes it as the page")
+  eq(page.what, "a page", "and the instance is otherwise the feature's own")
+
+  -- The limit is the whole safety of this: the marker makes the theme
+  -- synthesise a whole-screen page when the state declares no palettes, which
+  -- over a map would darken the map with the box.
+  local overlay = registered["Overlay"].new()
+  eq(overlay.gen1wildTheme, nil,
+    "a screen that is not opaque is left alone -- it reaches the theme as a "
+    .. "panel or not at all")
+
+  -- and a screen that already says what it is keeps its own answer
+  facade.content.screens:register("Named", {
+    new = function() return { isOpaque = true, gen1wildTheme = "settings" } end,
+  })
+  eq(registered["Named"].new().gen1wildTheme, "settings",
+    "a screen that names itself is not overwritten")
+
+  -- the registry is otherwise untouched
+  facade.content.screens:register("Plain", "not a factory")
+  eq(registered["Plain"], "not a factory",
+    "and anything that is not a factory goes through as it came")
+end
+
+
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

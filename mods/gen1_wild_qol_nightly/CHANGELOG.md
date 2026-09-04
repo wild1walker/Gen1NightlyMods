@@ -7,6 +7,76 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.27] - 2026-09-04
+
+- **The autosave POKe BALL was a third of its size on Gold.**
+
+  `viewport.scale` does not mean the same thing on the two games, and this is
+  the one place in the mod where that shows up as a size rather than a
+  position.
+
+  On Red it is **Sp**: framebuffer pixels per GB pixel, while
+  `gameX`/`gameY`/`gameWidth`/`gameHeight` beside it are LOVE units --
+  `r.Sp, r.Sx, r.Sy = Sp, Sp / dpiX, Sp / dpiY` (src/render/Renderer.lua:818).
+  Drawing at Sp inside a unit-space transform multiplies by the DPI factor, so
+  the unit scale there is `scale/dpi`, and that is what this did.
+
+  On Gold it is **already** the unit scale. `Game2:viewport` builds the whole
+  payload out of `Chrome.fitScale(w, h)`, which is computed from the window's
+  LOVE units, and publishes `gameWidth = 160 * scale` beside it. There is no
+  Sp anywhere in it. Dividing by the DPI there divides a second time, and the
+  indicator came out at 1/dpi of its size -- right on a plain 1x desktop, a
+  third of a POKe BALL on a phone, which is exactly how it was reported.
+
+  Both arms are written out rather than derived from the payload, because the
+  two CAN agree by accident -- at DPI 1, or on a widescreen frame where Red's
+  own UI width is `160 * dpi` -- and a rule that reads the right answer off a
+  coincidence is wrong the first time the coincidence breaks. The SAVED text
+  and TEXT BOX indicators took the same scale and are the same size again with
+  it.
+
+- **After MENU LAYOUT, Gold's START menu opened nothing and would not close.**
+
+  The editor is reached from the START menu and puts it back on the way out,
+  and that one call is the whole bug.
+
+  Red's `StartMenu.new(game)` takes the game and nothing else: it builds every
+  row's `onSelect` itself, and the engine's own way in is a bare
+  `Screens.push(Game, "StartMenu")`. So pushing the learned screen id was not
+  a shortcut there -- it was the engine's own call spelled out.
+
+  Gold's is `StartMenu.new(game, opts)`, and `onChoose` and `onClose` are
+  **push options**: `Game2:openStartMenu` supplies both. The same bare push
+  builds a menu with neither, and the menu that came back was inert in exactly
+  the two ways it was reported -- `choose` ends in `if self.onChoose then` so
+  nothing opened, `close` ends in `if self.onClose then` so B and START did not
+  shut it. The rows drew, the cursor moved, and the only way out was a soft
+  reset.
+
+  So the mod asks the GAME to open its own menu where there is a method for
+  it, and falls back to the learned id where there is not. The fallback is
+  Red's path and is unchanged; the method is Gold's, and it also does the two
+  things a re-open there owes the world -- cancelling the map-name sign and
+  stopping the player -- which the bare push skipped as well.
+
+- **The MENU LAYOUT editor stayed white in a dark game.**
+
+  The theme knows a page two ways: a marker on the instance, or one of the
+  engine's own UI classes. A screen a mod registers is neither, so the visual
+  half's facade marks every opaque screen the suite registers on the way past.
+
+  That marking lived only in the half that carries the theme -- and MENU
+  LAYOUT and MOD MANAGER are `shared`. Both bundles carry them, the **first to
+  load claims them**, and the quality-of-life half is first in the cart's load
+  order. So on every cart the editor is registered through THIS facade and
+  never reaches the other one's. It stayed white for that reason and no other:
+  the marking lived where the theme does, and the screen is registered where
+  the theme is not.
+
+  This half marks screens now too. The mark is a field nothing here reads, so
+  a player running this half alone is unaffected, and one running both gets a
+  themed editor whichever bundle happened to win the claim.
+
 ## [0.32.26] - 2026-09-04
 
 - No changes; the channel ships as one version.

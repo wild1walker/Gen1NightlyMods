@@ -253,5 +253,46 @@ do
      "an empty stack on Red is NOT free roam -- there is no overworld on it")
 end
 
+-- ------------------------------------------------------- how big a GB pixel is
+
+do
+  io.write("the indicator's scale\n")
+
+  -- Gold's payload.  Game2:viewport builds all of it from Chrome.fitScale,
+  -- which is computed in LOVE window units, and publishes gameWidth as
+  -- 160 * scale -- so `scale` there is ALREADY units per GB pixel.
+  local gold = install(2).exports.hudScale
+  ok(type(gold) == "function", "hudScale is exposed")
+
+  local sx, sy = gold({ scale = 2, dpiX = 3, dpiY = 3,
+                        gameWidth = 320, gameHeight = 288 }, 320)
+  eq(sx, 2, "a POKe BALL on Gold is drawn at the payload's own scale")
+  eq(sy, 2, "on both axes")
+
+  -- The bug, stated as the number it produced: dividing by the DPI a second
+  -- time left an eight-pixel ball two thirds of a unit across on a 3x phone,
+  -- which is what "super tiny" was.
+  ok(sx ~= 2 / 3, "and NOT that scale divided by the display's DPI again")
+
+  -- Red's payload.  `scale` is Sp -- framebuffer pixels per GB pixel -- and
+  -- gameWidth is in units, so the unit scale is Sp/dpi and always was.
+  local red = install(1).exports.hudScale
+  local rx, ry = red({ scale = 6, dpiX = 3, dpiY = 3,
+                       gameWidth = 320, gameHeight = 288 }, 320)
+  eq(rx, 2, "on Red the payload's scale is still divided by the DPI")
+  eq(ry, 2, "on both axes")
+
+  -- At DPI 1 the two payloads agree, which is why this was invisible on a
+  -- plain desktop and only ever reported from a phone.
+  eq(({ gold({ scale = 4, dpiX = 1, dpiY = 1 }, 640) })[1], 4,
+     "at DPI 1 Gold's answer is the scale itself")
+  eq(({ red({ scale = 4, dpiX = 1, dpiY = 1 }, 640) })[1], 4,
+     "and so is Red's -- the same number by two routes")
+
+  -- A payload missing the field falls back to the playfield width, on both.
+  eq(({ gold({}, 640) })[1], 4, "no scale at all falls back to gameWidth/160")
+  eq(({ red({ scale = 0 }, 640) })[1], 4, "and so does a scale of zero")
+end
+
 io.write(("autosave gen2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

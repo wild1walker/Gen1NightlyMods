@@ -190,6 +190,43 @@ return function(mod)
   local pending = {}
   local startMenuId = nil
 
+  -- ------- re-opening the START menu
+  --
+  -- The editor is reached FROM the START menu and has to put it back on the
+  -- way out, and how you put it back is the one thing the two games disagree
+  -- about here.
+  --
+  -- Red's `StartMenu.new(game)` takes the game and nothing else: it builds
+  -- every row's `onSelect` itself and the engine's own way in is a bare
+  -- `Screens.push(Game, "StartMenu")` (src/world/OverworldController.lua).
+  -- So pushing the learned screen id was not a shortcut there, it was the
+  -- engine's own call spelled out.
+  --
+  -- Gold's is `StartMenu.new(game, opts)`, and `onChoose` and `onClose` are
+  -- PUSH OPTIONS -- Game2:openStartMenu supplies both. A bare push builds a
+  -- menu with neither, and the menu that comes back is inert in exactly the
+  -- two ways a player would report it: `choose` ends in `if self.onChoose
+  -- then` and nothing opens, `close` ends in `if self.onClose then` and B and
+  -- START do not shut it. The rows draw, the cursor moves, and there is no
+  -- way out of it except a soft reset.
+  --
+  -- Which is why this asks the GAME to open its own menu when it has a method
+  -- for it, and only falls back to the id it learned when there is none. The
+  -- fallback is Red's path and stays exactly what it was; the method is
+  -- Gold's, and it does the two things a re-open there also owes the world --
+  -- cancelling the map-name sign and stopping the player -- which a bare push
+  -- skipped as well.
+  local function reopenStartMenu(game)
+    if not game then return end
+    if type(game.openStartMenu) == "function" then
+      local ok, problem = pcall(game.openStartMenu, game)
+      if ok then return end
+      mod.log:warn("the START menu would not re-open through the game: %s",
+                   tostring(problem))
+    end
+    if startMenuId then mod.ui.push(game, startMenuId) end
+  end
+
   local function openEditor(game, ctx, key, onCancel)
     mod.ui.push(game, SCREEN, { context = key, onCancel = onCancel })
   end
@@ -211,7 +248,7 @@ return function(mod)
           -- onSelect), so the shortcut does the same and re-opens after
           game.stack:pop()
           openEditor(game, ctx, key, function()
-            if startMenuId then mod.ui.push(game, startMenuId) end
+            reopenStartMenu(game)
           end)
         else
           -- the PC menu stays open under its sub-screens (keepOpen), so the
@@ -306,7 +343,7 @@ return function(mod)
         openEditor(game, contexts[key], key, key == "start" and function()
           -- vanilla submenus return to the START menu on B
           -- (RedisplayStartMenu); this is StartMenu's own `reopen`
-          if startMenuId then mod.ui.push(game, startMenuId) end
+          reopenStartMenu(game)
         end or nil)
       end,
     }

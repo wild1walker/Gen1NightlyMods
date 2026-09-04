@@ -6,6 +6,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.27] - 2026-09-04
+
+- No changes; the channel ships as one version.
+
 ## [0.32.26] - 2026-09-04
 
 - **The white YES/NO box is fixed, and 0.32.25 was wrong about why it could
