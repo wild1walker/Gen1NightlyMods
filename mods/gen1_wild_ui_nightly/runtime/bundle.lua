@@ -61,6 +61,13 @@ function Bundle.install(mod, spec, features)
   -- It is a separate file because it DRAWS, which is the one thing
   -- runtime/theme2.lua promises never to do.  See runtime/choicebox2.lua.
   local ChoiceBox2 = isGen2 and loadRuntime("choicebox2") or nil
+  -- Gen 2 only, and nothing to do with the theme -- which is why it is
+  -- installed on its own below rather than inside the theme's block.  Gold
+  -- draws every party icon through a four-shade remap, which is right for the
+  -- cart's own 2bpp sheets and wrong for a mod's colour art: the shape
+  -- arrives and the colours are replaced.  Its battle pics have an escape
+  -- (`trueColor`); its icons never grew one.  See runtime/icons2.lua.
+  local Icons2 = isGen2 and loadRuntime("icons2") or nil
   -- Gen 1 only, and not a gap.  A matte paints the page colour under a
   -- true-colour rectangle, because Red blits one RAW past the shade pass and
   -- the white page it was cut out of comes back with it.  Gold has no such
@@ -334,6 +341,21 @@ function Bundle.install(mod, spec, features)
       end
     else
       mod.log:warn("UI theme not built: %s", tostring(built))
+    end
+  end
+
+  -- ---- 2b. party icons that carry a colour
+  --
+  -- Outside the theme block on purpose: this has nothing to do with the
+  -- theme, and a build whose theme failed should still show a follower's own
+  -- colours.  Guarded on its own for the same reason the YES/NO patch is --
+  -- icons in the cart's palette are worse than they should be and still
+  -- icons, so a patch that will not take must cost nothing else.
+  if type(Icons2) == "table" and type(Icons2.install) == "function" then
+    local iconOk, iconProblem = pcall(Icons2.install, context)
+    if not iconOk then
+      mod.log:warn("party icons keep the cart's palette: %s",
+                   tostring(iconProblem))
     end
   end
 

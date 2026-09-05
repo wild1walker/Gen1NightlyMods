@@ -7,6 +7,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.41] - 2026-09-05
+
+No change. This release is Gold's follower icons, in the UI bundle; the two
+bundles ship together and share a version.
+
 ## [0.32.40] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: three fixes to the Gold box

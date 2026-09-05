@@ -6,6 +6,10 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.41] - 2026-09-05
+
+No change. Version-only, released alongside the UI bundle.
+
 ## [0.32.40] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: three fixes to the Gold box

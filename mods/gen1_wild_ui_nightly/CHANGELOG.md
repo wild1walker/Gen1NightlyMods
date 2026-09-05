@@ -6,6 +6,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.41] - 2026-09-05
+
+The fourth thing reported with the box bugs: Gold was not using your follower
+sprites in the party or the box. It is fixed, the same way Red's box was.
+
+- **Party icons keep their own colours.** Gold draws every party icon through
+  `GbcPalette.with(palettes.partyMenu[1], paint)` — a four-shade remap that is
+  exactly right for the cart's own 2bpp icon sheets, and exactly wrong for a
+  mod's, because it throws the mod's colours away and repaints the sprite in
+  the cart's two-tone party palette. `runtime/icons2.lua` asks the file Red's
+  question — *does any pixel carry a colour a grey ramp could not have
+  produced* — and if the answer is yes, steps around the remap for that one
+  icon and lets it draw its own colours. The answer is cached by path, so the
+  file is read once per sprite, not once per frame.
+- **The party list and the box both get it.** The wrap sits on
+  `PartyMenu.drawIcon`, which is the single place every Gold party icon is
+  drawn — the party screen, the new box screen, and anything else that reuses
+  it — so there is one fix, not one per screen.
+- **It does not depend on the theme.** The hook installs at bundle scope, so a
+  Gold save with `PARTY MENU` off, or a theme that failed to install, still
+  gets its follower's colours.
+- Cart icons are untouched: a grey sheet has no colour to protect, takes the
+  ordinary path, and is remapped as the hardware would.
+
 ## [0.32.40] - 2026-09-05
 
 Three fixes to the Gold box from 0.32.38. The fourth thing reported with them
