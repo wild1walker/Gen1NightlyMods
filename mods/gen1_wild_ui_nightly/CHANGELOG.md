@@ -6,6 +6,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.52] - 2026-09-05
+
+Two things the Gold dex list got wrong in 0.32.49, both because Gold's icon
+path behaves differently from Red's in ways the port carried over unchanged.
+
+### An entry you have never met is blacked out again
+
+Red gets the silhouette for free: its `PartyMenu.drawIcon` *"never sets a
+colour of its own"* -- it paints in the caller's -- so `setColor(0,0,0,1)` takes
+every pixel's RGB to zero, leaves the alpha alone, and a mask of the exact shape
+falls out.
+
+Gold's does set one. `G.setColor(1, 1, 1, 1)` runs immediately before the paint
+(`src/ui/gen2/PartyMenu.lua:895`), so the tint was wiped on the way in and every
+entry came out fully lit whether it had been met or not.
+
+The mask is now drawn here instead, off the same image and the same frame
+`drawIcon` would have used, and deliberately **without** the party palette: the
+shader is the thing a black tint would be fighting, and a mask does not need
+one.
+
+### Only the row under the cursor animates
+
+`PartyMenu:iconFor` reads its frame off the menu's own clock --
+`floor(clock / ICON_FRAME_STEPS) % 2` -- so one clock ticking every frame bobbed
+**every icon on the screen at once**: six POKéMON walking on the spot in a list
+nobody asked to animate.
+
+The clock is set per row now: the live one for the row being read, and zero --
+the standing frame -- for the rest. Move the cursor and the animation moves with
+it; the row it left stops.
+
+Both are covered by a test whose `PartyMenu` stub does the two things Gold's
+really does -- sets white before painting, and derives the frame from its own
+clock -- because a stub that did neither is a stub that agrees with the bug.
+
 ## [0.32.51] - 2026-09-05
 
 **A phone call follows the theme.** An incoming call came up as the cart's white

@@ -246,8 +246,9 @@ return function(mod, DexData, C)
   end
 
   function Screen:update(dt)
+    -- The host's clock is set per ROW at draw time (only the row being read
+    -- bobs), so it is deliberately not synced here.
     self.clock = (self.clock or 0) + 1
-    if self.iconHost then self.iconHost.clock = self.clock end
     local input = self.game and self.game.input
     if not input then return end
     if input:wasPressed("up") then self:move(-1) end
@@ -262,20 +263,43 @@ return function(mod, DexData, C)
 
   -- ------- drawing
 
-  function Screen:drawIcon(species, x, y, dim)
+  -- ------- one icon, and the two things Red's row does that Gold's does not
+  --
+  -- ONLY THE ROW UNDER THE CURSOR MOVES.  `PartyMenu:iconFor` reads the frame
+  -- off the menu's own clock -- `floor(clock / ICON_FRAME_STEPS) % 2` -- so a
+  -- clock that ticks every frame bobs every icon on the screen at once, which
+  -- is six POKeMON walking on the spot in a list nobody asked to animate.  The
+  -- clock is therefore set PER ROW: the live one for the row being read, and
+  -- zero for the rest, which is frame 0, the standing frame.
+  --
+  -- AND AN UNDISCOVERED ONE IS BLACK.  Red's row asks `PartyMenu.drawIcon` to
+  -- paint in the caller's colour, because Red's "never sets a colour of its
+  -- own" (list.lua's note) -- so `setColor(0,0,0,1)` takes every pixel's RGB
+  -- to zero, leaves its alpha alone, and a silhouette of the exact shape falls
+  -- out for free.
+  --
+  -- Gold's does set one.  `G.setColor(1, 1, 1, 1)` runs immediately before the
+  -- paint (src/ui/gen2/PartyMenu.lua:895), so the tint was wiped on the way in
+  -- and every entry came out fully lit whether it had been met or not.  So the
+  -- silhouette is drawn here instead, off the same image and the same frame
+  -- `drawIcon` would have used, and deliberately WITHOUT the party palette:
+  -- the shader is what a black tint would be fighting, and a mask does not
+  -- need one.
+  function Screen:drawIcon(species, x, y, dim, selected)
     local host = iconMenu(self)
     if not host then return end
+    host.clock = selected and self.clock or 0
     local G = love.graphics
-    if dim then
-      -- A tint rather than a palette: setColor(0,0,0,1) takes every pixel's
-      -- RGB to zero and leaves its alpha alone, which is a silhouette of the
-      -- exact shape the icon draws -- and it holds for a mod's full-colour
-      -- art, which a palette zone would not (see list.lua's note).
-      G.setColor(0, 0, 0, 1)
-    else
+    if not dim then
+      pcall(host.drawIcon, host, stubFor(species), x, y)
       G.setColor(1, 1, 1, 1)
+      return
     end
-    pcall(host.drawIcon, host, stubFor(species), x, y)
+    local ok, image, frame = pcall(host.iconFor, host, stubFor(species))
+    if not (ok and image) then return end
+    local iw, ih = image:getDimensions()
+    G.setColor(0, 0, 0, 1)
+    G.draw(image, G.newQuad(0, (frame or 0) * 16, 16, 16, iw, ih), x, y)
     G.setColor(1, 1, 1, 1)
   end
 
@@ -283,7 +307,7 @@ return function(mod, DexData, C)
   -- (or "-----" for one never met), `ball` is set when it is owned, and
   -- `seen` is what decides whether the icon is drawn or silhouetted.
   function Screen:drawRow(item, y, selected)
-    self:drawIcon(item.species, ICON_X, y, not item.seen)
+    self:drawIcon(item.species, ICON_X, y, not item.seen, selected)
     C.black()
     local textY = y + TEXT_DY
     Font.draw(C.truncate(item.label, LABEL_GLYPHS), LABEL_X, textY)

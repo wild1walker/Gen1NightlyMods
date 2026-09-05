@@ -47,6 +47,14 @@ for _, name in ipairs({ "getColor", "getShader", "getCanvas", "getScissor", "get
   love.graphics[name] = function() return nil end
 end
 love.graphics.newQuad = function() return {} end
+-- Declared above the closure that writes it: a name used before its `local` is
+-- a GLOBAL there, which is the shape tools/check.py fails on.
+local lastColor
+local blitted = {}
+love.graphics.setColor = function(r, g, b, a) lastColor = { r, g, b, a } end
+love.graphics.draw = function(_image, _quad, x, y)
+  blitted[#blitted + 1] = { x = x, y = y, color = lastColor }
+end
 
 local drawn = {}
 package.loaded["src.render.Font"] = {
@@ -63,10 +71,27 @@ package.loaded["src.core.Strings"] = setmetatable({
   return s
 end })
 
+-- Gold's PartyMenu, in the two respects this screen has to work around:
+--
+--   iconFor derives the frame from the menu's OWN clock, so a clock that ticks
+--   every frame bobs every icon in the list at once.
+--   drawIcon sets G.setColor(1,1,1,1) immediately before painting
+--   (src/ui/gen2/PartyMenu.lua:895), which wipes any tint the caller set --
+--   Red's never does, which is why the tint silhouette works there and not
+--   here.
 local iconCalls = {}
+local ICON_FRAME_STEPS = 8
 package.loaded["src.ui.gen2.PartyMenu"] = {
-  drawIcon = function(_, mon, px, py)
-    iconCalls[#iconCalls + 1] = { species = mon and mon.species, x = px, y = py }
+  iconFor = function(self, mon)
+    return { getDimensions = function() return 16, 32 end },
+      math.floor((self.clock or 0) / ICON_FRAME_STEPS) % 2
+  end,
+  drawIcon = function(self, mon, px, py)
+    love.graphics.setColor(1, 1, 1, 1)
+    iconCalls[#iconCalls + 1] = {
+      species = mon and mon.species, x = px, y = py,
+      frame = math.floor((self.clock or 0) / ICON_FRAME_STEPS) % 2,
+    }
   end,
 }
 
@@ -125,6 +150,7 @@ local DATA = {
 
 local function scene()
   drawn, iconCalls, pushed, builtScreens = {}, {}, {}, {}
+  blitted = {}
   local game = {
     data = DATA,
     save = { pokedex = { seen = { CHARMANDER = true }, owned = { BULBASAUR = true } } },
@@ -179,6 +205,7 @@ end
 -- B, so there would be no way back out of it.
 do
   drawn, iconCalls, pushed, builtScreens = {}, {}, {}, {}
+  blitted = {}
   local game = {
     data = DATA,
     save = { pokedex = { seen = {}, owned = {} } },
@@ -237,10 +264,12 @@ end
 do
   local screen = scene()
   screen:draw()
-  eq(#iconCalls, 4, "an icon is drawn for every row on screen")
+  -- Every row gets art: the two that have been met through the cart's own
+  -- icon path, the two that have not as masks (see the silhouette block
+  -- below) -- so the count is the two paths together, and no row is skipped.
+  eq(#iconCalls + #blitted, 4, "an icon is drawn for every row on screen")
   eq(iconCalls[1].species, "BULBASAUR", "the first row's own species")
-  eq(iconCalls[2].species, "IVYSAUR",
-     "including one never met -- it is drawn as a silhouette, not skipped")
+  eq(#blitted, 2, "and the two never met are drawn too, rather than skipped")
 
   local footer
   for _, d in ipairs(drawn) do
@@ -248,6 +277,83 @@ do
   end
   eq(footer, "SEEN   2  OWN   1",
      "the footer counts the whole dex in fixed three-digit fields")
+end
+
+-- ---- an entry never met is BLACKED OUT
+--
+-- Red gets this for free: its PartyMenu.drawIcon paints in the caller's
+-- colour, so setColor(0,0,0,1) takes every pixel's RGB to zero, leaves the
+-- alpha alone, and a silhouette of the exact shape falls out.  Gold's sets
+-- G.setColor(1,1,1,1) immediately before painting, so the tint was wiped on
+-- the way in and every entry came out fully lit.
+
+do
+  local screen = scene()
+  screen:draw()
+
+  -- The two that have been met go through drawIcon; the two that have not are
+  -- blitted here instead, so they can be tinted.
+  local lit = {}
+  for _, call in ipairs(iconCalls) do lit[call.species] = true end
+  ok(lit.BULBASAUR, "a caught POKeMON is drawn through the cart's own icon path")
+  ok(lit.CHARMANDER, "and so is a seen one")
+  ok(not lit.IVYSAUR, "one never met is not: it would come back fully lit")
+
+  eq(#blitted, 2, "the two never met are drawn here, as masks")
+  for _, mark in ipairs(blitted) do
+    eq(("%d,%d,%d"):format(mark.color[1] * 255, mark.color[2] * 255,
+                           mark.color[3] * 255),
+       "0,0,0", "and each is drawn black")
+    eq(mark.color[4], 1, "at full alpha, so it is a silhouette and not a ghost")
+  end
+end
+
+-- ---- and only the row under the cursor moves
+--
+-- iconFor reads the frame off the menu's own clock, so one clock ticking every
+-- frame bobs all six at once.  It is set per row instead: the live one for the
+-- row being read, zero -- the standing frame -- for the rest.
+
+do
+  local screen = scene()
+  -- far enough in for the two-frame bob to have turned over
+  for _ = 1, 9 do screen:update(1 / 60) end
+  screen.index = 3                      -- CHARMANDER, which has been seen
+  screen:draw()
+
+  local byName = {}
+  for _, call in ipairs(iconCalls) do byName[call.species] = call end
+  eq(byName.CHARMANDER.frame, 1, "the row being read is on its second frame")
+  eq(byName.BULBASAUR.frame, 0, "every other row is standing still")
+end
+
+do
+  local screen = scene()
+  screen.index = 1
+  screen:draw()
+  local byName = {}
+  for _, call in ipairs(iconCalls) do byName[call.species] = call end
+  eq(byName.BULBASAUR.frame, 0,
+     "and a fresh screen starts standing rather than mid-stride")
+end
+
+-- Moving the cursor moves which one is animating, and nothing else.
+do
+  local screen = scene()
+  for _ = 1, 9 do screen:update(1 / 60) end
+  screen.index = 1
+  screen:draw()
+  local first = {}
+  for _, call in ipairs(iconCalls) do first[call.species] = call.frame end
+  eq(first.BULBASAUR, 1, "the first row bobs while it is the one being read")
+
+  iconCalls = {}
+  screen.index = 3
+  screen:draw()
+  local second = {}
+  for _, call in ipairs(iconCalls) do second[call.species] = call.frame end
+  eq(second.BULBASAUR, 0, "and stops the moment the cursor leaves it")
+  eq(second.CHARMANDER, 1, "while the row it moved to takes over")
 end
 
 io.write(("dexlist_gen2: %d passed, %d failed\n"):format(passed, failed))
