@@ -1470,6 +1470,179 @@ end
 
 mod.exports.picPaperBox = picPaperBox
 
+-- ------- the paper as the PIC'S OWN SHAPE
+--
+-- A rectangle is the wrong shape for this and shipping one is what produced
+-- the second half of the report: "there shouldn't be the big black or white
+-- box behind all that stuff".  A mon is not a rectangle, so paper the size of
+-- its bounding box is a sticker with the mon printed in the middle of it.
+--
+-- What is actually wanted is the paper the CART had under the pic and nowhere
+-- else: the holes inside the silhouette filled, and the space around it left
+-- as the picture.  So the shape is measured off the art and drawn as an
+-- image, not as a fill.
+--
+-- ------- why there are holes at all
+--
+-- Gen 2's pics are matted on the way out of the ROM
+-- (ImageWriter.matteColor0, called by RomExtractorGen2:writeCompressedPic):
+-- the white AROUND the mon is flooded to transparent from the four edges of
+-- the frame, and the white INSIDE it is meant to survive.  That flood leaks
+-- wherever the art runs off the edge of its own frame -- the player's
+-- back-pic is bottom-aligned and cut by the frame, so a white pixel on the
+-- bottom row is a seed, and the flood walks up through the trainer and takes
+-- his shirt with it.  The result is a trainer you can see the arena through,
+-- which is exactly what was reported and exactly what a white field used to
+-- hide.
+--
+-- ------- so the frame closes the silhouette
+--
+-- The flood is run again here, backwards, with one rule the extractor's did
+-- not have: a border pixel is only OUTSIDE if it lies past the ink on its own
+-- edge.  Wherever the art runs into the frame, the frame is treated as the
+-- art's own edge and the flood does not start there.
+--
+--   * the back-pic, cut off at the bottom: the bottom row has ink at both
+--     ends, so nothing between them seeds, and the shirt comes back.
+--   * a pic with padding under it: the bottom row has no ink at all, so the
+--     whole row seeds and the padding stays picture.
+--
+-- Everything transparent the flood does not reach is inside the mon, and that
+-- is the paper.  A pic with no holes builds no image and costs one readback.
+--
+-- Drawn through whatever palette the engine has bound for the pic, as white,
+-- so it lands on colour 0 -- the mon's own white, which is what the hole was.
+local paperImage = setmetatable({}, { __mode = "k" })
+
+-- The first and last index along one edge that carries ink, or nil when the
+-- edge is empty.  `at(i)` answers whether index i is opaque.
+local function edgeSpan(count, at)
+  local first, last
+  for i = 0, count - 1 do
+    if at(i) then
+      if not first then first = i end
+      last = i
+    end
+  end
+  return first, last
+end
+
+local function buildPaperImage(img)
+  if not (love.image and type(love.image.newImageData) == "function") then
+    return false
+  end
+  local w, h = img:getDimensions()
+  if w < 1 or h < 1 or w > PAPER_MAX_SIDE or h > PAPER_MAX_SIDE then
+    return false
+  end
+  local data = readPic(img)
+
+  -- Same readback geometry check measurePic makes, and for the same reason: a
+  -- host that ignored the pinned dpiscale hands back a whole-number multiple
+  -- of the pic, and reading the pic's own w by h out of it reads a corner.
+  local dw, dh = w, h
+  if type(data.getDimensions) == "function" then
+    local ok, gw, gh = pcall(data.getDimensions, data)
+    if ok and tonumber(gw) and tonumber(gh) then dw, dh = gw, gh end
+  end
+  if dw < w or dh < h or dw % w ~= 0 or dh % h ~= 0 or dw / w ~= dh / h then
+    return false
+  end
+  local ratio = dw / w
+  local half = math.floor(ratio / 2)
+
+  local opaque, colors, nColors = {}, {}, 0
+  for y = 0, h - 1 do
+    local row = y * w
+    for x = 0, w - 1 do
+      local r, g, b, a = data:getPixel(x * ratio + half, y * ratio + half)
+      if a > 0.5 then
+        opaque[row + x] = true
+        if nColors <= PAPER_MAX_COLORS then
+          local key = math.floor(r * 255 + 0.5) * 65536
+                    + math.floor(g * 255 + 0.5) * 256
+                    + math.floor(b * 255 + 0.5)
+          if not colors[key] then
+            colors[key] = true
+            nColors = nColors + 1
+          end
+        end
+      end
+    end
+  end
+  -- Replacement art that is already coloured needs none of this: its colour 0
+  -- is not a hole, it is a colour.  The same four-shade test the Gen 1 arm
+  -- uses, and the same reason.
+  if nColors == 0 or nColors > PAPER_MAX_COLORS then return false end
+
+  local outside, qx, qy, head = {}, {}, {}, 1
+  local function push(x, y)
+    if x < 0 or y < 0 or x >= w or y >= h then return end
+    local key = y * w + x
+    if outside[key] or opaque[key] then return end
+    outside[key] = true
+    qx[#qx + 1], qy[#qy + 1] = x, y
+  end
+  local function seedRow(y)
+    local first, last = edgeSpan(w, function(x) return opaque[y * w + x] end)
+    for x = 0, w - 1 do
+      if not first or x < first or x > last then push(x, y) end
+    end
+  end
+  local function seedColumn(x)
+    local first, last = edgeSpan(h, function(y) return opaque[y * w + x] end)
+    for y = 0, h - 1 do
+      if not first or y < first or y > last then push(x, y) end
+    end
+  end
+  seedRow(0)
+  seedRow(h - 1)
+  seedColumn(0)
+  seedColumn(w - 1)
+  while head <= #qx do
+    local x, y = qx[head], qy[head]
+    head = head + 1
+    push(x - 1, y)
+    push(x + 1, y)
+    push(x, y - 1)
+    push(x, y + 1)
+  end
+
+  local filled = 0
+  local out = love.image.newImageData(w, h)
+  for y = 0, h - 1 do
+    local row = y * w
+    for x = 0, w - 1 do
+      if not (opaque[row + x] or outside[row + x]) then
+        out:setPixel(x, y, 1, 1, 1, 1)
+        filled = filled + 1
+      end
+    end
+  end
+  if filled == 0 then return false end
+  local image = love.graphics.newImage(out)
+  if type(image.setFilter) == "function" then
+    pcall(image.setFilter, image, "nearest", "nearest")
+  end
+  return image
+end
+
+-- Exposed for the headless suite the same way picPaperBox is: it is a pure
+-- question about one image -- which pixels of it are a hole through the mon
+-- -- and getting it wrong paints over a picture.
+local function picPaperImage(img)
+  if paperImage[img] == nil then
+    local ok, built = pcall(buildPaperImage, img)
+    paperImage[img] = (ok and built) or false
+    if not ok then
+      mod.log:warn("could not shape a pic's paper: %s", tostring(built))
+    end
+  end
+  return paperImage[img] or nil
+end
+
+mod.exports.picPaperImage = picPaperImage
+
 -- Whether drawBattlerPic is about to draw the pic whole, at the x/y/scale it
 -- was handed.  Every other path it can take -- the substitute doll, the faint
 -- sink, a minimize blob, an fx offset -- draws something else or somewhere
@@ -1702,75 +1875,158 @@ local function installGen2()
   -- there instead, and both were reported as soon as anyone played a battle
   -- on Gold:
   --
-  --   * every HUD string paints its own paper cell.  `Chrome.printThrough`
-  --     fills `width x 8` with the palette's colour 0 before it draws a
-  --     glyph, because a tilemap cell is opaque -- so the name, the level,
-  --     the gender symbol and the HP numbers each arrived as a white block
-  --     hugging its own text, ragged against the art.  It is not a dark-mode
-  --     bug and it is not right in LIGHT either; it is the tilemap showing
-  --     through.
-  --   * the pics are drawn with colour 0 TRANSPARENT.  On white paper the
-  --     mon's own white reads as part of the mon; over a picture you see the
-  --     field through the player's jacket.  The Gen 1 arm has laid paper
-  --     under a pic since it existed, for exactly this, and the Gold arm
-  --     never did.
+  --   * the HUD arrives in WHITE BLOCKS.  Every string paints its own paper
+  --     cell (`Chrome.printThrough` fills `width x 8` with the palette's
+  --     colour 0 before it draws a glyph, because a tilemap cell is opaque),
+  --     and the HP and exp bars are 2bpp sheets written OPAQUE, colour 0 and
+  --     all (RomExtractorGen2:extractMenuGfx -- "the bar's rule is shade 3
+  --     while its fill is shade 1/2"), so the bar cells are a white slab with
+  --     a bar drawn on it.  Neither is a dark-mode bug and neither is right
+  --     in LIGHT; it is the tilemap showing.
+  --   * the pics have holes in them.  See picPaperImage above.
   --
-  -- Both are answered the same way and with the engine's own numbers: put
-  -- the paper back where the engine is entitled to assume it, and nowhere
-  -- else.  Neither is a repaint of anything -- the HUD, the frame, the bar
-  -- and the pic are all still the cart's, drawn by the cart, in the cart's
-  -- own order.
+  -- ------- and the answer is to take the paper away, not to add more
   --
-  -- And the paper is laid THROUGH THE PALETTE rather than as white, which is
-  -- what makes the HUD go dark with the rest of the game under UI THEME
-  -- instead of being the one lit rectangle on a dark screen.
+  -- The first shipped fix put a PLATE behind each HUD block -- one rectangle
+  -- through the box palette, so the ragged cells became one clean one.  That
+  -- was the wrong instinct and it was rejected on sight: "there shouldn't be
+  -- the big black or white box behind all that stuff.  Look gen 1 looks much
+  -- cleaner."  Which is exactly right, and the reason Red looks cleaner is
+  -- that Red's HUD has no paper at all -- `Font.draw` puts black glyphs on
+  -- transparent straight onto whatever is behind them.
+  --
+  -- So Gold's HUD is given the same nothing, with the engine's own switches:
+  --
+  --   the text   `Chrome.printThrough` draws its glyphs from a page that is
+  --              already ink-on-transparent, so the block is ONLY that paper
+  --              rect.  It is swallowed for the length of a HUD draw and the
+  --              glyphs land on the picture, exactly as Red's do.
+  --   the tiles  `GbcPalette` already has a shader for "colour 0 is
+  --              transparent" -- the hardware OBJ-behind-BG rule, keyedShader
+  --              -- so the HUD's tiles are bound through THAT instead.  The
+  --              bar keeps its two hues and its black rule and loses the slab
+  --              around it; the empty half of the bar shows the picture, the
+  --              way the empty half of a bar on white paper shows the paper.
+  --
+  -- Nothing is repainted, reordered or re-placed: the HUD is still the
+  -- cart's, drawn by the cart, in the cart's own order and its own colours.
+  -- The only thing taken away is the white the cart was entitled to assume.
+  --
+  -- And it is taken away ONLY while a backdrop is up.  On a battle with no
+  -- backdrop the field is still Gold's white fill and the paper is invisible
+  -- against it, so nothing is touched and the screen is the cart's exactly.
+  local keying = false
 
-  -- DrawEnemyHUD clears (1,0) 4 rows x 11 cols; the player's block is the
-  -- one its own draw writes into -- name (10,7), level (14,8), gender
-  -- (17,8), bar (10,9), HP numbers ending at 18 on row 10, the border stub
-  -- at (18,10) and the exp bar at (10,11).
-  local HUD_PLATES = {
-    enemy = { 1, 0, 11, 4 },
-    player = { 10, 7, 10, 5 },
-  }
-
-  local function plate(side)
-    local rect = HUD_PLATES[side]
-    if not rect then return end
-    if mod.options:get("hud_paper") == false then return end
-    Chrome.paletteFill(rect[1] * 8, rect[2] * 8, rect[3] * 8, rect[4] * 8)
+  -- The one place the paper is still wanted is the HUD BORDER's ink.  The
+  -- border tiles are 1bpp, black-on-transparent, and `placeBorder` draws them
+  -- with no palette at all -- so they come out flat black however the rest of
+  -- the game is themed.  Line art in the ink shade wants the ink, which under
+  -- UI THEME > DARK is the light one the HUD's own text is being drawn in.
+  local function themeInk()
+    local pal = Chrome.DEFAULT_BOX_PALETTE
+    if type(pal) ~= "table" then return nil end
+    local ink = pal[4]
+    if type(ink) ~= "table" then return nil end
+    return ink
   end
 
-  -- The two HUD draws, each with its plate under it.  Wrapped rather than
-  -- painted from `drawPanel` because only these know whether their side's
-  -- HUD is on screen at all: a blanked HUD (ClearActorHud, mid-animation) or
-  -- one that has never been drawn must not get a plate, or the battle grows
-  -- a white rectangle where the cart has nothing.
-  local function plated(name, side)
+  -- The two HUD draws.  Wrapped rather than switched from `drawPanel`
+  -- because the window has to close over the HUD and nothing else: the pics
+  -- are drawn between them (drawHud is enemy HUD, pics, player HUD) and a pic
+  -- keyed to transparent would lose its own colour 0 -- which is the hole
+  -- picPaperImage just filled.
+  local function unpapered(name)
     local base = BattleState[name]
     if type(base) ~= "function" then
-      mod.log:warn("src.ui.gen2.BattleState has no %s; the %s HUD keeps the "
-        .. "backdrop behind its text", name, side)
+      mod.log:warn("src.ui.gen2.BattleState has no %s; that HUD keeps its "
+        .. "white blocks over a backdrop", name)
       return
     end
     BattleState[name] = function(self, ...)
-      if not (active and consumed) then return base(self, ...) end
-      local shows = true
-      if side == "enemy" then
-        shows = self.showEnemyHud and not self:hudCleared("enemy")
-      else
-        shows = self.showPlayerHud and not self:hudCleared("player")
-          and self:activeMon("player") ~= nil
+      if not (active and consumed
+              and mod.options:get("hud_clear") ~= false) then
+        return base(self, ...)
       end
-      local okStatus, visible = pcall(self.statusHUDVisible, self)
-      if okStatus and not visible then shows = false end
-      if shows then pcall(plate, side) end
-      return base(self, ...)
+      keying = true
+      local ok, err = pcall(base, self, ...)
+      keying = false
+      if not ok then error(err, 0) end
     end
   end
 
-  plated("drawEnemyHud", "enemy")
-  plated("drawPlayerHud", "player")
+  unpapered("drawEnemyHud")
+  unpapered("drawPlayerHud")
+
+  -- ------- the text's paper cell
+  --
+  -- Swallowed by shimming the fill for the length of the call rather than by
+  -- reimplementing the two print functions: the glyph loop, the TTF arm, the
+  -- rBGP fold and the invert reversal are all Chrome's, they are all still
+  -- wanted, and a second copy of them here would be wrong the first time any
+  -- of it moved.  `love.graphics.rectangle` is captured per call for the same
+  -- reason the pic shim captures `draw` per call -- another mod may have
+  -- wrapped it since install, and restoring a snapshot taken before it would
+  -- take that mod's wrapper off for good.
+  for _, name in ipairs({ "printThrough", "printRightThrough" }) do
+    local base = Chrome[name]
+    if type(base) == "function" then
+      Chrome[name] = function(...)
+        if not keying then return base(...) end
+        local realRect = love.graphics.rectangle
+        love.graphics.rectangle = function() end
+        local ok, width = pcall(base, ...)
+        love.graphics.rectangle = realRect
+        if not ok then error(width, 0) end
+        return width
+      end
+    else
+      mod.log:warn("src.ui.gen2.Chrome has no %s; the HUD text keeps its "
+        .. "white cells over a backdrop", name)
+    end
+  end
+
+  -- ------- the tiles' colour 0
+  --
+  -- `GbcPalette.use` rather than the call sites: BattleHud draws every tile
+  -- it lays through `GbcPalette.with`, and `drawExpBarEnd` -- which does not
+  -- go through `drawTile` at all -- through the same.  One substitution
+  -- covers the bar cells, the end cap, the "HP:" badge, the exp bar, the
+  -- caught mark, the party-icon corner and the ball rows.
+  --
+  -- The balls and the end cap were written transparent already (they are OBJ
+  -- sheets), so for those this is the shader they were drawn through anyway.
+  local okGbc, GbcPalette = pcall(require, "src.render.GbcPalette")
+  if okGbc and type(GbcPalette) == "table"
+      and type(GbcPalette.use) == "function"
+      and type(GbcPalette.useKeyed) == "function" then
+    local realUse = GbcPalette.use
+    GbcPalette.use = function(colors)
+      if keying then return GbcPalette.useKeyed(colors) end
+      return realUse(colors)
+    end
+  else
+    mod.log:warn("no src.render.GbcPalette keyed shader; the HP and exp bars "
+      .. "keep their white slab over a backdrop")
+  end
+
+  local okHud, BattleHud = pcall(require, "src.ui.gen2.BattleHud")
+  if okHud and type(BattleHud) == "table"
+      and type(BattleHud.drawTile) == "function" then
+    local baseTile = BattleHud.drawTile
+    BattleHud.drawTile = function(self, key, firstTile, tile, tx, ty, colors,
+                                  mirror)
+      if colors == nil and keying then
+        local ink = themeInk()
+        -- Colours 0 to 2 are never drawn: the sheet is 1bpp, so its only two
+        -- shades are 0 (keyed away) and 3.
+        if ink then colors = { ink, ink, ink, ink } end
+      end
+      return baseTile(self, key, firstTile, tile, tx, ty, colors, mirror)
+    end
+  else
+    mod.log:warn("no src.ui.gen2.BattleHud; the HUD border stays flat black "
+      .. "under UI THEME")
+  end
 
   -- ------- paper under the pics
   --
@@ -1778,12 +2034,11 @@ local function installGen2()
   -- `drawPic` works out the box, the centring, the ground line, the resize
   -- square and the slide, and a second copy of that arithmetic here would be
   -- wrong the first time any of it moved.  So `love.graphics.draw` is shimmed
-  -- for the length of one `drawPic` call, and the first image it is handed --
-  -- the pic itself -- gets its paper laid at the same x, y and scale.
-  --
-  -- `picPaperBox` is the Gen 1 arm's own measurement, unchanged: the enclosed
-  -- interior of the art, so the paper fills the mon and not a square around
-  -- it.
+  -- for the length of one `drawPic` call and every image it lays is preceded
+  -- by its own paper, at the same coordinates, the same quad and the same
+  -- scale -- which covers the plain blit, the faint sink's crop, a Crystal
+  -- animation frame and the substitute doll without knowing which one it is
+  -- looking at.
   local basePic = BattleState.drawPic
   if type(basePic) == "function" then
     BattleState.drawPic = function(self, mon, back, ...)
@@ -1794,38 +2049,21 @@ local function installGen2()
       -- draw since, and restoring a snapshot taken before it would take that
       -- mod's wrapper off for good.
       local realDraw = love.graphics.draw
-      local laid = false
-      love.graphics.draw = function(image, a, b, c, d, e, ...)
-        -- Only the first image of the call, and only the plain blit: a quad
-        -- draw is a crop (the faint sink) or a sheet frame (an animation),
-        -- and paper under either would sit behind a picture that is not
-        -- there.
-        if not laid and type(a) == "number" then
-          laid = true
-          local okBox, box = pcall(picPaperBox, image)
-          if okBox and box then
-            local scale = type(d) == "number" and d or 1
-            local r, g, bl, al = love.graphics.getColor()
-            -- WHITE, and deliberately not the page's paper -- which is the
-            -- one place this differs from the HUD plate above.
-            --
-            -- A plate is chrome: it is the paper a box would have had, so it
-            -- takes the theme's and goes dark with the rest.  This is not
-            -- chrome, it is the shade the MON's own palette maps colour 0 to
-            -- (`Palettes.monColors` builds {WHITE, pair, pair, BLACK}), and
-            -- the hole it fills is inside the art.  Laying the page's paper
-            -- there would put black patches through a mon's white in a dark
-            -- game -- its body would be white and its hollow black.  The Gen
-            -- 1 arm says the same thing in one line: white, because that is
-            -- the shade the pic was matted against.
-            love.graphics.setColor(1, 1, 1, al)
-            realRectangle("fill", a + box.x * scale, b + box.y * scale,
-                          box.w * scale, box.h * scale)
-            love.graphics.setColor(r, g, bl, al)
-          end
-        end
-        return realDraw(image, a, b, c, d, e, ...)
+      local shim
+      shim = function(image, ...)
+        -- Shaping a pic READS it, and reading it draws it to a scratch canvas
+        -- -- through this very function.  The shim stands down for the length
+        -- of that so the readback is the engine's own draw and not a recursion.
+        love.graphics.draw = realDraw
+        local paper = picPaperImage(image)
+        love.graphics.draw = shim
+        -- Through whatever the engine has bound for this pic, so the paper is
+        -- the mon's own colour 0 -- deliberately NOT the page's paper, which
+        -- in a dark game would print black patches through a white mon.
+        if paper then realDraw(paper, ...) end
+        return realDraw(image, ...)
       end
+      love.graphics.draw = shim
       local ok, err = pcall(basePic, self, mon, back, ...)
       love.graphics.draw = realDraw
       if not ok then error(err, 0) end
@@ -1966,18 +2204,20 @@ local optionRows = {
 -- above, the same way the DEV rows are, because a row that cannot do anything
 -- is worse than a missing one.
 --
--- Gold's HUD strings paint their own paper cell -- Chrome.printThrough fills
--- `width x 8` before it draws a glyph, because a tilemap cell is opaque -- so
--- over a backdrop the name, the level, the gender symbol and the HP numbers
--- each arrive as a white block hugging their own text.  The plate is one
--- rectangle behind the whole HUD block instead, laid through the palette so
--- it goes dark with the rest of the game.  Off puts the ragged cells back.
+-- Gold's battle HUD assumes the white field it is drawn on.  Every string
+-- paints its own paper cell first (a tilemap cell is opaque), and the HP and
+-- exp bars are opaque 2bpp sheets whose colour 0 is a white slab around the
+-- bar.  On a white field none of that is visible; over a backdrop the name,
+-- the level, the HP numbers and both bars each arrive in a white block.  ON
+-- takes the paper away and leaves the glyphs and the bars on the picture,
+-- which is what Red's HUD has always looked like.  OFF is the cart's own
+-- blocks, in case one of them turns out to be load-bearing.
 --
--- Red needs none of it: its HUD glyphs are drawn with no paper under them at
--- all, which is why this was never a Gen 1 bug.
+-- Red needs no row: its HUD glyphs are drawn with no paper under them at all,
+-- which is why this was never a Gen 1 bug.
 if gen2() then
   optionRows[#optionRows + 1] =
-    { key = "hud_paper", type = "toggle", label = "HUD PAPER", default = true }
+    { key = "hud_clear", type = "toggle", label = "CLEAR HUD", default = true }
 end
 
 if DEV then

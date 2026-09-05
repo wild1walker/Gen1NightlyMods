@@ -85,7 +85,46 @@ local function loadSibling(mod, name)
   return value
 end
 
+-- Which game this is.  Gold, Silver and Crystal get the Gold arm below --
+-- gen2grid.lua, the command menu's frame and nothing else -- because
+-- everything else in this file is an answer to something Gen 2 already
+-- shipped: the 2x2 layout, the XP bar and its sounds, the level-up stat box
+-- over its own line.  See features.lua and gen2grid.lua's header.
+local function isGen2()
+  local ok, GameVersion = pcall(require, "src.core.GameVersion")
+  if not (ok and type(GameVersion) == "table"
+          and type(GameVersion.generation) == "function") then
+    return false
+  end
+  local okCall, generation = pcall(GameVersion.generation)
+  return okCall and generation == 2
+end
+
 return function(mod)
+  if isGen2() then
+    -- One row, because one thing is being changed.  The rest of this file's
+    -- options are settings on machinery Gold has no need of.
+    mod.options:define({
+      -- The four commands in four boxes instead of four words in one.  Off is
+      -- the cart's own menu, prompt and all.
+      { key = "command_grid", type = "toggle", label = "COMMAND GRID",
+        default = true },
+    })
+    if not (type(mod.hooks) == "table"
+            and type(mod.hooks.wrap) == "function") then
+      error("this engine has no hook bus, and the hooks are the whole mod", 0)
+    end
+    local Gen2 = loadSibling(mod, "gen2grid.lua")(mod)
+    if not (type(Gen2) == "table" and type(Gen2.install) == "function") then
+      error("gen2grid.lua did not build the Gold command grid", 0)
+    end
+    Gen2.install()
+    mod.exports = mod.exports or {}
+    mod.exports.geometry = Gen2.geometry
+    mod.exports.owns = Gen2.owns
+    return
+  end
+
   mod.options:define({
     -- The panel above the move grid: the highlighted move's full name, its
     -- type and its PP.  It is where the classic layout pays back the name

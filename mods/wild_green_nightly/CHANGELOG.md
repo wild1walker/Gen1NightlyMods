@@ -6,6 +6,13 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.31] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: the battle HUD on Gold
+  loses the box that was behind it, the pics get paper in their own
+  shape rather than a rectangle, and `BATTLE MENUS` draws the four
+  command buttons there.
+
 ## [0.32.30] - 2026-09-04
 
 - No changes; the channel ships as one version.

@@ -239,17 +239,18 @@ guessed one.
 
 ## Gold, Silver and Crystal
 
-The bundle claims `gen1` and `gen2`, and on a Gen 2 boot six of its eleven
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot seven of its eleven
 features install: **BACKDROPS**, **POKEDEX**, **BAG**, **PARTY MENU**,
-**MENU LAYOUT** and **MOD MANAGER**, plus **UI THEME**.
+**MENU LAYOUT**, **MOD MANAGER** and **BATTLE MENUS**, plus **UI THEME**.
+Most of them install whole; **BATTLE MENUS** installs one part of itself, for
+the reason under the table.
 
-The other eight stand down, and for the most part that is the honest answer
+The other four stand down, and for the most part that is the honest answer
 rather than a shortfall. This bundle exists to give Red the screens Gold
 already shipped:
 
 | feature | why not on Gold |
 |---|---|
-| **BATTLE MENUS** | Gold's battle menu is already a 2x2 grid, and its battle already has an XP bar with the cart's own fill sound. |
 | **POKEMON BOX** | Gold's Bill's PC is already a box — the name in its own panel, five nicknames down the right, and the mon, level, gender and species of whatever the cursor is on. |
 | **ITEM INFO** | Gold's PACK and MART already print an item's description under the list, with a TM showing the move's. The text is the cart's own. |
 | **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
@@ -258,6 +259,27 @@ already shipped:
 
 Each verdict is written next to its feature in `features.lua`, with what was
 checked to reach it.
+
+### BATTLE MENUS on Gold: the frame, and nothing else
+
+This one was on the table above for six releases, and the reasoning held right
+up to the part that mattered. Gold's command menu really is a 2x2 already —
+`col = ((i-1)%2)*spacing`, `row = floor((i-1)/2)*2` — its battle really does
+have an XP bar with the cart's own fill sound, and its move list really does
+carry the type and PP panel that Red's arm has to build for itself.
+
+What Gold does not have is the **frame**. Its four commands are four words in
+one box across the right of the strip; Red's arm draws four boxes, one per
+command. That is the difference between a block of text and four buttons, and
+it is the one the report was about.
+
+So the Gold arm is that and nothing else: four 10x3 boxes tiling rows 12–17 —
+the same `CLASSIC_BOXES` the Gen 1 arm draws, because Gold's bottom strip is
+the same twenty tiles by six — with the cart's own labels and the cart's own
+hand in them. Nothing about what the menu *does* is touched: `menuIndex` is
+still the cart's and is still moved by the cart's own input handling. The move
+list, the bug contest's menu and every message keep the cart's own box.
+`COMMAND GRID` turns it off.
 
 ### BACKDROPS on Gold
 

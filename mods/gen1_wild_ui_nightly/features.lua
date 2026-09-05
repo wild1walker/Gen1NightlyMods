@@ -200,21 +200,29 @@ return {
       -- this row takes a relaunch and carries the menu's asterisk.
       default = true,
       aliases = { "Gen1BattleUI" },
-      -- Gen 1 only, because Gold shipped both halves of it.
+      -- Both games, and they get very different amounts of it.
       --
-      -- The command grid: `BattleState:drawPanel` lays its menu labels out at
-      -- `col = ((i - 1) % 2) * spacing` and `row = floor((i - 1) / 2) * 2`
-      -- (src/ui/gen2/BattleState.lua:4285-4290).  That is a 2x2 grid, drawn
-      -- from the cart, which is exactly what this mod builds for Red out of
-      -- Red's four-row list.
+      -- Gold shipped most of what this mod was built to add to Red, and the
+      -- feature gate said so for six releases:
       --
-      -- The XP bar: Gold has one, animates it, and plays the cart's own
-      -- Sfx_ExpBar and Sfx_HitEndOfExpBar while it fills
-      -- (src/ui/gen2/BattleState.lua:1145-1284, BattleHud:drawExpBarEnd).
+      --   The 2x2 LAYOUT: `BattleState:drawPanel` lays its menu labels out at
+      --   `col = ((i - 1) % 2) * spacing` and `row = floor((i - 1) / 2) * 2`
+      --   (src/ui/gen2/BattleState.lua), which is the grid this mod builds
+      --   for Red out of Red's four-row list.
       --
-      -- Installing this there would draw a second grid over the cart's and a
-      -- second bar under the cart's.  There is nothing left for it to add.
-      gen1_only = true,
+      --   The XP bar: Gold has one, animates it, and plays the cart's own
+      --   Sfx_ExpBar and Sfx_HitEndOfExpBar while it fills.
+      --
+      --   The move menu: Gold's list carries a MoveInfoBox with the type and
+      --   the PP of the highlighted move, which is what Red's arm has to
+      --   build its own panel for.
+      --
+      -- What Gold did not ship is the FRAME.  Its four commands are four
+      -- words in one box, not four buttons -- which is what "still no updated
+      -- battle ui like we have for Gen 1 with the 2x2 selections" was about.
+      -- So the Gold arm is that and nothing else: four boxes over the cart's
+      -- one, with the cart's own labels and the cart's own cursor in them.
+      -- See modules/Gen1BattleUI/gen2grid.lua.
     },
 
     -- ---- the menus a player lives in

@@ -6,6 +6,90 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.31] - 2026-09-05
+
+- **The battle HUD had a box behind it, and it should have had nothing.**
+
+  0.32.30 answered "white blocks around everything" by putting a PLATE behind
+  each HUD block: one clean rectangle through the box palette, in place of the
+  ragged cell each string was painting for itself. That was the wrong
+  instinct, and it was rejected on sight -- *"there shouldn't be the big black
+  or white box behind all that stuff. Look gen 1 looks much cleaner."*
+
+  Which is exactly right, and the reason Red looks cleaner is that Red's HUD
+  has no paper at all: `Font.draw` puts black glyphs on transparent straight
+  onto whatever is behind them. Gold's HUD is given the same nothing now, with
+  the engine's own switches and no repainting:
+
+  - **The text.** Its glyph pages are already ink-on-transparent
+    (`inkFrom2bpp`), so the block was only ever the paper rect
+    `Chrome.printThrough` fills before the first glyph. That fill is swallowed
+    for the length of a HUD draw and the letters land on the picture.
+  - **The bars.** `hp_bar.png` and `exp_bar.png` come out of the ROM as
+    *opaque* 2bpp sheets, colour 0 and all -- so each bar was a white slab
+    with a bar drawn on it, which is what "still white boxes around stuff,
+    like xp bar hp bar" was about. `GbcPalette` already has the shader for
+    this: the hardware OBJ rule, colour 0 transparent. The HUD's tiles are
+    bound through that instead, so the bar keeps its two hues and its black
+    rule and loses the slab. The empty half of a bar shows the picture, the
+    way the empty half of a bar on white paper shows the paper.
+
+  Only while a backdrop is up. On a battle with no backdrop the field is still
+  Gold's own white fill, the paper is invisible against it, and the screen is
+  the cart's exactly. `CLEAR HUD` on `BACKDROPS` turns it off; `HUD PAPER`,
+  which turned the plates off, is gone with them.
+
+- **The trainer you could see the arena through.**
+
+  Also reported twice, and the rectangle 0.32.30 laid under the pics was not
+  it -- a mon is not a rectangle, so paper the size of its bounding box is a
+  sticker with the mon printed in the middle of it. That was the *other* white
+  box.
+
+  The hole is real, and it is in the art. Gen 2's pics are matted on the way
+  out of the ROM: the white **around** the mon is flooded to transparent from
+  the four edges of the frame and the white **inside** it is meant to survive.
+  That flood leaks wherever the art runs off the edge of its own frame -- the
+  player's back-pic is bottom-aligned and cut by the frame, so a white pixel
+  on the bottom row is a seed and the flood walks up through the trainer and
+  takes his shirt with it. On the cart's white field you cannot tell; over a
+  picture the arena shows through him.
+
+  So the flood is run again, backwards, with one rule the extractor's did not
+  have: a border pixel is only OUTSIDE if it lies past the ink on its own
+  edge. Wherever the art runs into the frame, the frame is treated as the
+  art's own edge and the flood does not start there. The back-pic's bottom row
+  has ink at both ends, so nothing between them seeds and the shirt comes
+  back; a pic with padding under it has no ink on that row at all, so the
+  whole row seeds and the padding stays picture. Everything transparent the
+  flood does not reach is a hole, and that is the paper -- drawn as the pic's
+  own shape, at the engine's own coordinates, quad and scale, so it covers the
+  plain blit, the faint sink's crop, a Crystal animation frame and the
+  substitute doll without knowing which one it is looking at. A pic with no
+  holes builds no paper.
+
+- **`BATTLE MENUS` runs on Gold now, and draws the four buttons.**
+
+  Gold shipped most of what this mod adds to Red, which is why the feature was
+  Gen 1 only for its whole life: the 2x2 layout is the cart's own
+  (`col = ((i-1)%2)*spacing`, `row = floor((i-1)/2)*2`), so is the XP bar and
+  its two sounds, and so is a move list with the type and PP panel Red's arm
+  has to build for itself.
+
+  What Gold did not ship is the **frame**. Its four commands are four words in
+  one box across the right of the strip, so the grid reads as a block of text
+  rather than as four buttons -- which is what *"still no updated battle ui
+  like we have for Gen 1 with the 2x2 selections"* was about. The selections,
+  not the layout.
+
+  So the Gold arm is that and nothing else: four 10x3 boxes tiling rows 12-17,
+  the same four this mod draws on Red, with the cart's own labels and the
+  cart's own hand in them. `menuIndex` is still the cart's and is still moved
+  by the cart's own input handling. The move list, the bug contest's menu
+  (whose third label is `PARKBALL` and a count -- eleven glyphs where a
+  10-tile box has seven) and every message keep the cart's own box. `COMMAND
+  GRID` under `BATTLE MENUS` turns it off.
+
 ## [0.32.30] - 2026-09-04
 
 - **A backdrop was taking away the paper Gold's battle is drawn against.**
