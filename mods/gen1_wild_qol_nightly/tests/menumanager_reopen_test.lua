@@ -127,24 +127,52 @@ end
 
 -- The two shapes of game.  Gold's has `openStartMenu`; Red's has no such
 -- method at all, which is what the fallback is keyed on.
+-- A stack that actually stacks, because half of what is asserted below is
+-- about how many START menus are on it.
+local function fakeStack()
+  local stack = { states = {} }
+  function stack:push(state) self.states[#self.states + 1] = state end
+  function stack:pop() return table.remove(self.states) end
+  function stack:top() return self.states[#self.states] end
+  return stack
+end
+
 local function goldGame()
-  local game = { save = { player = { name = "GOLD" } }, opened = 0 }
-  game.stack = { states = {}, pop = function() end,
-                 top = function() return nil end }
-  game.openStartMenu = function(self) self.opened = self.opened + 1 end
+  local game = { save = { player = { name = "GOLD" } }, opened = 0, items = {} }
+  game.stack = fakeStack()
+  -- Game2:openStartMenu, reduced to the two things this file is about: it
+  -- pushes a menu, and the menu it pushes carries the two callbacks.
+  game.openStartMenu = function(self)
+    self.opened = self.opened + 1
+    self.stack:push({
+      screenId = "Gen2StartMenu",
+      onClose = function() self.stack:pop() end,
+      onChoose = function(id) self:openStartMenuItem(id) end,
+    })
+  end
+  game.openStartMenuItem = function(self, id) self.items[#self.items + 1] = id end
   return game
 end
 
 local function redGame()
   local game = { save = { player = { name = "RED" } } }
-  game.stack = { states = {}, pop = function() end,
-                 top = function() return nil end }
+  game.stack = fakeStack()
   return game
 end
 
 -- Walk the START menu hook the way the engine does, find the manager's own
 -- row, and run it -- which is what opens the editor and hands it the onCancel
 -- that has to put the menu back.
+-- The live menu the engine hands over on screen.pushed.  A real Gold one
+-- carries both callbacks, because Game2:openStartMenu supplied them.
+local function liveStartMenu(game, rows)
+  return {
+    screenId = "Gen2StartMenu", items = rows, update = function() end,
+    onClose = function() game.stack:pop() end,
+    onChoose = function(id) game:openStartMenuItem(id) end,
+  }
+end
+
 local function editorCancelFor(mod, game)
   local hook = mod.hooks_by_name["ui.start_menu.items"]
   assert(type(hook) == "function", "the START menu hook was never wrapped")
@@ -183,8 +211,7 @@ do
   -- The engine learns the id from the live menu; give it Gold's, so the
   -- fallback path is available and the test can prove it is NOT the one taken.
   for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
-    fn({ state = { screenId = "Gen2StartMenu", items = rows,
-                   update = function() end } })
+    fn({ state = liveStartMenu(game, rows) })
   end
 
   local pushes = #mod.pushed
@@ -205,8 +232,7 @@ do
   local game = goldGame()
   local cancel, rows = editorCancelFor(mod, game)
   for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
-    fn({ state = { screenId = "Gen2StartMenu", items = rows,
-                   update = function() end } })
+    fn({ state = liveStartMenu(game, rows) })
   end
 
   game.openStartMenu = function() error("no world") end
@@ -217,6 +243,102 @@ do
      "the learned id is the fallback -- a menu that opens nothing still "
      .. "beats no menu at all")
   ok(#mod.logged > 0, "and the failure is reported rather than swallowed")
+end
+
+-- --------------------------------------------- the menu it was opened FROM
+
+do
+  io.write("on Gold, the stale menu under the editor\n")
+  -- Red's Menu pops itself before a row's onSelect; Gold's StartMenu:choose
+  -- does not.  So on Gold the editor opens ON TOP of a live START menu, and a
+  -- re-open that does not drop it leaves two identical menus stacked -- B
+  -- pops one, the other is still there, and it reads as "you can't close it".
+  local mod = install(fakeMod())
+  local game = goldGame()
+
+  local cancel, rows = editorCancelFor(mod, game)
+  local menu = liveStartMenu(game, rows)
+  for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
+    fn({ state = menu })
+  end
+  -- the state of the world when the editor is open: the menu is still under it
+  game.stack:push(menu)
+  eq(#game.stack.states, 1, "the menu the editor was opened from is on the stack")
+
+  cancel()
+  eq(game.opened, 1, "the game opens its own menu")
+  eq(#game.stack.states, 1,
+     "and there is exactly ONE menu afterwards -- the stale one is dropped "
+     .. "rather than left under the new one")
+  local top = game.stack:top()
+  ok(top ~= menu,
+     "and it is the NEW one: the menu under the editor was built from the "
+     .. "layout the player just changed, so reusing it would show the old "
+     .. "order")
+  ok(type(top.onClose) == "function", "which closes")
+  ok(type(top.onChoose) == "function", "and opens its rows")
+end
+
+do
+  io.write("on Gold, the fallback carries the two callbacks\n")
+  local mod = install(fakeMod())
+  local game = goldGame()
+  local cancel, rows = editorCancelFor(mod, game)
+  for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
+    fn({ state = liveStartMenu(game, rows) })
+  end
+
+  game.openStartMenu = function() error("no world") end
+  cancel()
+
+  local push = mod.pushed[#mod.pushed]
+  eq(push and push.id, "Gen2StartMenu", "the learned id is pushed")
+  local opts = push and push.opts
+  ok(type(opts) == "table", "with options, not bare")
+  ok(opts and type(opts.onChoose) == "function",
+     "carrying onChoose, or its rows would open nothing")
+  ok(opts and type(opts.onClose) == "function",
+     "and onClose, or B and START would not shut it")
+  if opts then
+    opts.onChoose("pack")
+    eq(game.items[1], "pack", "and the synthesized onChoose is the game's own")
+  end
+end
+
+do
+  io.write("on Gold, a menu that arrives with neither\n")
+  -- The backstop.  This mod's hook runs on construction, so EVERY Gold start
+  -- menu reaches attach() -- whoever pushed it.  A menu with neither callback
+  -- cannot be left by any means the player has, so the two nils are filled in
+  -- rather than reported and left.
+  local mod = install(fakeMod())
+  local game = goldGame()
+  local _, rows = editorCancelFor(mod, game)
+  local inert = { screenId = "Gen2StartMenu", items = rows,
+                  update = function() end }
+  for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
+    fn({ state = inert })
+  end
+  ok(type(inert.onClose) == "function", "it is given a way out")
+  ok(type(inert.onChoose) == "function", "and a way in")
+  inert.onChoose("pokedex")
+  eq(game.items[1], "pokedex", "wired to the game's own opener")
+  ok(#mod.logged >= 2, "and both repairs are reported rather than silent")
+end
+
+do
+  io.write("on Gold, a menu that arrived properly is left alone\n")
+  local mod = install(fakeMod())
+  local game = goldGame()
+  local _, rows = editorCancelFor(mod, game)
+  local menu = liveStartMenu(game, rows)
+  local close, choose = menu.onClose, menu.onChoose
+  for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
+    fn({ state = menu })
+  end
+  eq(menu.onClose, close, "its own onClose is not replaced")
+  eq(menu.onChoose, choose, "nor its onChoose")
+  eq(#mod.logged, 0, "and there is nothing to report")
 end
 
 -- ------------------------------------------------------------------- Red

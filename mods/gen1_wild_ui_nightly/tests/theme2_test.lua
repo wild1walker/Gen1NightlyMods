@@ -381,6 +381,85 @@ do
      "having stood down for the session, it stays stood down")
 end
 
+-- ------------------------------------------------- the bar's own colour 0
+
+do
+  io.write("the HP bar's track\n")
+  freshChrome()
+  -- The one thing on a themed page that is NOT drawn through the box
+  -- palette.  BattleHud:barColors pins colour 0 to white because on the
+  -- cart's white page the bar's empty half is invisible; turn the page black
+  -- and it is a white slab hanging off the end of every bar in the party
+  -- list, which is where it was reported.
+  local seen = {}
+  local BattleHud = {
+    barColors = function(_, key, zero)
+      seen[#seen + 1] = { call = "bar", key = key, zero = zero }
+      return { zero or { 255, 255, 255 }, { 0, 188, 0 }, { 0, 100, 0 },
+               { 0, 0, 0 } }
+    end,
+    expColors = function(_, zero)
+      seen[#seen + 1] = { call = "exp", zero = zero }
+      return { zero or { 255, 255, 255 }, { 0, 0, 255 }, { 0, 0, 128 },
+               { 0, 0, 0 } }
+    end,
+  }
+  package.loaded["src.ui.gen2.BattleHud"] = BattleHud
+
+  local stored = {}
+  local context, mod = fakeContext(stored)
+  local theme = Theme2.new(context)
+  theme.install()
+  local frame = mod.hooks.wrapped["core.update"]
+  local function tick(game) return frame(function() end, game, 1 / 60) end
+  local page = stackOf({ class = PartyMenuClass })
+
+  local function track(colors)
+    local c = colors[1]
+    return ("%d,%d,%d"):format(c[1], c[2], c[3])
+  end
+
+  -- LIGHT: the substitution puts back exactly the white it took.
+  stored.ui_theme = "light"
+  tick(page)
+  eq(track(BattleHud:barColors("green")), "255,255,255",
+     "on a light page the track is the white the cart wrote")
+  eq(track(BattleHud:expColors()), "255,255,255", "and so is the exp bar's")
+
+  -- DARK: the page's own paper, read live off the table the theme rewrites,
+  -- so the two cannot disagree.
+  stored.ui_theme = "dark"
+  tick(page)
+  eq(paletteOf(Chrome), DARK_PAGE, "the page went dark")
+  eq(track(BattleHud:barColors("green")), "0,0,0",
+     "and the bar's empty half went with it, instead of staying a white slab")
+  eq(track(BattleHud:expColors()), "0,0,0", "the exp bar too")
+
+  -- The bar's own two hues and its rule are untouched: they are what the bar
+  -- MEANS, not what page it is on.
+  local colors = BattleHud:barColors("green")
+  eq(("%d,%d,%d"):format(colors[2][1], colors[2][2], colors[2][3]), "0,188,0",
+     "the bar keeps its own green")
+  eq(("%d,%d,%d"):format(colors[4][1], colors[4][2], colors[4][3]), "0,0,0",
+     "and its own black rule")
+
+  -- A caller that has already decided keeps its answer: the stats screen
+  -- passes the page tint itself (gen1recomp#1693), and this must not override
+  -- it.
+  local tinted = BattleHud:barColors("green", { 9, 9, 9 })
+  eq(track(tinted), "9,9,9", "an explicit zero is passed straight through")
+
+  -- Installed once, however many themes are built.
+  local calls = #seen
+  local second = Theme2.new(select(1, fakeContext({})))
+  second.install()
+  BattleHud:barColors("green")
+  eq(#seen, calls + 1,
+     "and the wrap is not stacked twice by a second theme")
+
+  package.loaded["src.ui.gen2.BattleHud"] = nil
+end
+
 -- ---------------------------------------------------------------- helpers
 
 do

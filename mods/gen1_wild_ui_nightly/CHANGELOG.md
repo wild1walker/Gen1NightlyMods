@@ -6,6 +6,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.33] - 2026-09-05
+
+- **The white box on every HP bar in Gold's party list.**
+
+  An HP bar is tiles, not text, and it is the one thing on a themed page that
+  does not read the box palette. `BattleHud:barColors` builds it as
+
+  ```lua
+  { zero or { 255, 255, 255 }, pal[1], pal[2], { 0, 0, 0 } }
+  ```
+
+  Colour 0 is the bar's **track** — its empty half — and on the cart's white
+  page it is invisible, which is exactly why it was written as a literal. Turn
+  the page black and it is a white slab hanging off the end of the bar. In a
+  party list six of them stack up. Measured off the report: 28 pixels of green
+  then 20 of `#ffffff`, which is `12/20` of a 48-pixel bar to the pixel.
+
+  The engine already has the parameter for this and says what it is for:
+  `zero` overrides colour 0, *"the stats screen puts the page tint there"*
+  ([gen1recomp#1693]). `SummaryMenu` passes one; `PartyMenu` does not, and
+  neither does the battle. So the **default** becomes the page's own paper,
+  read live off the same four numbers `UI THEME` rewrites — white on a light
+  page, so `LIGHT` puts back exactly the white it took, and it cannot disagree
+  with the box it is sitting in. A caller that has already decided keeps its
+  answer.
+
+  The bar's own two hues and its black rule are untouched: those are what the
+  bar *means*, not what page it is on.
+
+[gen1recomp#1693]: https://github.com/bryanthaboi/gen1recomp/issues/1693
+
 ## [0.32.32] - 2026-09-05
 
 - **The battle HUD does not take the theme.**

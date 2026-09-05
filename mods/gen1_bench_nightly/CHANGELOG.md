@@ -5,6 +5,12 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.33] - 2026-09-05
+
+- No change. The release is the other two bundles': the HP bar in
+  Gold's party list loses the white box on a dark page, and
+  `MENU LAYOUT` no longer leaves a START menu that will not close.
+
 ## [0.32.32] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: the battle HUD on Gold keeps

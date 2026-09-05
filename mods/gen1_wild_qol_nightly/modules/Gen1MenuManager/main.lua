@@ -216,15 +216,81 @@ return function(mod)
   -- Gold's, and it does the two things a re-open there also owes the world --
   -- cancelling the map-name sign and stopping the player -- which a bare push
   -- skipped as well.
+  --
+  -- ------- and the menu it was opened FROM is still there
+  --
+  -- Red's `Menu` pops itself before it runs a row's onSelect, so by the time
+  -- the editor opens, the START menu is off the stack and the re-open puts
+  -- back the only one. Gold's `StartMenu:choose` does NOT pop -- it runs
+  -- onSelect and returns -- so the editor sits ON TOP of a live START menu,
+  -- and a re-open makes a SECOND one behind it. Two identical menus stacked:
+  -- B pops one and the other is still there, which reads exactly as "you
+  -- can't close it".
+  --
+  -- So the stale one is dropped first. Popping it rather than reusing it is
+  -- deliberate: the menu under the editor was built from the layout the
+  -- player just CHANGED, so reusing it would show the old order.
+  local function isStartMenu(state)
+    if type(state) ~= "table" then return false end
+    if contexts.start.menu ~= nil and state == contexts.start.menu then
+      return true
+    end
+    return startMenuId ~= nil and state.screenId == startMenuId
+  end
+
+  local function dropStaleStartMenus(game)
+    local stack = game and game.stack
+    if type(stack) ~= "table" then return end
+    if type(stack.top) ~= "function" or type(stack.pop) ~= "function" then
+      return
+    end
+    -- Bounded: a stack this mod has misread is a bug to survive, not a loop
+    -- to run until the game is empty.
+    for _ = 1, 4 do
+      local top = stack:top()
+      if not isStartMenu(top) then return end
+      stack:pop()
+      if contexts.start.menu == top then contexts.start.menu = nil end
+    end
+  end
+
+  -- ------- and a menu that is pushed by id still needs its two callbacks
+  --
+  -- Gold's `choose` ends in `if self.onChoose then` and its `close` in `if
+  -- self.onClose then`, and both come from the PUSH OPTIONS. So a bare push
+  -- builds a menu that opens nothing and does not shut -- the rows draw, the
+  -- cursor moves, and there is no way out but a soft reset. These are the two
+  -- Game2:openStartMenu supplies, synthesized the same way the engine's own
+  -- Gen 1 facade synthesizes them (src/mods/Gen2Compat.lua), so the fallback
+  -- path cannot produce that menu either.
+  --
+  -- nil on Red, where `StartMenu.new(game)` takes no options and builds every
+  -- row's onSelect itself.
+  local function startMenuOptions(game)
+    if type(game.openStartMenuItem) ~= "function" then return nil end
+    return {
+      save = game.save,
+      onClose = function()
+        if game.stack and type(game.stack.pop) == "function" then
+          game.stack:pop()
+        end
+      end,
+      onChoose = function(id) game:openStartMenuItem(id) end,
+    }
+  end
+
   local function reopenStartMenu(game)
     if not game then return end
+    dropStaleStartMenus(game)
     if type(game.openStartMenu) == "function" then
       local ok, problem = pcall(game.openStartMenu, game)
       if ok then return end
       mod.log:warn("the START menu would not re-open through the game: %s",
                    tostring(problem))
     end
-    if startMenuId then mod.ui.push(game, startMenuId) end
+    if startMenuId then
+      mod.ui.push(game, startMenuId, startMenuOptions(game))
+    end
   end
 
   local function openEditor(game, ctx, key, onCancel)
@@ -236,6 +302,27 @@ return function(mod)
     if key == "start" then
       local id = state.screenId
       if type(id) == "string" and id ~= "" then startMenuId = id end
+      -- The backstop, and it is here rather than beside the push because it
+      -- is the only place that sees EVERY start menu: this mod's hook runs on
+      -- construction, so a menu built by any route at all arrives here.
+      --
+      -- A Gold START menu with neither callback cannot be left by any means
+      -- the player has. Filling in the two nils turns the worst outcome this
+      -- mod can cause into no outcome at all -- and it only ever fills in a
+      -- nil, so a menu the game opened properly is untouched.
+      local options = startMenuOptions(game)
+      if options then
+        if type(state.onChoose) ~= "function" then
+          state.onChoose = options.onChoose
+          mod.log:warn("a START menu arrived with no onChoose; supplying "
+            .. "one, or its rows would open nothing")
+        end
+        if type(state.onClose) ~= "function" then
+          state.onClose = options.onClose
+          mod.log:warn("a START menu arrived with no onClose; supplying one, "
+            .. "or B and START would not shut it")
+        end
+      end
     end
 
     local baseUpdate = state.update

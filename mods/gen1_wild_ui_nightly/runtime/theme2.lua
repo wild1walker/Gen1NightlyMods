@@ -553,6 +553,61 @@ function Theme2.new(context)
       return nextLink(game, dt)
     end)
 
+    -- ------- the one thing on a themed page that is not drawn through these
+    -- four numbers
+    --
+    -- An HP bar is tiles, not text, and `BattleHud:barColors` builds its
+    -- palette from `palettes.hpBar` with colour 0 pinned to WHITE:
+    --
+    --     { zero or { 255, 255, 255 }, pal[1], pal[2], { 0, 0, 0 } }
+    --
+    -- Colour 0 is the bar's TRACK -- the empty half -- and on the cart's white
+    -- page it is invisible, which is exactly why it was written as a literal.
+    -- Turn the page black and it is a white slab hanging off the end of every
+    -- bar in the party menu.  Reported against the party list, where six of
+    -- them stack up.
+    --
+    -- The engine already has the parameter for this and says what it is for:
+    -- `zero` overrides colour 0, "the stats screen puts the page tint there"
+    -- (BattleHud:drawHpBar, gen1recomp#1693).  SummaryMenu passes one;
+    -- PartyMenu does not, and neither does the battle.  So the DEFAULT
+    -- becomes the page's own paper -- which is these four numbers, read live,
+    -- so it is white on a light page and cannot disagree with the box it is
+    -- sitting in.
+    --
+    -- Left alone wherever the caller has already decided: a non-nil `zero` is
+    -- passed straight through, so the stats screen keeps its tint.  And on a
+    -- LIGHT boot the substitution puts back the same white it took.
+    do
+      local okHud, BattleHud = pcall(require, "src.ui.gen2.BattleHud")
+      if okHud and type(BattleHud) == "table"
+          and not rawget(BattleHud, "__gen1wildBarPaper") then
+        BattleHud.__gen1wildBarPaper = true
+        local function paper()
+          local entry = live[1]
+          if type(entry) ~= "table" then return nil end
+          return { entry[1], entry[2], entry[3] }
+        end
+        for _, name in ipairs({ "barColors", "expColors" }) do
+          local base = BattleHud[name]
+          if type(base) == "function" then
+            if name == "barColors" then
+              BattleHud[name] = function(selfHud, key, zero)
+                return base(selfHud, key, zero or paper())
+              end
+            else
+              BattleHud[name] = function(selfHud, zero)
+                return base(selfHud, zero or paper())
+              end
+            end
+          else
+            mod.log:warn("src.ui.gen2.BattleHud has no %s; a bar on a dark "
+              .. "page keeps its white track", name)
+          end
+        end
+      end
+    end
+
     mod.log:info("UI THEME is on Gold's box palette")
   end
 

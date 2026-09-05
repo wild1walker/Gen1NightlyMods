@@ -7,6 +7,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.33] - 2026-09-05
+
+- **`MENU LAYOUT` no longer leaves Gold with a START menu you cannot get out
+  of.**
+
+  0.32.27 fixed one half of this — re-opening through `Game2:openStartMenu`,
+  which is the only call that supplies `onChoose` and `onClose`. The other
+  half was still there, and it is a difference between the two games that this
+  mod had inherited an assumption about:
+
+  > **Red's `Menu` pops itself before it runs a row's `onSelect`. Gold's
+  > `StartMenu:choose` does not** — it runs `onSelect` and returns.
+
+  So on Gold the editor opened *on top of* a live START menu, and the re-open
+  put a second one behind it. Two identical menus stacked: B pops one and the
+  other is still there, which is exactly what "you can't close it" looks like.
+  The stale one is dropped first now — popped rather than reused, because the
+  menu under the editor was built from the layout the player had just
+  **changed**, so reusing it would show the old order.
+
+  Two more things went in with it, because a START menu that cannot be left is
+  the worst thing this mod can do to a save and one fix for it is not enough:
+
+  - the **fallback push** carries the two callbacks now, synthesized the way
+    the engine's own Gen 1 facade synthesizes them, so the path taken when
+    `openStartMenu` is missing or raises cannot build an inert menu either;
+  - and **every** Gold START menu is checked on the way past. This mod's hook
+    runs on construction, so one reaches it whoever pushed it; if it arrives
+    with neither callback, the two nils are filled in and the repair is
+    logged. There is no route left that produces a menu with no way out.
+
 ## [0.32.32] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: the battle HUD on Gold keeps
