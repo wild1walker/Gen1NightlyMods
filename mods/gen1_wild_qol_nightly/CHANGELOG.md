@@ -7,6 +7,55 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.44] - 2026-09-05
+
+**TRAINER REMATCH now runs on Gold, Silver and Crystal.** It was gated to Gen 1
+on two claims, and neither survived being checked.
+
+The first was that Gold already has this through the POKéGEAR -- a trainer takes
+your number and calls when they want to go again. The *cartridge* does. This
+engine does not, yet: the rematch flag is set by the `.WantsBattle` branch of
+`engine/phone/scripts/trainers.asm`, that bank is unextracted, `WantsBattle`
+appears in the port only inside a comment, and nothing outside `Phone.lua` ever
+calls `Phone.setRematchReady`. So there was no second rematch system to compete
+with -- there was no rematch on Gold at all.
+
+The second was that neither seam exists there. `world.talk` really is Gen 1's,
+but `World:interactBody` is a method and this suite patches engine methods
+everywhere; and `BattleState.newTrainer` has no Gen 2 counterpart because Gold
+has something better -- `World:startScriptedBattle` is the battle, the
+transition, the music and the prize with **none** of the trainer's own script.
+That is exactly the line a rematch has to draw, and on Red it had to be drawn by
+hand. So no badge is handed out twice, no after-battle text replays, and no
+`disappear` fires again.
+
+The feature is the same one Red has, and the same three rows drive it:
+
+- **The offer sits on the end of the conversation.** Talk to a trainer you have
+  beaten, read their line to the end, press on -- "Want to battle again?". B out
+  of the line is nothing at all, exactly as on Red: the press that closed the
+  last page is still that frame's when the script goes idle.
+- **The gate is Gold's, and it is a better one.** Red asks the stack whether the
+  engine has finished speaking. Gold's talk is a script, so this asks the VM --
+  plus nothing over the world: no box, no menu, no battle, no fade. A gym leader
+  still handing over a TM, a script walking somebody off, a queued phone call:
+  all of them keep the VM busy, and none of them gets a question hung off it.
+- **MATCH LEVELS and REMATCH PRIZE work as they do on Red.** Levels ride the
+  `trainer.party` hook, which Gold raises, armed only for this feature's own
+  battle. The price is the class's base reward times the last party row's level,
+  halved -- read off the roster rows, which is the same arithmetic the battle
+  will do when it pays out.
+
+`modules/Gen1Rematch/gen2.lua` is a second file rather than a fifth branch in
+`main.lua`: the feature is shared, every seam is different, and writing both
+games into one function would have left neither readable. 43 assertions cover
+the Gold arm, including every shape that must *not* produce an offer.
+
+While writing them a latch came out that would have switched the feature off for
+the rest of a session if an offer ever failed part-way. It was redundant -- the
+armed talk is cleared before the question is asked and set only by a fresh talk,
+so nothing could re-enter anyway.
+
 ## [0.32.43] - 2026-09-05
 
 No change. This release is BATTLE INTRO's two settings reaching Gold, in the UI

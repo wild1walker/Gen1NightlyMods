@@ -299,21 +299,29 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen1Rematch", "gen1_rematch", "rematch" },
-      -- Gen 1 only, and this one is a feature Gold shipped rather than a gap.
+      -- Runs on Gold, Silver and Crystal too, through modules/Gen1Rematch/
+      -- gen2.lua.  It was gated on two claims, and both turned out to be
+      -- wrong when they were checked rather than reasoned about.
       --
-      -- A rematch on Gold is the POKéGEAR: a trainer takes your number, calls
-      -- you when they want to go again, and the cart tracks who is ready
-      -- (src/core/gen2/Phone.lua, src/core/gen2/PhoneRing.lua).  Putting a
-      -- "want to battle again?" box on the end of an `after` line beside that
-      -- would be a second, worse rematch system competing with the one the
-      -- game is built around.
+      -- The first was that Gold has this already, through the POKéGEAR: a
+      -- trainer takes your number and calls when they want to go again.  The
+      -- cartridge does.  This engine does not -- not yet.  The rematch flag
+      -- is set by `engine/phone/scripts/trainers.asm`'s .WantsBattle branch,
+      -- that bank is unextracted, `WantsBattle` appears in the port only in a
+      -- comment, and nothing outside Phone.lua ever calls
+      -- Phone.setRematchReady.  So there is no second rematch system to
+      -- compete with; there is no rematch on Gold at all.
       --
-      -- Both of its seams are Gen 1's anyway.  `world.talk` is raised from
-      -- src/world/OverworldController.lua and nowhere else, so there is no
-      -- wrappable talk on Gold, and `BattleState.newTrainer` has no Gen 2
-      -- backing -- Gold builds and pushes a trainer battle in one call the
-      -- way it does a wild one.
-      gen1_only = true,
+      -- The second was that neither seam exists there.  `world.talk` really
+      -- is Gen 1's -- but World:interactBody is a method, and this suite
+      -- patches engine methods everywhere.  And `BattleState.newTrainer` has
+      -- no Gen 2 backing because Gold has something better:
+      -- World:startScriptedBattle is the battle, the transition, the music
+      -- and the prize with NONE of the trainer's own script, which is exactly
+      -- the line a rematch has to draw -- on Red that separation had to be
+      -- built by hand.
+      --
+      -- See modules/Gen1Rematch/gen2.lua for the seam-by-seam mapping.
     },
     {
       id = "caught",
