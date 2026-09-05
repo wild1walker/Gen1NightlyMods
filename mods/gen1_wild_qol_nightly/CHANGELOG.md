@@ -7,6 +7,57 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.59] - 2026-09-05
+
+### Fixed
+
+- **Gold's overworld POKéMON on the four GENERIC sheets now wear this suite's
+  art.** Reported as "the NPC Pokémon still haven't changed", and the reason
+  is a claim in this mod's own comment that was simply wrong:
+
+  > Gold's are not generic — each has its own sheet — and the sprite is NAMED
+  > after what it is.
+
+  It isn't. `spriteOrder` [76]–[79] are `SPRITE_MONSTER`, `SPRITE_FAIRY`,
+  `SPRITE_BIRD` and `SPRITE_DRAGON` — the same four generic creature sheets
+  Red has. They sit *below* the `SPRITE_POKEMON` block, so the extractor gives
+  them no species, and their names aren't species either. Every POKéMON
+  standing on one kept the cart's art. One sheet really does serve several
+  species: `SPRITE_MONSTER` is Joey's RATTATA on Route 30 and Jasmine's
+  AMPHAROS in the Olivine lighthouse.
+
+  Which is the exact case Red needed a written table for, so Gold gets one
+  too — read off pret/pokecrystal's `maps/*.asm` rather than recalled. Nine
+  POKéMON across seven maps:
+
+  | Map | Cell | Sheet | Species |
+  |---|---|---|---|
+  | Route 30 | 5,24 · 5,25 | MONSTER | RATTATA ×2 |
+  | Olivine Lighthouse 6F | 9,8 | MONSTER | AMPHAROS |
+  | Ilex Forest | 14,31 | BIRD | FARFETCH'D |
+  | Violet Nickname Speech House | 5,2 | BIRD | PIDGEY |
+  | Mt Moon Square | 6,6 · 7,6 | FAIRY | CLEFAIRY ×2 |
+  | Mahogany Mart 1F | 3,6 | DRAGON | DRAGONITE |
+  | Team Rocket Base B2F | 9,13 | DRAGON | DRAGONITE |
+
+  Thirteen objects use these sheets; the other four are **dolls** — three in
+  the Copycat's house, one in the Fan Club — and they are deliberately absent,
+  for the same reason the big Snorlax, Lapras and Onix dolls are. A real
+  CLEFAIRY where a Clefairy doll should be is worse art and a worse joke.
+
+  Matching is on map *and* cell *and* sheet, so a doll's cell is not a row and
+  one `SPRITE_MONSTER` cannot be mistaken for another. Each species gets one
+  cloned record rather than a rewrite of the shared sheet, so Amphy cannot end
+  up wearing the Rattata's art.
+
+- **FARFETCH'D and MR. MIME resolve on Gold without waiting for the game
+  data.** The two cartridges spell them differently — Gold writes the
+  apostrophe and full stop as underscores (`FARFETCH_D`, `MR__MIME`, the
+  second with two) — so a lookup before the game's data was up answered nil
+  and the POKéMON silently kept the cart's art. Both spellings are named now.
+  The suite caught this one: the table said `FARFETCHD` and the cart's own
+  species list disagreed.
+
 ## [0.32.58] - 2026-09-05
 
 ### Changed

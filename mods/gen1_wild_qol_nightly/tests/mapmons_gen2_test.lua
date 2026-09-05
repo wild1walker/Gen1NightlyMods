@@ -82,8 +82,20 @@ World.rebuildPeople = function(world)
     local npc = world.pool[obj.key]
     if not npc then
       local def = world.sprites[obj.sprite]
-      npc = { id = obj.key, spriteDef = def,
+      -- The shape src/world/gen2/Npc.lua really builds: the MAP OBJECT under
+      -- `def`, the map id beside it, and `setSpriteDef` -- which early-returns
+      -- on the table it already holds and rebuilds the renderer otherwise.
+      -- The generic-sheet arm reads all three, so a stub without them would
+      -- pass while the game crashed.
+      npc = { id = obj.key, spriteDef = def, mapId = obj.mapId or "ROUTE_30",
+              def = obj.def or { sprite = obj.sprite },
               sprite = SpriteRenderer.new(def, obj.key) }
+      npc.setSpriteDef = function(self, spriteDef)
+        if not spriteDef or spriteDef == self.spriteDef then return false end
+        self.spriteDef = spriteDef
+        self.sprite = SpriteRenderer.new(spriteDef, self.id)
+        return true
+      end
       world.pool[obj.key] = npc
       built[#built + 1] = "built:" .. obj.key
     else
@@ -106,11 +118,27 @@ local function shipped()
   local install = source:match(
     "(  local function installGen2MapMons%(%).-\n  end)\n")
   assert(install, "could not find installGen2MapMons")
+  -- The generic-sheet arm the resync now calls into, lifted with it: the two
+  -- tables and the two functions that read them.  Supplying stand-ins for
+  -- these would let this file agree with a table it never checked, which is
+  -- the whole thing tests/mapmons_gen2_generic_test.lua exists to stop.
+  local sheets = source:match("(  local GEN2_GENERIC_SHEETS = {.-\n  })\n")
+  assert(sheets, "could not find GEN2_GENERIC_SHEETS")
+  local table_ = source:match("(  local GEN2_OVERWORLD_MON = {.-\n  })\n")
+  assert(table_, "could not find GEN2_OVERWORLD_MON")
+  local species = source:match(
+    "(  local function gen2MapMonSpecies%(npc%).-\n  end)\n")
+  assert(species, "could not find gen2MapMonSpecies")
+  local monDef = source:match(
+    "(  local gen2MapMonDefs = {}\n  local function gen2MapMonDef%(game, species, sheetId%).-\n  end)\n")
+  assert(monDef, "could not find gen2MapMonDef")
   -- The installer also closes over the per-record rewrite and the option, so
   -- the day-care wrap can reach both.
   return assert(load(
     "local isGen2, SpriteRenderer, refreshOverworldMonDefs, repointMonDef,"
-      .. " overworldMonsEnabled, TRUE_COLOR_ART, mod = ...\n"
+      .. " overworldMonsEnabled, TRUE_COLOR_ART, mod, dexForSpecies,"
+      .. " spritesFor = ...\n"
+      .. sheets .. "\n" .. table_ .. "\n" .. species .. "\n" .. monDef .. "\n"
       .. resync .. "\n" .. install .. "\nreturn installGen2MapMons, resyncGen2OverworldMons",
     "@Gen1Follower"))
 end
@@ -152,7 +180,9 @@ end
 local installGen2MapMons, resyncGen2OverworldMons =
   shipped()(true, SpriteRenderer, refreshOverworldMonDefs, repointMonDef,
             function() return enabled end, false,
-            { log = { warn = function() end } })
+            { log = { warn = function() end } },
+            function(name) return name and 1 or nil end,
+            function(game) return game and game.data and game.data.gen2Sprites end)
 
 eq(installGen2MapMons(), true, "the map POKeMON arm installs on Gold")
 eq(installGen2MapMons(), true, "and a second install is a no-op")
@@ -426,6 +456,83 @@ do
   local world = scene()
   eq(World.breedmonSpriteDef(world, nil), nil,
      "an empty day-care slot is still nothing")
+end
+
+-- ---- the four GENERIC sheets, where one sheet is several POKeMON
+--
+-- SPRITE_MONSTER carries no `species` and its name is not one either, so the
+-- named arm above cannot reach it.  Two of them stand on Route 30 and are both
+-- RATTATA; a third stands in the Copycat's house and is a DOLL.  The table is
+-- keyed on map AND cell precisely so those come out differently.
+
+local function genericScene()
+  built = {}
+  refreshed = 0
+  local sprites = {
+    SPRITE_MONSTER = {
+      id = "SPRITE_MONSTER", spriteType = "WALKING_SPRITE",
+      image = "assets/generated/sprites/monster.png", frames = 6, walker = true,
+    },
+  }
+  local world = {
+    sprites = sprites,
+    pool = {},
+    objects = {
+      -- Route30.asm:429-430, the two Rattata of EVENT_ROUTE_30_BATTLE
+      { key = "ROUTE_30_obj_6", sprite = "SPRITE_MONSTER", mapId = "ROUTE_30",
+        def = { sprite = "SPRITE_MONSTER", x = 5, y = 24 } },
+      { key = "ROUTE_30_obj_7", sprite = "SPRITE_MONSTER", mapId = "ROUTE_30",
+        def = { sprite = "SPRITE_MONSTER", x = 5, y = 25 } },
+      -- CopycatsHouse2F.asm:377, a DOLL on the same sheet
+      { key = "COPYCATS_HOUSE_2F_obj_2", sprite = "SPRITE_MONSTER",
+        mapId = "COPYCATS_HOUSE_2F",
+        def = { sprite = "SPRITE_MONSTER", x = 2, y = 1 } },
+      -- and a cell on the right map that is nobody
+      { key = "ROUTE_30_obj_9", sprite = "SPRITE_MONSTER", mapId = "ROUTE_30",
+        def = { sprite = "SPRITE_MONSTER", x = 11, y = 3 } },
+    },
+  }
+  world.game = { data = { gen2Sprites = sprites } }
+  return world
+end
+
+do
+  local world = genericScene()
+  World.rebuildPeople(world)
+
+  local a = npcNamed(world, "ROUTE_30_obj_6")
+  local b = npcNamed(world, "ROUTE_30_obj_7")
+  eq(a.sprite.image, OUR_SHEET, "Route 30's first RATTATA wears this mod's sheet")
+  eq(b.sprite.image, OUR_SHEET, "and so does the second")
+  eq(a.spriteDef, b.spriteDef,
+     "both through ONE record -- a species, not an object, owns a sheet")
+  eq(a.spriteDef.species, "RATTATA", "which names the species the map gives them")
+  ok(a.spriteDef ~= world.sprites.SPRITE_MONSTER,
+     "and it is a clone: the cart's shared sheet is not rewritten under the doll")
+
+  local doll = npcNamed(world, "COPYCATS_HOUSE_2F_obj_2")
+  eq(doll.sprite.image, "assets/generated/sprites/monster.png",
+     "the Copycat's DOLL keeps the cart's art -- it is a doll, and that is the joke")
+  local nobody = npcNamed(world, "ROUTE_30_obj_9")
+  eq(nobody.sprite.image, "assets/generated/sprites/monster.png",
+     "and a cell no row names is left alone on the right map too")
+end
+
+-- MAP POKeMON off has to reach these as well: they are a def swap rather than
+-- a record rewrite, so the OFF path above cannot put them back on its own.
+do
+  local world = genericScene()
+  World.rebuildPeople(world)
+  eq(npcNamed(world, "ROUTE_30_obj_6").sprite.image, OUR_SHEET, "on to begin with")
+
+  enabled = false
+  resyncGen2OverworldMons(world)
+  eq(npcNamed(world, "ROUTE_30_obj_6").sprite.image,
+     "assets/generated/sprites/monster.png",
+     "OFF puts the cart's generic sheet back on a live map POKeMON")
+  enabled = true
+  resyncGen2OverworldMons(world)
+  eq(npcNamed(world, "ROUTE_30_obj_6").sprite.image, OUR_SHEET, "and ON returns it")
 end
 
 io.write(("mapmons_gen2: %d passed, %d failed\n"):format(passed, failed))

@@ -198,6 +198,16 @@ return function(mod)
     ZAPDOS=145, MOLTRES=146, DRATINI=147, DRAGONAIR=148, DRAGONITE=149, MEWTWO=150, MEW=151
   }
 
+  -- Two names the two cartridges spell differently.  This table is Red's, and
+  -- Gold's `speciesOrder` writes an apostrophe and a full stop as underscores
+  -- -- FARFETCH_D and MR__MIME, the second with two.  Both resolve anyway,
+  -- through the `game.data.pokemon` fallback in dexForSpecies below, but only
+  -- once the game's data is up; a lookup before that answered nil and the
+  -- POKeMON silently kept the cart's art.  Named here so the answer does not
+  -- depend on when it is asked.
+  speciesToDex.FARFETCH_D = speciesToDex.FARFETCHD
+  speciesToDex.MR__MIME = speciesToDex.MR_MIME
+
   local MAX_FOLLOWER_DEX = 251
 
   -- Other content mods can register additional species before this mod loads.
@@ -828,8 +838,129 @@ return function(mod)
   -- already has -- which ours always is, because the rewrite is in place.  So
   -- a pooled POKeMON would keep a renderer built from the cart's icon however
   -- many times you walked back onto its map.
+  -- ------- and the THIRD half: Gold's four GENERIC creature sheets
+  --
+  -- The comment above says Gold needs no object table because "Gold's are not
+  -- generic -- each has its own sheet -- and the sprite is NAMED after what it
+  -- is".  That is wrong, and this is the part it missed.
+  --
+  -- `tools/rom_manifest_crystal.json`'s `spriteOrder` carries the same four
+  -- generic creature sheets Red does, at [76]-[79]:
+  --
+  --     SPRITE_MONSTER   SPRITE_FAIRY   SPRITE_BIRD   SPRITE_DRAGON
+  --
+  -- They are below the `SPRITE_POKEMON` block ($80 = [128]), so the extractor
+  -- writes them no `species` -- they are not SpriteMons rows -- and the name
+  -- half cannot help either, because MONSTER and DRAGON are not species.  So
+  -- every POKeMON standing on one of these four kept the cart's art, and one
+  -- sheet really does serve several species at once: SPRITE_MONSTER is Joey's
+  -- RATTATA on Route 30 and Jasmine's AMPHAROS in the lighthouse.
+  --
+  -- Which is exactly the case Red needed a written table for, so Gold needs
+  -- one too.  This is it, read off pret/pokecrystal's `maps/*.asm` rather than
+  -- recalled: every `object_event` in the game that names one of the four,
+  -- with the species its own script or event flag gives it.
+  --
+  --   Route30.asm            ROUTE30_MONSTER1/2, and the movement labels the
+  --                          battle script applies to them are
+  --                          `Route30_MikeysRattataAttacksMovement` and
+  --                          `Route30_JoeysRattataAttacksMovement`.
+  --   OlivineLighthouse6F    `OlivineLighthouseAmphy`, whose script does
+  --                          `setval AMPHAROS / special PlaySlowCry`.
+  --   VioletNicknameSpeech-  `VioletNicknameSpeechHouseBirdScript`, whose
+  --   House                  script does `cry PIDGEY`.
+  --   IlexForest             EVENT_ILEX_FOREST_FARFETCHD.
+  --   MountMoonSquare        EVENT_MT_MOON_SQUARE_CLEFAIRY, both of them.
+  --   MahoganyMart1F         EVENT_MAHOGANY_MART_LANCE_AND_DRAGONITE.
+  --   TeamRocketBaseB2F      EVENT_TEAM_ROCKET_BASE_B2F_DRAGONITE.
+  --
+  -- ------- and the four this must NOT touch
+  --
+  -- Thirteen objects in the game use these sheets; nine are POKeMON and four
+  -- are DOLLS, and the dolls are left alone for the same reason Red's Copycat
+  -- house dolls are and for the same reason BIG_DOLLS above are:
+  --
+  --   CopycatsHouse2F   three, all on `CopycatsHouse2FDoll`
+  --   PokemonFanClub    one, on `PokemonFanClubClefairyDollScript`
+  --
+  -- A real CLEFAIRY standing where a Clefairy DOLL should be is worse art and
+  -- a worse joke.  They are absent from the table below, deliberately, and the
+  -- coordinate match is what keeps them absent: a doll's cell is not a row.
+  local GEN2_GENERIC_SHEETS = {
+    SPRITE_MONSTER = true, SPRITE_FAIRY = true,
+    SPRITE_BIRD = true, SPRITE_DRAGON = true,
+  }
+
+  -- map id -> { x, y, sheet, species }, matching pokecrystal's own
+  -- `object_event X, Y, SPRITE_*` order.  All three of x, y and sheet have to
+  -- agree before a row is used: the cell alone would fire on a ROM hack that
+  -- moved somebody else onto it, and the sheet alone cannot tell two
+  -- SPRITE_MONSTER apart.
+  local GEN2_OVERWORLD_MON = {
+    ILEX_FOREST = { { 14, 31, "SPRITE_BIRD", "FARFETCH_D" } },
+    MAHOGANY_MART_1F = { { 3, 6, "SPRITE_DRAGON", "DRAGONITE" } },
+    MOUNT_MOON_SQUARE = {
+      { 6, 6, "SPRITE_FAIRY", "CLEFAIRY" },
+      { 7, 6, "SPRITE_FAIRY", "CLEFAIRY" },
+    },
+    OLIVINE_LIGHTHOUSE_6F = { { 9, 8, "SPRITE_MONSTER", "AMPHAROS" } },
+    ROUTE_30 = {
+      { 5, 24, "SPRITE_MONSTER", "RATTATA" },
+      { 5, 25, "SPRITE_MONSTER", "RATTATA" },
+    },
+    TEAM_ROCKET_BASE_B2F = { { 9, 13, "SPRITE_DRAGON", "DRAGONITE" } },
+    VIOLET_NICKNAME_SPEECH_HOUSE = { { 5, 2, "SPRITE_BIRD", "PIDGEY" } },
+  }
+
+
+  -- The species this NPC is meant to be, or nil.  Read off the MAP OBJECT
+  -- (`npc.def`) rather than the NPC's live cell, so the one that walks -- the
+  -- Violet bird is SPRITEMOVEDATA_WALK_LEFT_RIGHT -- still matches once it has
+  -- stepped off its spawn.
+  local function gen2MapMonSpecies(npc)
+    if not overworldMonsEnabled() then return nil end
+    local obj = type(npc) == "table" and npc.def or nil
+    if type(obj) ~= "table" or not GEN2_GENERIC_SHEETS[obj.sprite] then
+      return nil
+    end
+    local rows = GEN2_OVERWORLD_MON[npc.mapId]
+    if type(rows) ~= "table" then return nil end
+    for _, row in ipairs(rows) do
+      if row[1] == obj.x and row[2] == obj.y and row[3] == obj.sprite then
+        return row[4]
+      end
+    end
+    return nil
+  end
+
+  -- One record per SPECIES, not per object: the two Route 30 RATTATA share a
+  -- sheet so they share a record, exactly as Red's eleven CHANSEY do.  Cloned
+  -- from the cart's own generic def so every field this mod does not set --
+  -- the palette, the sprite type, whatever a later engine adds -- is still the
+  -- cart's, and then repointed through the same `repointMonDef` the named rows
+  -- use, so ON and OFF behave identically on both halves.
+  local gen2MapMonDefs = {}
+  local function gen2MapMonDef(game, species, sheetId)
+    local def = gen2MapMonDefs[species]
+    if not def then
+      local sprites = spritesFor(game)
+      local base = type(sprites) == "table" and sprites[sheetId] or nil
+      if type(base) ~= "table" then return nil end
+      def = {}
+      for k, v in pairs(base) do def[k] = v end
+      def.id = "SPRITE_GEN1WILD_MAP_" .. species
+      def.species = species
+      gen2MapMonDefs[species] = def
+    end
+    -- `walks` is true: all nine are live POKeMON, and the four that are dolls
+    -- are not in the table at all.
+    repointMonDef(def.id, def, true, TRUE_COLOR_ART, true)
+    return def
+  end
+
   local function resyncGen2OverworldMons(world)
     if not (isGen2 and world and world.npcs) then return end
+    local game = world.game
     for _, npc in ipairs(world.npcs) do
       local def = type(npc) == "table" and npc.spriteDef or nil
       if type(def) == "table" and def.spriteType == "POKEMON_SPRITE"
@@ -837,6 +968,20 @@ return function(mod)
           and npc.sprite and npc.sprite.image ~= def.image then
         local ok, sprite = pcall(SpriteRenderer.new, def, npc.id)
         if ok and sprite then npc.sprite = sprite end
+      end
+      -- The generic-sheet arm.  A whole DEF is swapped rather than a renderer,
+      -- because one sheet serves several species here and rewriting it in
+      -- place would give Amphy the Rattata's art.  `setSpriteDef` early-returns
+      -- on the table it already holds, so this costs nothing on a revisit --
+      -- and it recomputes `bigFacing`, which keys off the id.
+      local species = gen2MapMonSpecies(npc)
+      if species and dexForSpecies(species) and type(npc.setSpriteDef) == "function" then
+        npc.pokepcVanillaSpriteDef = npc.pokepcVanillaSpriteDef or npc.spriteDef
+        local ours = gen2MapMonDef(game, species, npc.def.sprite)
+        if ours then pcall(npc.setSpriteDef, npc, ours) end
+      elseif npc.pokepcVanillaSpriteDef and type(npc.setSpriteDef) == "function" then
+        -- The option went off mid-game: back to the cart's generic sheet.
+        pcall(npc.setSpriteDef, npc, npc.pokepcVanillaSpriteDef)
       end
     end
   end
