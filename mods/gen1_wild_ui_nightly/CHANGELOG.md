@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.62] - 2026-09-05
+
+### Fixed
+
+- **Trainers are cut out of their white square in battle intros.** Reported
+  as "trainers have white box around them in battle intros".
+
+  Gold's extracted trainer and mon pics are 2bpp with the field **baked in**:
+  the whole square is opaque and the space around the figure is shade 0. The
+  remap keeps that (`vec4(rgb, px.a)` — shade 0 becomes colour 0, white for a
+  trainer palette, and stays opaque). On the cart it is invisible against the
+  white battle field; over a BACKDROP it is a white box. Your own Pokémon
+  didn't show it because this suite's replacement art carries real alpha.
+
+  The figure is **cut out** of the square rather than the square recoloured —
+  a recoloured square is still a square, and picking its colour means guessing
+  at the picture behind it.
+
+  It reuses the flood fill the pic-paper arm already had, seeded on the pic's
+  own field shade instead of on transparency: what the **edges** can reach is
+  the space around the figure and is cut to alpha 0; what they cannot reach is
+  enclosed — a trainer's white shirt, the white of an eye — and is left exactly
+  as it was. That is the whole difference between this and keying the shader,
+  which would have taken the shirt with it.
+
+  Only for the cart's own art: fully opaque and few enough colours to be a 2bpp
+  pic. Replacement art already carries its alpha and is refused by the same
+  test the paper arm uses. Colour survives the cut, so a host that ignores
+  alpha shows the pic it always did rather than a black hole.
+
+  `tests/arenagen2paper_test.lua` drives a synthetic trainer — a body of ink
+  with an enclosed white shirt inside it, standing in a white field — and
+  checks the square goes and the shirt stays.
+
 ## [0.32.61] - 2026-09-05
 
 ### Fixed

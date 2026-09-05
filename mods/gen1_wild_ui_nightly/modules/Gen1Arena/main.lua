@@ -1627,6 +1627,152 @@ local function buildPaperImage(img)
   return image
 end
 
+-- ------- cutting a pic out of its square
+--
+-- The paper above is for art that ALREADY has transparency around it: it puts
+-- back the holes the mon's own white left inside its body.  A cart pic is the
+-- other case entirely, and it is the one behind "trainers have white box
+-- around them in battle intros".
+--
+-- Gold's extracted trainer and mon pics are 2bpp with the field BAKED IN: the
+-- whole square is opaque and the space around the figure is shade 0.  The
+-- remap keeps that (`vec4(rgb, px.a)` -- shade 0 becomes colour 0, which is
+-- white for a trainer palette, and stays OPAQUE), so on the cart it is
+-- invisible against the white battle field and over a BACKDROP it is a white
+-- box.
+--
+-- The fix asked for is to CUT THE FIGURE OUT of the square rather than
+-- recolour the square: "can you just cut them out of that square. Not replace
+-- the color."  Which is right -- a recoloured square is still a square, and
+-- picking its colour means guessing at the picture behind it.
+--
+-- So: the same flood fill, seeded on the pic's own FIELD SHADE instead of on
+-- transparency.  What the flood reaches from the edges is the space around the
+-- figure and is cut to alpha 0; what it cannot reach is enclosed -- a
+-- trainer's white shirt, the white of an eye -- and is left exactly as it is.
+-- That is the whole difference between this and keying the shader, which would
+-- take the shirt with it.
+--
+-- Only for art that is the cart's: fully opaque, and few enough colours to be
+-- a 2bpp pic.  Replacement art already carries its own alpha and its colour 0
+-- "is not a hole, it is a colour", so it is left alone by the same test the
+-- paper uses.
+local cutoutImage = setmetatable({}, { __mode = "k" })
+
+local function buildCutout(img)
+  if not (love.image and type(love.image.newImageData) == "function") then
+    return false
+  end
+  local w, h = img:getDimensions()
+  if w < 1 or h < 1 or w > PAPER_MAX_SIDE or h > PAPER_MAX_SIDE then
+    return false
+  end
+  local data = readPic(img)
+  local dw, dh = w, h
+  if type(data.getDimensions) == "function" then
+    local ok, gw, gh = pcall(data.getDimensions, data)
+    if ok and tonumber(gw) and tonumber(gh) then dw, dh = gw, gh end
+  end
+  if dw < w or dh < h or dw % w ~= 0 or dh % h ~= 0 or dw / w ~= dh / h then
+    return false
+  end
+  local ratio = dw / w
+  local half = math.floor(ratio / 2)
+
+  -- One pass: every pixel's colour, and the lightest of them.  The remap keys
+  -- off the RED channel (GbcPalette's shader reads `px.r`), so lightest by red
+  -- is the same shade the hardware would call 0.
+  local px, colors, nColors = {}, {}, 0
+  local field, fieldRed = nil, -1
+  for y = 0, h - 1 do
+    local row = y * w
+    for x = 0, w - 1 do
+      local r, g, b, a = data:getPixel(x * ratio + half, y * ratio + half)
+      -- A pic that already has transparency is not this case: it is either
+      -- replacement art or a pic the paper arm above already handles.
+      if a <= 0.5 then return false end
+      local key = math.floor(r * 255 + 0.5) * 65536
+                + math.floor(g * 255 + 0.5) * 256
+                + math.floor(b * 255 + 0.5)
+      px[row + x] = key
+      if not colors[key] then
+        colors[key] = true
+        nColors = nColors + 1
+        if nColors > PAPER_MAX_COLORS then return false end
+      end
+      if r > fieldRed then field, fieldRed = key, r end
+    end
+  end
+  -- A single-colour square is not a picture with a field around it.
+  if nColors < 2 or not field then return false end
+
+  -- `opaque` here means "part of the figure", so the flood fill below is the
+  -- one above with transparency swapped for the field shade.
+  local opaque = {}
+  for i = 0, w * h - 1 do
+    if px[i] ~= field then opaque[i] = true end
+  end
+
+  local outside, qx, qy, head = {}, {}, {}, 1
+  local function push(x, y)
+    if x < 0 or y < 0 or x >= w or y >= h then return end
+    local key = y * w + x
+    if outside[key] or opaque[key] then return end
+    outside[key] = true
+    qx[#qx + 1], qy[#qy + 1] = x, y
+  end
+  for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
+  for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+  while head <= #qx do
+    local x, y = qx[head], qy[head]
+    head = head + 1
+    push(x - 1, y)
+    push(x + 1, y)
+    push(x, y - 1)
+    push(x, y + 1)
+  end
+
+  -- Nothing reachable is nothing to cut: a pic whose field the edges cannot
+  -- see is not sitting in a square and is left alone.
+  local cut = 0
+  for i = 0, w * h - 1 do
+    if outside[i] then cut = cut + 1 end
+  end
+  if cut == 0 then return false end
+
+  local out = love.image.newImageData(w, h)
+  for y = 0, h - 1 do
+    local row = y * w
+    for x = 0, w - 1 do
+      local r, g, b = data:getPixel(x * ratio + half, y * ratio + half)
+      -- Colour is copied even where it is cut, so a host that ignores alpha
+      -- shows the pic it always did rather than a black hole.
+      out:setPixel(x, y, r, g, b, outside[row + x] and 0 or 1)
+    end
+  end
+  local image = love.graphics.newImage(out)
+  if type(image.setFilter) == "function" then
+    pcall(image.setFilter, image, "nearest", "nearest")
+  end
+  return image
+end
+
+-- Exposed for the headless suite for the same reason picPaperImage is: it is a
+-- pure question about one image -- which of its pixels are the square around
+-- the figure -- and getting it wrong cuts a hole in a picture.
+local function picCutoutImage(img)
+  if cutoutImage[img] == nil then
+    local ok, built = pcall(buildCutout, img)
+    cutoutImage[img] = (ok and built) or false
+    if not ok then
+      mod.log:warn("could not cut a pic from its square: %s", tostring(built))
+    end
+  end
+  return cutoutImage[img] or nil
+end
+
+mod.exports.picCutoutImage = picCutoutImage
+
 -- Exposed for the headless suite the same way picPaperBox is: it is a pure
 -- question about one image -- which pixels of it are a hole through the mon
 -- -- and getting it wrong paints over a picture.
@@ -2157,13 +2303,19 @@ local function installGen2()
         -- -- through this very function.  The shim stands down for the length
         -- of that so the readback is the engine's own draw and not a recursion.
         love.graphics.draw = realDraw
-        local paper = picPaperImage(image)
+        -- The cart's own pics come first: they have no transparency at all, so
+        -- there is no hole for the paper to fill and the whole square is the
+        -- thing to deal with.  A cut-out is the SAME image with the space
+        -- around the figure taken to alpha 0, so it goes through the engine's
+        -- own remap exactly as the original did.
+        local cut = picCutoutImage(image)
+        local paper = (not cut) and picPaperImage(image) or nil
         love.graphics.draw = shim
         -- Through whatever the engine has bound for this pic, so the paper is
         -- the mon's own colour 0 -- deliberately NOT the page's paper, which
         -- in a dark game would print black patches through a white mon.
         if paper then realDraw(paper, ...) end
-        return realDraw(image, ...)
+        return realDraw(cut or image, ...)
       end
       love.graphics.draw = shim
       local ok, err = pcall(basePic, self, mon, back, ...)

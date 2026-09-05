@@ -533,5 +533,109 @@ do
   love.graphics.newCanvas = realCanvas
 end
 
+-- ---- cutting a cart pic out of its square
+--
+-- The paper above is for art that already has transparency around it.  A CART
+-- pic has none: the whole square is opaque and the space around the figure is
+-- shade 0, which the remap keeps as an opaque colour 0.  On the cart that is
+-- invisible against the white battle field; over a BACKDROP it is a white box.
+--
+-- Cut out rather than recoloured -- "can you just cut them out of that square.
+-- Not replace the color" -- and the whole point of the flood fill is that it
+-- cuts only what the EDGES can reach.  A trainer's white shirt is enclosed by
+-- the figure, so it survives; keying the shader instead would take it.
+
+-- An image whose pixels come from `plot(x, y)` as a shade in 0..1.
+local function shadePic(w, h, plot)
+  local img = { getDimensions = function() return w, h end,
+                setFilter = function() end }
+  local realCanvas = love.graphics.newCanvas
+  love.graphics.newCanvas = function()
+    return { newImageData = function()
+      return {
+        getDimensions = function() return w, h end,
+        getPixel = function(_, x, y)
+          local v = plot(x, y)
+          return v, v, v, 1
+        end,
+      }
+    end }
+  end
+  return img, function() love.graphics.newCanvas = realCanvas end
+end
+
+do
+  -- An 8x8 "trainer": a 4x4 body of ink at (2,2)-(5,5) with a 2x2 WHITE SHIRT
+  -- enclosed inside it at (3,3)-(4,4), standing in a white field.
+  local function plot(x, y)
+    local inBody = x >= 2 and x <= 5 and y >= 2 and y <= 5
+    local inShirt = x >= 3 and x <= 4 and y >= 3 and y <= 4
+    if inBody and not inShirt then return 0 end   -- ink
+    return 1                                       -- field AND shirt: shade 0
+  end
+  local img, restore = shadePic(8, 8, plot)
+  local cut = mod.exports.picCutoutImage(img)
+  restore()
+  ok(cut ~= nil, "a cart pic in a white square builds a cut-out")
+  local mask = cut and cut.mask
+  ok(mask ~= nil, "which is a real image")
+  if mask then
+    local function alphaAt(x, y)
+      local p = mask:at(x, y)
+      return p and p[4] or nil
+    end
+    eq(alphaAt(0, 0), 0, "the corner of the square is cut away")
+    eq(alphaAt(7, 7), 0, "and so is the far corner")
+    eq(alphaAt(1, 4), 0, "and the field beside the figure")
+    eq(alphaAt(2, 2), 1, "the figure's own ink is kept")
+    eq(alphaAt(3, 3), 1,
+       "and the SHIRT is kept -- enclosed white the edges cannot reach")
+    eq(alphaAt(4, 4), 1, "all of it")
+    -- Colour survives the cut, so a host that ignores alpha shows the pic it
+    -- always did rather than a black hole.
+    local corner = mask:at(0, 0)
+    eq(corner and corner[1], 1, "and the cut pixels keep their colour")
+  end
+end
+
+do
+  -- Replacement art: too many colours to be a 2bpp pic, and it carries its own
+  -- alpha.  Refused, by the same test the paper arm uses.
+  local img, restore = shadePic(8, 8, function(x, y) return (x * 8 + y) / 64 end)
+  local cut = mod.exports.picCutoutImage(img)
+  restore()
+  eq(cut, nil, "full-colour replacement art is left alone")
+end
+
+do
+  -- A pic with no field the edges can see: nothing to cut, and cutting the
+  -- lightest shade anyway would eat the picture.
+  local img, restore = shadePic(8, 8, function() return 0 end)
+  local cut = mod.exports.picCutoutImage(img)
+  restore()
+  eq(cut, nil, "a pic that is all ink is not sitting in a square")
+end
+
+do
+  -- Art that already has transparency is the PAPER's case, not this one.
+  local img = { getDimensions = function() return 8, 8 end,
+                setFilter = function() end }
+  local realCanvas = love.graphics.newCanvas
+  love.graphics.newCanvas = function()
+    return { newImageData = function()
+      return {
+        getDimensions = function() return 8, 8 end,
+        getPixel = function(_, x, y)
+          if x == 0 then return 1, 1, 1, 0 end
+          return 0, 0, 0, 1
+        end,
+      }
+    end }
+  end
+  local cut = mod.exports.picCutoutImage(img)
+  love.graphics.newCanvas = realCanvas
+  eq(cut, nil, "a pic that already has alpha is left to the paper arm")
+end
+
 io.write(("arena gen2 paper: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
