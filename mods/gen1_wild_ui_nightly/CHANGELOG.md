@@ -6,6 +6,34 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.58] - 2026-09-05
+
+### Fixed
+
+- **Opening BOX on a new game no longer crashes.** The START menu's BOX row
+  took the whole game down with
+
+  ```
+  src/script/Tokens.lua:28: attempt to call method 'gsub' (a nil value)
+  ```
+
+  before the player had a POKéMON — which is the one arm of that row every
+  playthrough runs.
+
+  The cart refuses the PC with an empty party and hands back its own wording
+  as a **string**. `TextBox.new(game, text, onDone, opts)` takes that text as
+  its second argument, and it was being given `{ text = why }` instead.
+  Nothing complains at the call: the table travels all the way into the token
+  expander, which does `text:gsub`, and a table has no `gsub`.
+
+  The refusal now prints, and BOX returns you to the START menu the way the
+  cart does.
+
+  `tests/boxrow_gen2_test.lua` drives the row through the **engine's own**
+  `TextBox` and `Boxes` rather than stubs — a stub text box takes a table
+  without a murmur, which is exactly how this got past the box suite that
+  already existed.
+
 ## [0.32.57] - 2026-09-05
 
 ### Fixed

@@ -238,13 +238,26 @@ return function(mod)
       })
     end
     -- .CheckCanUsePC: the PC cannot be opened with an empty party, and the
-    -- row is a door onto the PC.
+    -- row is a door onto the PC.  This is the FIRST thing the row does on a
+    -- new game, before the player has a POKeMON -- so it is the one arm of
+    -- this function every playthrough runs.
+    --
+    -- `canUsePc` answers `false, <the cart's refusal text>`, and that second
+    -- return is a STRING.  `TextBox.new(game, text, onDone, opts)` takes the
+    -- text as its second argument, not an options table: handing it
+    -- `{ text = why }` reached `Tokens.expand`, which calls `text:gsub`, and
+    -- a table has no gsub -- so opening BOX on a new game took the whole game
+    -- down rather than printing the refusal.
     local Boxes = require("src.core.gen2.Boxes")
     local usable, why = Boxes.canUsePc(game and game.save)
     if not usable then
       local TextBox = mod.ui and mod.ui.TextBox
       if TextBox and game and game.stack then
-        game.stack:push(TextBox.new(game, { text = why }))
+        -- The engine's own words when it has them; its wording repeated here
+        -- only if a later engine stops returning any.  Never a table.
+        local text = type(why) == "string" and why
+          or "You'll need a\nPOK\xe9MON to call\fwith."
+        game.stack:push(TextBox.new(game, text))
       end
       return
     end
