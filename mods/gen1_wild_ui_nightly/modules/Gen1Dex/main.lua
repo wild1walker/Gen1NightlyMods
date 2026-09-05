@@ -164,6 +164,9 @@ return function(mod)
     view_cycle = true,
     wrap = true,
     species_colours = true,
+    -- The START menu is on both cartridges, so this row always meant
+    -- something here -- it was simply never installed (see installDexLabel).
+    dex_label = true,
   }
 
   if isGen2 then
@@ -187,6 +190,38 @@ return function(mod)
 
   mod.options:define(schema)
 
+  -- ------- START SAYS DEX, which is not a Gen 1 row
+  --
+  -- It renames the overworld START menu's dex entry, and that menu is on both
+  -- cartridges.  It used to be registered at the BOTTOM of this file, below
+  -- the generation branch -- so a Gold boot returned before ever reaching it,
+  -- and the row was neither offered nor installed.  One of the START menu
+  -- options that "stopped working on Gen 2".
+  --
+  -- Declared here, above the branch, and installed by whichever arm runs.
+  local function installDexLabel(option)
+    mod.hooks:wrap("ui.start_menu.items", function(next, game, items)
+      local out = next(game, items)
+      if type(out) ~= "table" then return out end
+      -- read per open rather than once at load, so flipping START SAYS DEX in
+      -- the manager shows up the next time the menu is opened
+      if not option("dex_label", true) then return out end
+      local ok, Strings = pcall(require, "src.core.Strings")
+      if not ok then return out end
+      -- Both the translated word and the source one: Gold hands hooks its rows
+      -- before it translates them, so the translated form alone finds nothing
+      -- there once a translation is installed.  Identical strings in English.
+      local vanilla, source = Strings("POKéDEX"), Strings.source("POKéDEX")
+      for _, item in ipairs(out) do
+        if item.label == vanilla or item.label == source then
+          item.label = item.translateLabel and Strings.source("DEX")
+            or Strings("DEX")
+        end
+      end
+      return out
+    end)
+  end
+
   local DexData = loadSibling(mod, "dexdata.lua")
 
   -- ------- what this mod publishes
@@ -209,6 +244,12 @@ return function(mod)
     -- Gold's dex keeps its list, its search and its AREA screen; what it has
     -- no answer for is base stats, evolutions and the learnset, and that is
     -- all this adds.  See gen2.lua.
+    installDexLabel(function(key, fallback)
+      local value = mod.options:get(key)
+      if value == nil then return fallback end
+      return value
+    end)
+
     local Gen2Dex = loadSibling(mod, "gen2.lua")
     local arm = Gen2Dex.new(mod, DexData)
     local ok, problem = pcall(arm.install)
@@ -399,27 +440,8 @@ return function(mod)
   -- label goes through Strings too, so that mod can name it in its own
   -- language.  Nothing else that says POKéDEX moves: the SAVE panel's dex
   -- count and the list's own header are separate text.
-  mod.hooks:wrap("ui.start_menu.items", function(next, game, items)
-    local out = next(game, items)
-    if type(out) ~= "table" then return out end
-    -- read per open rather than once at load, so flipping START SAYS DEX in
-    -- the manager shows up the next time the menu is opened
-    if not C.option("dex_label", true) then return out end
-    local ok, Strings = pcall(require, "src.core.Strings")
-    if not ok then return out end
-    -- Both the translated word and the source one: Gold hands hooks its rows
-    -- before it translates them, so the translated form alone finds nothing
-    -- there once a translation is installed.  Identical strings in English.
-    -- (The write is shaped the same way -- see Gen1Party/main.lua for the
-    -- long version of why.)
-    local vanilla, source = Strings("POKéDEX"), Strings.source("POKéDEX")
-    for _, item in ipairs(out) do
-      if item.label == vanilla or item.label == source then
-        item.label = item.translateLabel and Strings.source("DEX")
-          or Strings("DEX")
-      end
-    end
-    return out
+  installDexLabel(function(key, fallback)
+    return C.option(key, fallback)
   end)
 
   -- The pure builders, for the suite and for any mod that wants the same

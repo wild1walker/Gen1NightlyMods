@@ -118,15 +118,23 @@ local partyWrap do
   partyWrap = assert(captured, "the party wrap did not register")
 end
 
--- START SAYS DEX: same shape, plus the C table it reads its option from
+-- START SAYS DEX: the whole installer now, rather than the wrap inside it.
+--
+-- It moved into `installDexLabel` so both cartridges can install it -- it used
+-- to sit below the generation branch, where a Gold boot never reached it -- so
+-- the installer is what is lifted, and it is called with the option reader it
+-- takes.  Indented one level deeper than the wraps above, hence the four
+-- spaces in the close.
 local dexWrap do
   local body = extract("modules/Gen1Dex/main.lua",
-    "(mod%.hooks:wrap%(\"ui%.start_menu%.items\".-\n  end%))",
-    "the START SAYS DEX wrap")
+    "(  local function installDexLabel%(option%).-\n  end)\n",
+    "the START SAYS DEX installer")
   local captured
   local mod = { hooks = { wrap = function(_, _, fn) captured = fn end } }
-  local C = { option = function() return true end }
-  assert(load("local mod, C = ...\n" .. body, "@Gen1Dex/main.lua"))(mod, C)
+  -- `mod` is the installer's own upvalue in the module; supplied here.
+  assert(load("local mod = ...\n" .. body
+              .. "\ninstallDexLabel(function() return true end)",
+              "@Gen1Dex/main.lua"))(mod)
   dexWrap = assert(captured, "the dex wrap did not register")
 end
 

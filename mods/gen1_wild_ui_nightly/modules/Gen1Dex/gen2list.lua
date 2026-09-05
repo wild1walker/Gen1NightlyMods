@@ -78,11 +78,23 @@ return function(mod, DexData, C)
   --
   -- Built on demand rather than held: the cart's constructor reads the save,
   -- and one built at open time would show a dex the player has since added to.
+  -- The cart's module BY NAME, and deliberately not through `Screens`.
+  --
+  -- `Screens.build` resolves through the registry first, and this mod has
+  -- registered ITSELF over `Gen2PokedexMenu` -- so asking Screens for that id
+  -- built another copy of this list rather than the cart's screen.  Every A
+  -- press stacked one more, and B peeled one off, which is why the dex could
+  -- not be closed: it was never one screen refusing to leave, it was a pile of
+  -- them.
   local function cartScreen(game, opts, species, view)
-    local ok, Screens = pcall(require, "src.ui.Screens")
-    if not (ok and type(Screens) == "table") then return nil end
-    local built, screen = pcall(Screens.build, game, "Gen2PokedexMenu", opts)
+    local ok, PokedexMenu = pcall(require, "src.ui.gen2.PokedexMenu")
+    if not (ok and type(PokedexMenu) == "table"
+            and type(PokedexMenu.new) == "function") then
+      return nil
+    end
+    local built, screen = pcall(PokedexMenu.new, game, opts)
     if not (built and type(screen) == "table") then return nil end
+    screen.screenId = screen.screenId or "Gen2PokedexMenu"
     if view then screen.view = view end
     if species then
       local order = screen.order and screen:order() or {}
@@ -144,7 +156,34 @@ return function(mod, DexData, C)
     self.scroll = 0
     self.clock = 0
     self:rebuild()
+    self:openOnJohto()
     return self
+  end
+
+  -- ------- where the cursor starts
+  --
+  -- Not on 001.  This is Gold: the dex being filled starts at CHIKORITA, and
+  -- the cart's own screen opens on its Johto ordering for exactly that reason
+  -- (`wLastDexMode` defaults to NEW).  The numbered view here is national
+  -- order, which is the right list to read -- Kanto is still in it, one scroll
+  -- up -- but the wrong place to be put down.
+  --
+  -- Which species that is comes from the cart's own table rather than the
+  -- number 152: `newOrder` is the Johto dex in Johto order, so its first entry
+  -- IS the first entry of this dex, whatever a dataset has done to the roster.
+  -- Falling back to row one, which is where it used to start.
+  function Screen:openOnJohto()
+    local data = self.game and self.game.data
+    local dex = data and data.gen2Pokedex
+    local first = dex and dex.newOrder and dex.newOrder[1]
+    if type(first) ~= "string" then return end
+    for i, item in ipairs(self.items) do
+      if item.species == first then
+        self.index = i
+        self:clampScroll()
+        return
+      end
+    end
   end
 
   function Screen:dexSave()

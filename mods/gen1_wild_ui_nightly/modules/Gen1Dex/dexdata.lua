@@ -357,7 +357,13 @@ function DexData.list(data, save, mode)
     if def.dex then byDex[def.dex] = def end
   end
 
-  local constants = data.constants or {}
+  -- Gold loads its constants a SECOND time under its own key -- Game2 at
+  -- :1056, "namespaced so nothing collides with the Gen 1 keys of the same
+  -- idea", the same split data.sprites and data.gen2Sprites have.  So
+  -- `data.constants` on a Gold boot is RED's table, whose dexSize is 151, and
+  -- reading it stopped the Johto dex at Kanto's last entry.  Preferring the
+  -- Gen 2 one needs no generation flag: on Red it is simply absent.
+  local constants = data.gen2Constants or data.constants or {}
   local numFmt = ("%%0%dd"):format(constants.dexDigits or 3)
   local entries, seen, owned = {}, 0, 0
   for n = 1, constants.dexSize or 151 do

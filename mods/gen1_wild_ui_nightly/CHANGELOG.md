@@ -6,6 +6,55 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.53] - 2026-09-05
+
+Four fixes to Gold's POKéDEX list from 0.32.49. The first is why it could not
+be closed.
+
+### The dex closes again
+
+`Screens.build` resolves the registry **before** the builtin -- and this mod
+registers itself over `Gen2PokedexMenu`. So the helper meant to open *the
+cart's* screen for the entry and the AREA map was building **another copy of
+this list**. Every A press stacked one more and B peeled one off, which is why
+the dex would not close: it was never one screen refusing to leave, it was a
+pile of them. The cart's module is now required by name, which is the one way
+to ask for the builtin when you are the registration standing in front of it.
+
+### The whole dex, not Kanto's half
+
+Gold loads its constants a **second** time under its own key -- `Game2:1056`,
+*"namespaced so nothing collides with the Gen 1 keys of the same idea"* -- the
+same split `data.sprites` and `data.gen2Sprites` have, and the same one that
+sent the map POKéMON sheets into a copy in 0.32.50. So `data.constants` on a
+Gold boot is **Red's** table, whose `dexSize` is 151, and the list stopped at
+Kanto's last entry. The Gen 2 table is preferred now, which needs no generation
+flag: on Red it is simply absent.
+
+### The cursor opens on the dex you are filling
+
+Not on 001. Gold's own screen opens on its Johto ordering (`wLastDexMode`
+defaults to NEW) because that is the dex being filled, and the list is put down
+on the first entry of that ordering. Kanto is still there, one scroll up.
+
+Which species that is comes from the cart's own `newOrder` rather than the
+number 152, so a dataset that changed the roster still lands right -- and a cart
+with no Johto ordering to read leaves the cursor at the top.
+
+### START SAYS DEX works on Gold
+
+The hook that renames the START menu's dex row was registered at the **bottom**
+of the module, below the generation branch -- so a Gold boot returned before
+ever reaching it, and the row was neither offered on the menu nor installed.
+The START menu is on both cartridges, so it always meant something here. It is
+lifted into an installer both arms call.
+
+The other START-menu dex options are a different matter and are honest about it:
+AREA HINTS, AREA ON UNSEEN, FLY FROM AREA and MAP INSPECT all belong to the AREA
+screen, and **Gold does not have this suite's AREA system yet** -- the list hands
+that press to the cart's own map. That is the next piece of the overhaul, not a
+row that is quietly missing.
+
 ## [0.32.52] - 2026-09-05
 
 Two things the Gold dex list got wrong in 0.32.49, both because Gold's icon

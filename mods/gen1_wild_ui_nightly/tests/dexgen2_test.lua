@@ -301,7 +301,8 @@ do
   end
   mod.content = { screens = { registered = {},
     register = function(s, id, v) s.registered[id] = v end } }
-  mod.hooks = { wrap = function() end }
+  mod.hooks = { wrapped = {},
+    wrap = function(self, name, fn) self.wrapped[name] = fn end }
   mod.events = { on = function() end }
 
   local install = load_("modules/Gen1Dex/main.lua")
@@ -335,6 +336,12 @@ do
   for _, row in ipairs(mod.defined or {}) do keys[row.key] = true end
   ok(keys.gen2_pages, "EXTRA DEX PAGES is offered")
   ok(keys.gen2_list, "so is DEX LIST, which is what puts it there")
+  -- The START menu is on both cartridges, so this row always meant something
+  -- here.  It was registered BELOW the generation branch, so a Gold boot
+  -- returned before reaching it and the row was neither offered nor installed.
+  ok(keys.dex_label, "and START SAYS DEX, which the START menu can honour")
+  ok(mod.hooks.wrapped["ui.start_menu.items"] ~= nil,
+     "and the hook that renames the row is actually installed on Gold")
   ok(not keys.area_hints,
      "AREA HINTS is not: that screen is the cart's here, and a row that "
      .. "cannot do anything is worse than a missing one")

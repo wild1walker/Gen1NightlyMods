@@ -95,14 +95,30 @@ package.loaded["src.ui.gen2.PartyMenu"] = {
   end,
 }
 
+-- The CART's own dex module, by name.
+--
+-- Deliberately not `Screens`: this mod registers itself over
+-- `Gen2PokedexMenu`, and `Screens.build` resolves the registry first -- so
+-- asking Screens for that id built another copy of this list rather than the
+-- cart's screen.  Every A press stacked one more and B peeled one off, which
+-- is why the dex could not be closed.  A stub on Screens would have kept
+-- passing through all of that.
 local pushed = {}
 local builtScreens = {}
-package.loaded["src.ui.Screens"] = {
-  build = function(_game, id, _opts)
-    local screen = { screenId = id, view = "list", index = 1,
+package.loaded["src.ui.gen2.PokedexMenu"] = {
+  new = function(_game, _opts)
+    local screen = { view = "list", index = 1,
                      order = function() return { "BULBASAUR", "CHARMANDER" } end }
     builtScreens[#builtScreens + 1] = screen
     return screen
+  end,
+}
+-- Present, and never the thing that answers: if the screen ever goes back to
+-- asking Screens for its own id, this fails loudly instead of nesting.
+package.loaded["src.ui.Screens"] = {
+  build = function(_game, id)
+    error("the list asked Screens for '" .. tostring(id)
+      .. "', which resolves to itself", 2)
   end,
 }
 
@@ -138,8 +154,14 @@ ok(type(List.new) == "function", "the Gold list builds")
 -- does.  A list that read the Gen 1 shape would mask every entry on the cart
 -- it was written for.
 
+-- Gold's shape, and the trap in it: `constants` is RED's table on a Gold boot
+-- (Data loads it under the Gen 1 key) and `gen2Constants` is the one Game2
+-- loads beside it.  Red's stops at 2 here, standing in for the 151 that cut
+-- the real Johto dex off at Kanto's last entry.
 local DATA = {
-  constants = { dexSize = 4, dexDigits = 3 },
+  constants = { dexSize = 2, dexDigits = 3 },
+  gen2Constants = { dexSize = 4, dexDigits = 3 },
+  gen2Pokedex = { newOrder = { "CHARMANDER", "SQUIRTLE" } },
   pokemon = {
     BULBASAUR  = { id = "BULBASAUR",  dex = 1, name = "BULBASAUR" },
     IVYSAUR    = { id = "IVYSAUR",    dex = 2, name = "IVYSAUR" },
@@ -250,6 +272,8 @@ end
 
 do
   local screen = scene()
+  -- from the top, rather than from wherever the Johto opening put it
+  screen.index = 1
   screen:move(1)
   eq(screen.index, 2, "DOWN steps a row")
   screen.index = 1
@@ -354,6 +378,62 @@ do
   for _, call in ipairs(iconCalls) do second[call.species] = call.frame end
   eq(second.BULBASAUR, 0, "and stops the moment the cursor leaves it")
   eq(second.CHARMANDER, 1, "while the row it moved to takes over")
+end
+
+-- ---- the whole dex, not Kanto's half of it
+--
+-- Gold loads its constants a SECOND time under its own key (Game2:1056, the
+-- same split data.sprites and data.gen2Sprites have), so `data.constants` on a
+-- Gold boot is Red's table and its dexSize is 151.  Reading it stopped the
+-- Johto dex at Kanto's last entry.
+
+do
+  local screen = scene()
+  eq(#screen.items, 4,
+     "the list runs to the Gen 2 dexSize, not the Gen 1 one")
+  eq(screen.items[4].species, "SQUIRTLE", "so the last slot is really there")
+
+  -- And the Gen 1 arm is untouched: with no gen2Constants it reads the only
+  -- table there is.
+  local red = {}
+  for k, v in pairs(DATA) do red[k] = v end
+  red.gen2Constants = nil
+  red.gen2Pokedex = nil
+  local build = DexData.list(red, { seen = {}, owned = {} }, "num")
+  eq(#build.items, 2, "on Red the Gen 1 constants are still the answer")
+end
+
+-- ---- and the cursor opens on the dex you are filling
+--
+-- Not 001.  Gold's own screen opens on its Johto ordering (wLastDexMode
+-- defaults to NEW), and the first entry of that ordering is where this one is
+-- put down -- read off the cart's own newOrder rather than the number 152, so
+-- a dataset that changed the roster still lands right.
+
+do
+  local screen = scene()
+  eq(screen.items[screen.index].species, "CHARMANDER",
+     "the cursor opens on the first entry of the cart's Johto order")
+  ok(screen.index > 1, "which is not the top of the national list")
+  eq(screen.items[1].species, "BULBASAUR",
+     "and Kanto is still there, one scroll up")
+end
+
+do
+  -- A cart with no Johto ordering to read leaves the cursor where it was.
+  local bare = {}
+  for k, v in pairs(DATA) do bare[k] = v end
+  bare.gen2Pokedex = nil
+  drawn, iconCalls, pushed, builtScreens = {}, {}, {}, {}
+  blitted = {}
+  local game = {
+    data = bare,
+    save = { pokedex = { seen = {}, owned = { BULBASAUR = true } } },
+    input = { wasPressed = function() return false end },
+    stack = { push = noop, pop = noop },
+  }
+  local screen = List.new(game, {})
+  eq(screen.index, 1, "with no Johto order the cursor starts at the top")
 end
 
 io.write(("dexlist_gen2: %d passed, %d failed\n"):format(passed, failed))
