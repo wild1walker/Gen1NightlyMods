@@ -6,6 +6,27 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.63] - 2026-09-05
+
+### Changed
+
+- **Gold's own Pokédex is what you get now.** `DEX LIST` ships **off**, so a
+  default boot opens the cartridge's dex rather than this suite's list —
+  "we want to use the gold dex now, but fix some things".
+
+  It is the better starting point on this cartridge. Gold's list already runs
+  the whole 251, already opens on the Johto order out of `dex.newOrder`, and
+  already has the cart's three sorts behind SELECT — every one of which this
+  suite's list had to be taught separately over the last few releases. What it
+  needs from us is theming, not replacing.
+
+  Still a switch, not a deletion: turn `DEX LIST` on and this suite's list
+  comes back with its icon column, its ball column and SELECT's three views.
+  Anyone who had already turned it on keeps it.
+
+  The entry page, the AREA map, SEARCH and UNOWN MODE were always the cart's
+  and are unchanged. `EXTRA DEX PAGES` and `START SAYS DEX` still apply.
+
 ## [0.32.62] - 2026-09-05
 
 ### Fixed

@@ -183,8 +183,19 @@ return function(mod)
     -- column, the SEEN/OWN footer and SELECT's three views.  Off is Gold's
     -- own list back, exactly as the cartridge draws it -- which is why it is
     -- a switch and not an assumption.
+    --
+    -- OFF by default now, because that is the dex that was asked for:
+    -- "I do want to use the gold Pokedex", and then "we want to use the gold
+    -- dex now, but fix some things".  Gold's own list is the better starting
+    -- point on this cartridge -- it already runs the whole 251, already opens
+    -- on the Johto order out of `dex.newOrder`, and already has the cart's
+    -- three sorts behind SELECT, all of which this mod's list had to be taught
+    -- one bug at a time.  What it needs is theming, not replacing.
+    --
+    -- Still a switch, and still built: a player who turned it ON keeps it,
+    -- and turning it on is how the icon column and the ball column come back.
     kept[#kept + 1] = { key = "gen2_list", type = "toggle",
-      label = "DEX LIST", default = true }
+      label = "DEX LIST", default = false }
     schema = kept
   end
 
@@ -271,7 +282,7 @@ return function(mod)
     -- what makes this the same screen on both carts rather than two that
     -- resemble each other.  Without it the list cannot draw, so a chrome that
     -- did not build leaves Gold's own list alone.
-    if mod.options:get("gen2_list") ~= false then
+    if mod.options:get("gen2_list") == true then
       local makeChrome = loadSibling(mod, "chrome.lua")
       local makeGen2List = loadSibling(mod, "gen2list.lua")
       local C

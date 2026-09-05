@@ -309,19 +309,22 @@ do
   local ranOk = pcall(install, mod)
   ok(ranOk, "the Gold arm installs")
 
-  -- The LIST is this suite's now (gen2list.lua, registered over the cart's
-  -- own id).  Everything it does not draw is still the cart's, and is reached
-  -- by building that screen and pointing it at a species -- so there is
-  -- exactly one registration here, not four.
-  eq(mod.content.screens.registered["Gen2PokedexMenu"] ~= nil, true,
-     "the list is registered over the cart's dex id")
+  -- GOLD'S OWN DEX is what a default boot gets now.
+  --
+  -- This suite's list is still built and still a switch, but DEX LIST ships
+  -- OFF: "we want to use the gold dex now, but fix some things".  Gold's own
+  -- list already runs the whole 251, already opens on the Johto order out of
+  -- `dex.newOrder`, and already has the cart's three sorts behind SELECT --
+  -- every one of which this mod's list had to be taught separately.  So on a
+  -- default boot NOTHING is registered over the cart's id and the dex the
+  -- player opens is the cartridge's.
+  eq(mod.content.screens.registered["Gen2PokedexMenu"], nil,
+     "by default the cart's own dex is left in place")
   local registrations = 0
   for _ in pairs(mod.content.screens.registered) do
     registrations = registrations + 1
   end
-  eq(registrations, 1,
-     "and it is the only one: the entry, the AREA map, SEARCH and UNOWN MODE "
-     .. "stay the cart's")
+  eq(registrations, 0, "and nothing at all is registered over it")
 
   -- ...but the pure surface is still there, because it is generation-agnostic
   -- and other mods are built on it.
@@ -335,7 +338,30 @@ do
   local keys = {}
   for _, row in ipairs(mod.defined or {}) do keys[row.key] = true end
   ok(keys.gen2_pages, "EXTRA DEX PAGES is offered")
-  ok(keys.gen2_list, "so is DEX LIST, which is what puts it there")
+  ok(keys.gen2_list, "so is DEX LIST, which is what puts it back")
+  do
+    local row
+    for _, r in ipairs(mod.defined or {}) do
+      if r.key == "gen2_list" then row = r end
+    end
+    eq(row and row.default, false, "and it ships OFF")
+  end
+
+  -- And ON still puts it back.  The switch is the whole reason this is a
+  -- default and not a deletion: the icon column, the ball column and SELECT's
+  -- three views come back with it, over the cart's own id, and still exactly
+  -- once -- the entry, the AREA map, SEARCH and UNOWN MODE stay the cart's.
+  do
+    mod.content.screens.registered = {}
+    mod.stored.gen2_list = true
+    ok(pcall(install, mod), "the Gold arm installs again with DEX LIST on")
+    eq(mod.content.screens.registered["Gen2PokedexMenu"] ~= nil, true,
+       "this suite's list is registered over the cart's dex id")
+    local back = 0
+    for _ in pairs(mod.content.screens.registered) do back = back + 1 end
+    eq(back, 1, "and it is still the only registration")
+    mod.stored.gen2_list = nil
+  end
   -- The START menu is on both cartridges, so this row always meant something
   -- here.  It was registered BELOW the generation branch, so a Gold boot
   -- returned before reaching it and the row was neither offered nor installed.
