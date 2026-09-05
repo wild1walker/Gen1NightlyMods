@@ -1,0 +1,344 @@
+-- Gen1Dex: the POKéDEX LIST on Gold, Silver and Crystal.
+--
+-- Returns a factory: factory(mod, DexData, C) -> { new = function(game, opts) },
+-- which main.lua registers over the cart's own `Gen2PokedexMenu`.
+--
+-- ------- why this is a screen and not the decorator list.lua is
+--
+-- On Red the list is a DECORATOR: `List.new` calls `Vanilla.new` and then
+-- rewrites `rows`, `items`, `draw` and `onSelectKey` on the object that comes
+-- back, because Red's PokedexMenu IS a ListMenu -- a cursor over an `items`
+-- array with a `scroll` and a row count.
+--
+-- Gold's is not.  `src/ui/gen2/PokedexMenu.lua` is one 1500-line screen with a
+-- `view` field ("list", "entry", "area", "option", "search", "results",
+-- "unown") and its own model for each: no `items`, no `rows`, no
+-- `onSelectKey`.  There is nothing there to decorate, so the list is drawn
+-- here instead -- to the same design, off the same chrome.lua and the same
+-- DexData, so the two games' dex lists are the same screen and not two screens
+-- that resemble each other.
+--
+-- ------- what this does NOT take over
+--
+-- The cart's screen is kept and used, for everything this one does not draw:
+--
+--   the ENTRY     A on a POKéMON you have met
+--   the AREA map  A on one you have not -- Gold's has blinking nests across
+--                 both regions, which is better than the Kanto-only one Red
+--                 needed built for it
+--   SEARCH, OPTION and UNOWN MODE
+--
+-- Each is opened by building the cart's own PokedexMenu, pointing it at the
+-- species this list is on, and setting the `view` it should open in.  So none
+-- of them is re-implemented to stand still, and a save that has never opened
+-- this mod's list still finds all of them where Gold put them.
+--
+-- ------- the shape of the screen
+--
+--   rows 0-2    the header: which view you are in, and a pip per view
+--   rows 3-14   six entries, the icon column ruled off from the names
+--   rows 15-17  the footer: SEEN and OWN, for the whole dex
+--
+-- Identical to Red's, down to the column the ball sits in, because that is the
+-- point.  chrome.lua owns the boxes and the geometry; this file owns the rows.
+--
+-- ------- the icon
+--
+-- Through `PartyMenu:drawIcon`, the same call the party list makes, so a dex
+-- row and a party row show the same art -- including this suite's own follower
+-- sheets, which reach it through the `pokemon.icon` hook, and including the
+-- colour-icon escape runtime/icons2.lua installs on that method.  A dex row is
+-- a record rather than a creature, so it is drawn with the smallest stub the
+-- icon path actually reads, exactly as Red's list does.
+
+return function(mod, DexData, C)
+  local Font = require("src.render.Font")
+  local Strings = require("src.core.Strings")
+  local Theme = require("src.ui.Theme")
+
+  local ROWS = 6
+  local ROW_H = 16
+  local ROW_TOP = C.BODY_TOP             -- 24
+  local CURSOR_X = 0
+  local ICON_X = 8
+  local ICON = 16
+  local RULE_X = 26
+  local LABEL_X = 32
+  -- The label is one glyph row on a two-tile icon, so it sits on the icon's
+  -- middle rather than its top edge -- the same offset Red's row uses.
+  local TEXT_DY = 4
+  -- Fourteen glyphs is 112 pixels ending at 144, six clear of the ball column.
+  local LABEL_GLYPHS = 14
+  local BALL_X, BALL_R = 150, 3.5
+
+  local Screen = {}
+  Screen.__index = Screen
+
+  -- ------- the cart's screen, for everything this one hands back
+  --
+  -- Built on demand rather than held: the cart's constructor reads the save,
+  -- and one built at open time would show a dex the player has since added to.
+  local function cartScreen(game, opts, species, view)
+    local ok, Screens = pcall(require, "src.ui.Screens")
+    if not (ok and type(Screens) == "table") then return nil end
+    local built, screen = pcall(Screens.build, game, "Gen2PokedexMenu", opts)
+    if not (built and type(screen) == "table") then return nil end
+    if view then screen.view = view end
+    if species then
+      local order = screen.order and screen:order() or {}
+      for i, id in ipairs(order) do
+        if id == species then screen.index = i break end
+      end
+      if screen.ensureVisible then pcall(screen.ensureVisible, screen) end
+    end
+    return screen
+  end
+
+  -- ------- the icon
+  --
+  -- drawIcon wants a MON and a dex row has a species.  With `isEgg` unset and
+  -- no item, the path reads `mon.species` and nothing else.
+  local stubs = {}
+  local function stubFor(species)
+    local hit = stubs[species]
+    if not hit then
+      hit = { species = species, hp = 1, stats = { hp = 1 }, level = 1 }
+      stubs[species] = hit
+    end
+    return hit
+  end
+
+  local function iconMenu(self)
+    if self.iconHost then return self.iconHost end
+    local ok, PartyMenu = pcall(require, "src.ui.gen2.PartyMenu")
+    if not (ok and type(PartyMenu) == "table"
+            and type(PartyMenu.drawIcon) == "function") then
+      return nil
+    end
+    local data = self.game and self.game.data or {}
+    -- The fields drawIcon's path actually reads, and no more: the icon
+    -- registry, the party-menu palette, its own cache and the clock the two
+    -- frames bob on.
+    self.iconHost = setmetatable({
+      game = self.game,
+      icons = data.gen2Icons,
+      palettes = data.gen2Palettes,
+      iconCache = {},
+      clock = 0,
+    }, { __index = PartyMenu })
+    return self.iconHost
+  end
+
+  -- ------- the rows
+
+  function Screen.new(game, opts)
+    opts = opts or {}
+    local self = setmetatable({}, Screen)
+    self.screenId = "Gen2PokedexMenu"
+    self.game = game
+    self.save = opts.save or (game and game.save)
+    self.onClose = opts.onClose
+    self.opts = opts
+    self.mode = "num"
+    self.index = 1
+    self.scroll = 0
+    self.clock = 0
+    self:rebuild()
+    return self
+  end
+
+  function Screen:dexSave()
+    local save = self.save
+    -- Gold keeps the dex under `save.pokedex`; DexData.list reads `seen` and
+    -- `owned` off whatever it is handed, which is why it is handed that.
+    return save and save.pokedex or nil
+  end
+
+  function Screen:rebuild(keepSpecies)
+    local build = DexData.list(self.game and self.game.data,
+                               self:dexSave(), self.mode)
+    self.items = build.items or {}
+    self.seen, self.owned = build.seen or 0, build.owned or 0
+    self.title = DexData.MODE_LABELS[self.mode]
+    if keepSpecies then
+      for i, item in ipairs(self.items) do
+        if item.species == keepSpecies then self.index = i break end
+      end
+    end
+    if self.index > #self.items then self.index = math.max(1, #self.items) end
+    if self.index - self.scroll > ROWS then self.index = self.index end
+    self:clampScroll()
+  end
+
+  function Screen:clampScroll()
+    if self.index - self.scroll > ROWS then
+      self.scroll = self.index - ROWS
+    elseif self.index <= self.scroll then
+      self.scroll = self.index - 1
+    end
+    if self.scroll < 0 then self.scroll = 0 end
+  end
+
+  function Screen:current()
+    return self.items[self.index]
+  end
+
+  function Screen:close()
+    local game = self.game
+    if self.onClose then return self.onClose() end
+    if game and game.stack and game.stack.pop then game.stack:pop() end
+  end
+
+  -- ------- input
+  --
+  -- The keys Red's list answers, and the two the cart's list answers that this
+  -- one hands on: SELECT is the view cycle here (Red's), and START opens the
+  -- cart's own SEARCH, which this screen does not replace.
+
+  function Screen:move(delta)
+    if #self.items == 0 then return end
+    local next_ = self.index + delta
+    if next_ < 1 then
+      next_ = C.option("wrap", true) and #self.items or 1
+    elseif next_ > #self.items then
+      next_ = C.option("wrap", true) and 1 or #self.items
+    end
+    self.index = next_
+    self:clampScroll()
+  end
+
+  function Screen:cycleView()
+    if not C.option("view_cycle", true) then return end
+    local nextMode = DexData.NEXT_MODE[self.mode]
+    local build = DexData.list(self.game and self.game.data,
+                               self:dexSave(), nextMode)
+    -- An empty filtered view would strand SELECT: an empty list answers
+    -- nothing but A and B, so there would be no way back.
+    if #(build.items or {}) == 0 then return end
+    local keep = self:current() and self:current().species
+    self.mode = nextMode
+    self:rebuild(keep)
+  end
+
+  function Screen:open(view)
+    local item = self:current()
+    if not item then return end
+    local screen = cartScreen(self.game, self.opts, item.species, view)
+    if not screen then return end
+    local game = self.game
+    if game and game.stack and game.stack.push then
+      -- The cart's screen owns its own B: give it one that comes back here
+      -- rather than out of the dex entirely.
+      screen.onClose = function()
+        if game.stack and game.stack.pop then game.stack:pop() end
+      end
+      game.stack:push(screen)
+    end
+  end
+
+  function Screen:choose()
+    local item = self:current()
+    if not item then return end
+    -- A on a POKéMON you have never met opens the AREA map rather than
+    -- refusing, which is the whole reason Red's list wires one: this is the
+    -- screen a player opens to find out where something lives.
+    self:open(item.seen and "entry" or "area")
+  end
+
+  function Screen:update(dt)
+    self.clock = (self.clock or 0) + 1
+    if self.iconHost then self.iconHost.clock = self.clock end
+    local input = self.game and self.game.input
+    if not input then return end
+    if input:wasPressed("up") then self:move(-1) end
+    if input:wasPressed("down") then self:move(1) end
+    if input:wasPressed("left") then self:move(-ROWS) end
+    if input:wasPressed("right") then self:move(ROWS) end
+    if input:wasPressed("select") then self:cycleView() end
+    if input:wasPressed("start") then self:open("search") end
+    if input:wasPressed("a") then self:choose() end
+    if input:wasPressed("b") then self:close() end
+  end
+
+  -- ------- drawing
+
+  function Screen:drawIcon(species, x, y, dim)
+    local host = iconMenu(self)
+    if not host then return end
+    local G = love.graphics
+    if dim then
+      -- A tint rather than a palette: setColor(0,0,0,1) takes every pixel's
+      -- RGB to zero and leaves its alpha alone, which is a silhouette of the
+      -- exact shape the icon draws -- and it holds for a mod's full-colour
+      -- art, which a palette zone would not (see list.lua's note).
+      G.setColor(0, 0, 0, 1)
+    else
+      G.setColor(1, 1, 1, 1)
+    end
+    pcall(host.drawIcon, host, stubFor(species), x, y)
+    G.setColor(1, 1, 1, 1)
+  end
+
+  -- DexData.list already builds the row: `label` is the number and the name
+  -- (or "-----" for one never met), `ball` is set when it is owned, and
+  -- `seen` is what decides whether the icon is drawn or silhouetted.
+  function Screen:drawRow(item, y, selected)
+    self:drawIcon(item.species, ICON_X, y, not item.seen)
+    C.black()
+    local textY = y + TEXT_DY
+    Font.draw(C.truncate(item.label, LABEL_GLYPHS), LABEL_X, textY)
+    if item.ball then
+      -- The ball in a column of its own: a column answers "what do I still
+      -- need" at a glance and a scatter of them does not.
+      local by = textY + 3
+      love.graphics.circle("fill", BALL_X, by, BALL_R)
+      C.white()
+      love.graphics.rectangle("fill", BALL_X - BALL_R, by - 0.5, BALL_R * 2, 1)
+      C.black()
+      love.graphics.circle("fill", BALL_X, by, 1.2)
+    end
+    if selected then
+      C.black()
+      Font.drawCode(Theme.cursor, CURSOR_X, textY)
+    end
+  end
+
+  function Screen:draw()
+    C.clear()
+    C.headerBox()
+    C.black()
+    Font.draw(Strings(tostring(self.title or "")), C.LEFT, C.HEADER_TEXT_Y)
+    local views = DexData.MODES
+    local width = C.pipsWidth(#views)
+    local active = 1
+    for i, name in ipairs(views) do
+      if name == self.mode then active = i end
+    end
+    C.pips(C.RIGHT - width, C.HEADER_TEXT_Y + 2, #views, active)
+
+    -- the icon column, ruled off from the names
+    C.rule(RULE_X, ROW_TOP, 1, ROWS * ROW_H)
+
+    for row = 1, ROWS do
+      local item = self.items[self.scroll + row]
+      if item then
+        self:drawRow(item, ROW_TOP + (row - 1) * ROW_H,
+                     self.scroll + row == self.index)
+      end
+    end
+
+    C.footerBox()
+    C.black()
+    -- Fixed three-digit fields keep this at 17 glyphs, under the 18-column
+    -- wrap a footer goes through.
+    Font.draw(Strings("SEEN %3d  OWN %3d", self.seen, self.owned),
+              C.LEFT, C.FOOTER_TEXT_Y)
+  end
+
+  -- The cart's own screen answers both, and a page that fills the window has
+  -- to say so or it is drawn in a centred 4:3 square.
+  function Screen:drawsWidescreen() return true end
+  function Screen:wantsFillScale() return true end
+
+  return { new = Screen.new }
+end

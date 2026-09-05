@@ -7,6 +7,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.49] - 2026-09-05
+
+No change. This release is Gold's POKéDEX list, in the UI bundle; the two halves
+ship together and share a version.
+
 ## [0.32.48] - 2026-09-05
 
 **The POKéMON standing on Gold's maps wear this mod's sheets.** The arm for it

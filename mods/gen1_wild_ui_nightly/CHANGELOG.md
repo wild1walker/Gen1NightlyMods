@@ -6,6 +6,55 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.49] - 2026-09-05
+
+**The POKéDEX list on Gold is this suite's** -- the first stage of bringing the
+Gen 2 dex up to the Gen 1 one. A new **DEX LIST** row switches it off.
+
+Rows are what they are on Red, down to the column the ball sits in: the party
+icon beside every entry, the icon column ruled off from the names, `001
+BULBASAUR`, the owned ball in a fixed column, and SEEN / OWN for the whole dex
+in the footer. **SELECT** cycles the three views -- numbered, A-Z, caught -- and
+a view with nothing in it is not entered, because an empty list answers nothing
+but A and B and there would be no way back out of it.
+
+**A on a POKéMON you have never met opens the AREA map** rather than refusing,
+which is the whole reason Red's list wires one: this is the screen a player
+opens to find out where something lives.
+
+### Why it is a new screen and not the one Red uses
+
+Red's list is a *decorator*: `List.new` calls the engine's own PokedexMenu and
+rewrites `rows`, `items`, `draw` and `onSelectKey` on what comes back -- because
+Red's dex **is** a ListMenu. Gold's is not. It is one 1500-line screen with a
+`view` field ("list", "entry", "area", "option", "search", "results", "unown")
+and a separate model for each: no `items`, no `rows`, nothing to decorate. So
+the list is drawn rather than decorated -- off the same `chrome.lua` and the
+same `DexData` both games already share, which is what makes it the same screen
+on both carts rather than two that resemble each other.
+
+### What stays the cart's
+
+Everything this list does not draw, and it is reached rather than
+re-implemented: the **entry**, the **AREA map** with its blinking nests across
+both regions, **SEARCH** and **UNOWN MODE**. Each is opened by building Gold's
+own PokedexMenu, pointing it at the species the cursor is on and setting the
+view it should open in. Gold's area screen is better than the Kanto-only one Red
+needed built for it, so replacing it to stand still would have been a loss.
+
+The icon goes through `PartyMenu:drawIcon`, the same call the party list makes,
+so a dex row and a party row show the same art -- including this suite's own
+follower sheets and the colour-icon escape from 0.32.41. One never met is drawn
+as a *silhouette* rather than skipped: a tint, not a palette, so it holds for a
+mod's full-colour art too.
+
+Two gates in the old code turned out to be stale, the same way the rematch ones
+were: Gold **does** have `PartyMenu.drawIcon` (the facade proxies it), and it
+**does** have `askNicknameUI`. Neither was the obstacle it was written up as.
+
+Still to come: the three-page entry (STATS / EVOLVES / MOVES already exist on
+Gold as extra pages on the cart's entry), and AREA captions.
+
 ## [0.32.48] - 2026-09-05
 
 No change. This release is Gold's map POKéMON sprites, in the QOL bundle; the

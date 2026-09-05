@@ -264,6 +264,22 @@ do
     isYellow = function() return false end,
   }
 
+  -- The list and the chrome it draws from reach these three.  Stubbed rather
+  -- than skipped: without them chrome.lua does not build, the install logs a
+  -- warning and moves on, and the registration this block is about would be
+  -- missing for a reason that has nothing to do with the code under test.
+  local noop = function() end
+  package.loaded["src.render.Font"] = {
+    draw = noop, drawCode = noop, drawBox = noop, BORDER = {},
+  }
+  package.loaded["src.ui.Theme"] = { cursor = 0, cursorHollow = 0 }
+  package.loaded["src.core.Strings"] = setmetatable(
+    { source = function(s) return s end },
+    { __call = function(_, s, ...)
+        if select("#", ...) > 0 then return string.format(s, ...) end
+        return s
+      end })
+
   local mod = {
     id = "gen1_wild_ui_nightly", path = "modules/Gen1Dex",
     exports = {}, stored = {},
@@ -292,10 +308,19 @@ do
   local ranOk = pcall(install, mod)
   ok(ranOk, "the Gold arm installs")
 
-  -- Gold's dex is the cart's: nothing is registered over it.
-  eq(next(mod.content.screens.registered), nil,
-     "no screen is registered on Gold -- the list, the search and the AREA "
-     .. "map stay the cart's")
+  -- The LIST is this suite's now (gen2list.lua, registered over the cart's
+  -- own id).  Everything it does not draw is still the cart's, and is reached
+  -- by building that screen and pointing it at a species -- so there is
+  -- exactly one registration here, not four.
+  eq(mod.content.screens.registered["Gen2PokedexMenu"] ~= nil, true,
+     "the list is registered over the cart's dex id")
+  local registrations = 0
+  for _ in pairs(mod.content.screens.registered) do
+    registrations = registrations + 1
+  end
+  eq(registrations, 1,
+     "and it is the only one: the entry, the AREA map, SEARCH and UNOWN MODE "
+     .. "stay the cart's")
 
   -- ...but the pure surface is still there, because it is generation-agnostic
   -- and other mods are built on it.
@@ -309,10 +334,14 @@ do
   local keys = {}
   for _, row in ipairs(mod.defined or {}) do keys[row.key] = true end
   ok(keys.gen2_pages, "EXTRA DEX PAGES is offered")
+  ok(keys.gen2_list, "so is DEX LIST, which is what puts it there")
   ok(not keys.area_hints,
      "AREA HINTS is not: that screen is the cart's here, and a row that "
      .. "cannot do anything is worse than a missing one")
-  ok(not keys.view_cycle, "nor SELECT VIEWS, for the same reason")
+  -- SELECT VIEWS and LIST WRAPS DO mean something now: they are the list's
+  -- own rows, and the list is this mod's.
+  ok(keys.view_cycle, "SELECT VIEWS is offered, because the list is ours")
+  ok(keys.wrap, "and LIST WRAPS with it")
   ok(not keys.nickname_backdrop, "nor NAME IN PLACE")
 end
 

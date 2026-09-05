@@ -159,6 +159,11 @@ return function(mod)
   -- mod actually adds there.
   local GEN2_ROWS = {
     gen2_pages = true,
+    -- The list's own rows, which mean the same thing on both carts once the
+    -- list is this mod's.
+    view_cycle = true,
+    wrap = true,
+    species_colours = true,
   }
 
   if isGen2 then
@@ -171,6 +176,12 @@ return function(mod)
     -- back with nothing to relaunch.
     kept[#kept + 1] = { key = "gen2_pages", type = "toggle",
       label = "EXTRA DEX PAGES", default = true }
+    -- This mod's list in place of the cart's: the icon column, the ball
+    -- column, the SEEN/OWN footer and SELECT's three views.  Off is Gold's
+    -- own list back, exactly as the cartridge draws it -- which is why it is
+    -- a switch and not an assumption.
+    kept[#kept + 1] = { key = "gen2_list", type = "toggle",
+      label = "DEX LIST", default = true }
     schema = kept
   end
 
@@ -203,6 +214,46 @@ return function(mod)
     local ok, problem = pcall(arm.install)
     if not ok then
       mod.log:error("the Gold dex pages did not install: %s", tostring(problem))
+    end
+
+    -- ------- and the list, in this suite's own shape
+    --
+    -- Registered over the cart's `Gen2PokedexMenu`, which is the id Gold
+    -- pushes.  Everything the list does not draw is handed back to the cart's
+    -- own screen -- the entry, the AREA map with its blinking nests across
+    -- both regions, SEARCH and UNOWN MODE -- by building one and pointing it
+    -- at the species the cursor is on.  So nothing Gold has is
+    -- re-implemented to stand still, and this is a list rather than a
+    -- Pokédex.
+    --
+    -- The chrome is the same file both games' screens draw from, which is
+    -- what makes this the same screen on both carts rather than two that
+    -- resemble each other.  Without it the list cannot draw, so a chrome that
+    -- did not build leaves Gold's own list alone.
+    if mod.options:get("gen2_list") ~= false then
+      local makeChrome = loadSibling(mod, "chrome.lua")
+      local makeGen2List = loadSibling(mod, "gen2list.lua")
+      local C
+      if type(makeChrome) == "function" then
+        local chromeOk, built = pcall(makeChrome, mod)
+        if chromeOk and type(built) == "table" then C = built end
+      end
+      if not (C and type(makeGen2List) == "function") then
+        mod.log:warn("the shared chrome did not build; Gold keeps its own "
+          .. "dex list")
+      else
+        local listOk, List = pcall(makeGen2List, mod, DexData, C)
+        if not (listOk and type(List) == "table"
+                and type(List.new) == "function") then
+          mod.log:error("the Gold dex list did not build: %s", tostring(List))
+        else
+          -- Screens.resolve prefers the registry over the builtin module, so
+          -- registering the cart's own id is what puts this list in front of
+          -- it -- and a boot without this mod still finds Gold's.
+          mod.content.screens:register("Gen2PokedexMenu", { new = List.new })
+          mod.log:info("the POKeDEX list is this suite's on Gold")
+        end
+      end
     end
     return
   end
