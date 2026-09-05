@@ -553,6 +553,77 @@ function Theme2.new(context)
       return nextLink(game, dt)
     end)
 
+    -- ------- the pages that print through a palette of their OWN
+    --
+    -- Rewriting `Chrome.DEFAULT_BOX_PALETTE` reaches every screen that draws
+    -- through the default, which is most of them.  It does not reach a screen
+    -- that hands `printThrough` a palette it built itself -- and six do:
+    --
+    --   TrainerCard   `colorsAt`, the CGB zone under each cell
+    --   PokedexMenu   `dexPalette`, off the dex's own .pal
+    --   PackMenu      `gfx:colorsAt`, the pack's
+    --   Pokegear      `pals[1]`, the town map's
+    --   SummaryMenu   the stats page's three
+    --   NamingScreen  the diploma's
+    --
+    -- Every one of those is a trainer or art palette bracketed WHITE ... BLACK
+    -- -- `LoadPalette_White_Col1_Col2_Black`, which is how every palette of
+    -- that shape is used in this game.  White is colour 0 and black is colour
+    -- 3, which are the paper and the ink: exactly the two a theme owns.
+    --
+    -- So on a themed page the fill went dark and the text did not, and since
+    -- `printThrough` paints a `width x 8` cell of colour 0 before its first
+    -- glyph, every string on those pages arrived as a WHITE BOX with black
+    -- letters in it.  Reported against the trainer card, where the name, the
+    -- ID, the money, the dex count, the play time and BADGES are all one.
+    --
+    -- Colours 1 and 2 are left exactly alone, and that is not a compromise:
+    -- Gold's font pages are ink on transparent (`inkFrom1bpp` /
+    -- `inkFrom2bpp`), so a glyph has no shade but 3 and the middle two are
+    -- never drawn in text at all.  Substituting them would change nothing;
+    -- substituting 0 and 3 changes the only two that appear.
+    --
+    -- Gated on the theme being APPLIED this frame rather than on a list of
+    -- screens, which is what makes it safe everywhere it is not wanted: the
+    -- credits, the diploma and every other page that is not in PAGES leaves
+    -- `live` equal to `vanilla`, and a palette is then handed straight back.
+    do
+      local marked = "gen1wildUnthemed"
+      local function reshade(palette)
+        if same(live, vanilla) then return palette end
+        if type(palette) ~= "table" then return palette end
+        -- the default is already the themed one, and a caller that has opted
+        -- out (the battle HUD, which is ink on a PHOTOGRAPH rather than ink
+        -- in a box -- see modules/Gen1Arena) says so on the table
+        if palette == live or palette[marked] then return palette end
+        local paper, ink = live[1], live[4]
+        if type(paper) ~= "table" or type(ink) ~= "table" then return palette end
+        return { paper, palette[2] or paper, palette[3] or ink, ink }
+      end
+
+      if not rawget(Chrome, "__gen1wildPagePalettes") then
+        Chrome.__gen1wildPagePalettes = true
+        local basePrint = Chrome.printThrough
+        if type(basePrint) == "function" then
+          Chrome.printThrough = function(text, tx, ty, palette, ...)
+            return basePrint(text, tx, ty, reshade(palette), ...)
+          end
+        end
+        local baseRight = Chrome.printRightThrough
+        if type(baseRight) == "function" then
+          Chrome.printRightThrough = function(text, txEnd, ty, palette, ...)
+            return baseRight(text, txEnd, ty, reshade(palette), ...)
+          end
+        end
+        local baseCursor = Chrome.cursorThrough
+        if type(baseCursor) == "function" then
+          Chrome.cursorThrough = function(tx, ty, palette, ...)
+            return baseCursor(tx, ty, reshade(palette), ...)
+          end
+        end
+      end
+    end
+
     -- ------- the one thing on a themed page that is not drawn through these
     -- four numbers
     --

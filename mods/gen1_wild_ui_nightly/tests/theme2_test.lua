@@ -59,6 +59,7 @@ end
 -- The page classes, as distinct tables standing in for engine modules.  Only
 -- their identity matters: the arm matches a state by `getmetatable`.
 local PartyMenuClass = {}
+local TrainerCardClass = {}
 local BattleStateClass = {}
 local TextBoxClass = {}
 local StartMenuClass = {}
@@ -67,6 +68,7 @@ local MenuFadeClass = {}
 local ChoiceBoxClass = {}
 
 package.loaded["src.ui.gen2.PartyMenu"] = PartyMenuClass
+package.loaded["src.ui.gen2.TrainerCard"] = TrainerCardClass
 package.loaded["src.ui.gen2.BattleState"] = BattleStateClass
 package.loaded["src.render.TextBox"] = TextBoxClass
 package.loaded["src.ui.gen2.StartMenu"] = StartMenuClass
@@ -379,6 +381,110 @@ do
   eq(warned, 1, "and does not say it again")
   eq(paletteOf(Chrome), WHITE_PAGE,
      "having stood down for the session, it stays stood down")
+end
+
+-- ------------------------------- the pages that bring their own palette
+
+do
+  io.write("a page that prints through a palette of its own\n")
+  freshChrome()
+  -- Six screens hand printThrough a palette they built themselves -- the
+  -- trainer card's CGB zones, the dex's, the pack's, the town map's, the
+  -- stats pages', the diploma's -- and every one of them is a trainer or art
+  -- palette bracketed WHITE ... BLACK.  Those two are the paper and the ink,
+  -- so rewriting the DEFAULT reached the page's fill and not its text: under
+  -- DARK every string arrived as a white box with black letters, because
+  -- printThrough paints a cell of colour 0 before its first glyph.
+  local calls = {}
+  Chrome.printThrough = function(text, tx, ty, palette, invert)
+    calls[#calls + 1] = { fn = "print", palette = palette, invert = invert }
+  end
+  Chrome.printRightThrough = function(text, txEnd, ty, palette)
+    calls[#calls + 1] = { fn = "right", palette = palette }
+  end
+  Chrome.cursorThrough = function(tx, ty, palette)
+    calls[#calls + 1] = { fn = "cursor", palette = palette }
+  end
+
+  local stored = {}
+  local context, mod = fakeContext(stored)
+  local theme = Theme2.new(context)
+  theme.install()
+  local frame = mod.hooks.wrapped["core.update"]
+  local function tick(game) return frame(function() end, game, 1 / 60) end
+  local page = stackOf({ class = TrainerCardClass })
+
+  -- The card's own: LoadPalette_White_Col1_Col2_Black, the shape every
+  -- trainer palette in this game is used in.
+  local function cardPalette()
+    return { { 255, 255, 255 }, { 200, 80, 40 }, { 120, 40, 20 }, { 0, 0, 0 } }
+  end
+  local function shown(entry)
+    local p = entry.palette
+    return ("%d,%d,%d | %d,%d,%d | %d,%d,%d | %d,%d,%d"):format(
+      p[1][1], p[1][2], p[1][3], p[2][1], p[2][2], p[2][3],
+      p[3][1], p[3][2], p[3][3], p[4][1], p[4][2], p[4][3])
+  end
+
+  -- LIGHT: handed straight back, table and all.
+  stored.ui_theme = "light"
+  tick(page)
+  calls = {}
+  local own = cardPalette()
+  Chrome.printThrough("NAME/", 2, 2, own)
+  eq(calls[1] and calls[1].palette, own,
+     "on a light page the page's own palette is handed straight back, the "
+     .. "same table it was given")
+
+  -- DARK: the paper and the ink are the page's, the two hues are the card's.
+  stored.ui_theme = "dark"
+  tick(page)
+  eq(paletteOf(Chrome), DARK_PAGE, "the page went dark")
+  calls = {}
+  Chrome.printThrough("NAME/", 2, 2, cardPalette())
+  eq(shown(calls[1]), "0,0,0 | 200,80,40 | 120,40,20 | 255,255,255",
+     "and the card's text takes the page's paper and ink, so the cell behind "
+     .. "it is the page rather than a white box")
+
+  calls = {}
+  Chrome.printRightThrough("3000", 18, 6, cardPalette())
+  eq(shown(calls[1]), "0,0,0 | 200,80,40 | 120,40,20 | 255,255,255",
+     "right-aligned prints too")
+  calls = {}
+  Chrome.cursorThrough(18, 15, cardPalette())
+  eq(shown(calls[1]), "0,0,0 | 200,80,40 | 120,40,20 | 255,255,255",
+     "and the cursor, which paints a cell of its own")
+
+  -- The middle two are never drawn in text -- Gold's font pages are ink on
+  -- transparent, so a glyph has no shade but 3 -- which is why only the two
+  -- that ARE drawn are substituted.
+  calls = {}
+  Chrome.printThrough("x", 1, 1, Chrome.DEFAULT_BOX_PALETTE)
+  eq(calls[1] and calls[1].palette, Chrome.DEFAULT_BOX_PALETTE,
+     "the box palette is already the themed one and is left as itself")
+
+  -- And a caller that has opted out says so on the table.  The battle HUD
+  -- over a backdrop is ink on a PHOTOGRAPH rather than ink in a box, so it
+  -- keeps the cart's black however the theme is set -- and the mark is what
+  -- makes that independent of which wrap ended up outermost.
+  calls = {}
+  local optedOut = { { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 },
+                     { 0, 0, 0 }, gen1wildUnthemed = true }
+  Chrome.printThrough("RATTATA", 1, 0, optedOut)
+  eq(calls[1] and calls[1].palette, optedOut,
+     "a palette marked gen1wildUnthemed is handed straight back")
+
+  -- A page the theme does not claim leaves `live` vanilla, so nothing is
+  -- substituted there either -- which is what keeps the credits and the
+  -- diploma exactly as the cart draws them.
+  tick(stackOf())
+  calls = {}
+  local plain = cardPalette()
+  Chrome.printThrough("x", 1, 1, plain)
+  eq(calls[1] and calls[1].palette, plain,
+     "and off a themed page nothing is substituted at all")
+
+  freshChrome()
 end
 
 -- ------------------------------------------------- the bar's own colour 0

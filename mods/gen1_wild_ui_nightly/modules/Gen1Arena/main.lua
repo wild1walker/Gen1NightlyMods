@@ -2007,8 +2007,18 @@ local function installGen2()
   -- a backdrop is up, the HUD is drawn through the CART's own four numbers --
   -- white paper (swallowed anyway) and black ink -- and the theme reaches the
   -- boxes and stops there.
+  --
+  -- `gen1wildUnthemed` is how that survives the OTHER half of the suite.
+  -- UI THEME reaches a page that prints through its own palette by
+  -- substituting the paper and the ink into it (runtime/theme2.lua), and a
+  -- battle over a backdrop is exactly the shape it looks for: a palette that
+  -- is not the box palette, on a page the theme has claimed.  Without the
+  -- mark, whichever of the two wraps ended up outermost would decide, and the
+  -- HUD would go white again on the frames the theme won.  With it, the
+  -- answer does not depend on load order.
   local CART_PALETTE = {
     { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 0, 0, 0 },
+    gen1wildUnthemed = true,
   }
 
   -- The HUD BORDER is the one part drawn with no palette at all: `placeBorder`

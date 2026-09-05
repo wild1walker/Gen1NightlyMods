@@ -6,6 +6,57 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.35] - 2026-09-05
+
+- **`DARK` left white boxes behind the text on six screens, not one.**
+
+  Reported against the trainer card, where the name, the ID, the money, the
+  dex count, the play time and `BADGES` each arrived as a white bar with black
+  letters on an otherwise black card. It is not the card's bug — it is a class
+  of them, and the trainer card is just the screen with the most text on it.
+
+  `UI THEME` on Gold works by rewriting `Chrome.DEFAULT_BOX_PALETTE` in place,
+  which reaches every screen that draws through the default. Six do not:
+
+  | screen | palette it prints through |
+  |---|---|
+  | `TrainerCard` | `colorsAt` — the CGB zone under each cell |
+  | `PokedexMenu` | `dexPalette`, off the dex's own `.pal` |
+  | `PackMenu` | the pack's `gfx:colorsAt` |
+  | `Pokegear` | `pals[1]`, the town map's |
+  | `SummaryMenu` | the stats page's three |
+  | `NamingScreen` | the diploma's |
+
+  Every one of those is a trainer or art palette bracketed **white … black** —
+  `LoadPalette_White_Col1_Col2_Black`, which is how a palette of that shape is
+  used everywhere in this game. White is colour 0 and black is colour 3, which
+  are the *paper* and the *ink*: exactly the two a theme owns. So the fill went
+  dark and the text did not, and since `printThrough` paints a `width × 8` cell
+  of colour 0 before its first glyph, every string on those pages came out in
+  a white box.
+
+  The paper and the ink are substituted into any palette a themed page hands
+  to `printThrough`, `printRightThrough` or `cursorThrough` now. **Colours 1
+  and 2 are left exactly alone**, and that is not a compromise: Gold's font
+  pages are ink on transparent, so a glyph has no shade but 3 and the middle
+  two are never drawn in text at all.
+
+  Gated on the theme being *applied this frame* rather than on a list of
+  screens, which is what makes it safe everywhere it is not wanted — the
+  credits, the diploma and everything else outside `PAGES` leave the palette
+  untouched, so a palette is handed straight back. Under `LIGHT` nothing is
+  substituted at all.
+
+  The portrait keeps its white backing, because it is art rather than paper:
+  its colour 0 is the sprite's own highlights as well as the space around it,
+  and darkening one darkens the other.
+
+- The battle HUD over a backdrop opts out by name. It is ink on a
+  **photograph** rather than ink in a box, so it keeps the cart's black
+  whatever `UI THEME` is set to — and the opt-out is a mark on the palette
+  rather than a wrap order, so which of the two halves loads first cannot
+  decide it.
+
 ## [0.32.34] - 2026-09-05
 
 - **`MENU LAYOUT` bricked Gold's START menu, and had done through three

@@ -5,6 +5,12 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.35] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: under `DARK`, the six Gold
+  screens that print through a palette of their own no longer leave a
+  white box behind every string.
+
 ## [0.32.34] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: `MENU LAYOUT` no longer

@@ -7,6 +7,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.35] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: under `DARK`, the six Gold
+  screens that print through a palette of their own no longer leave a
+  white box behind every string.
+
 ## [0.32.34] - 2026-09-05
 
 - **`MENU LAYOUT`'s module is the same code in both bundles again.**
