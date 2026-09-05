@@ -1822,48 +1822,115 @@ end
 -- Red's field is a `love.graphics.rectangle` fill buried inside a draw that
 -- may or may not be going to a canvas the zone pass will re-shade, so this
 -- mod shims `rectangle` itself, matches the fill by its exact geometry, and
--- has two arms for where the paint has to land.  Gold's field is one call:
+-- has two arms for where the paint has to land.  Gold's field is a PALETTE
+-- FILL of the whole surface, and there are exactly three of them:
 --
---     function BattleState:drawPanel()
---       Chrome.clear()                       -- src/ui/gen2/BattleState.lua:4246
+--     Chrome.clear()                        -- BattleState:drawPanel
+--     Chrome.paletteFill(0,0,304,144)       -- WideBattle.drawSurface
+--     Chrome.paletteFill(0,0,160,144)       -- BattleAnimView:fillBackground
 --
--- and it is the ONLY `Chrome.clear()` in the file.  Gold's colour is already
--- in the picture too, so there is no shade pass to dodge and no second canvas
--- to choose between: paint over the cleared field and it stays painted.
+-- all three of which are `Chrome.paletteFill` at the origin, so one shim on
+-- that one function is the whole seam.  Gold's colour is already in the
+-- picture too, so there is no shade pass to dodge and no second canvas to
+-- choose between.
 --
--- So the shim is on `Chrome.clear`, and only for the length of one
--- `drawPanel` call.  Chrome is shared furniture -- every Gold screen clears
--- through it -- so it is put back before the call returns, on the raising
--- path too.  That is the same discipline the Red arm keeps with
--- `love.graphics.rectangle`.
+-- ------- and the field is painted BEFORE the scene, not instead of the fill
 --
--- There is no WIDE arm here.  `src.battle.WideBattle` is Gen 1's, and Gold's
--- battle is 160x144 inside `Chrome.withPanel` whatever the window is doing --
--- so the `og` art is the only art a Gen 2 boot asks for.
+-- This is the part that changed in 0.32.32, and it is the answer to
+-- Gen1NightlyIndex#2 -- *"Battle background is tied to the pokemon sprite, so
+-- any attack moves the whole background"*.
+--
+-- An attack does not move the background on hardware.  It moves the BG
+-- SCROLL: `BattleAnimView:present` bakes the whole panel into a canvas and
+-- blits it back one scanline at a time at each row's own SCX, which is what
+-- a shake, a wobble and the intro's sliding bands all are.  On the cart the
+-- field inside that canvas is flat white, so a scrolled scanline of it is
+-- indistinguishable from an unscrolled one and nothing appears to move.  Put
+-- a photograph in the same canvas and every one of those effects drags the
+-- photograph across the screen.
+--
+-- So the field is not painted inside the panel at all any more.  It goes down
+-- FIRST, on the surface the scene composites onto, and the panel above it is
+-- left transparent where the fill would have been -- the bake canvas is
+-- cleared to transparent already (`BattleAnimView:bake`), so the shaken rows
+-- carry the mons, the HUD and the boxes and nothing else, and the picture
+-- underneath them stays where it is.
+--
+-- `drawScene` is the one place that works for both layouts: `draw`,
+-- `drawWidescreen` and `WideBattle.draw` all reach the scene through it, each
+-- having already set up its own transform, and the overlay hook is raised at
+-- the end of it -- so a field painted at the top of `drawScene` is under
+-- everything and in the right coordinates whichever way the battle is drawn.
+--
+-- The one thing the picture gives up by leaving the bake is the per-effect
+-- rBGP byte, which is how a move's white flash reaches the background.  The
+-- fade at the END of a battle is reproduced instead, because it is long
+-- enough to notice: `exitFadeBgp` is read at paint time and turned into a
+-- veil with the engine's own approximation of a palette byte's brightness
+-- (`BattleAnimView.palVeil`, which exists for the shaderless path and says
+-- exactly this).  A one-frame attack flash does not reach the picture, and
+-- that is the trade: a still background that does not flash, against one that
+-- flashes and slides.
 local function installGen2()
   local okChrome, Chrome = pcall(require, "src.ui.gen2.Chrome")
   if not (okChrome and type(Chrome) == "table"
-          and type(Chrome.clear) == "function") then
+          and type(Chrome.paletteFill) == "function") then
     mod.log:warn("no src.ui.gen2.Chrome to patch -- backdrops will not appear")
     return
   end
 
-  local basePanel = BattleState.drawPanel
-  if type(basePanel) ~= "function" then
-    mod.log:warn("src.ui.gen2.BattleState has no drawPanel -- backdrops will "
+  local baseScene = BattleState.drawScene
+  if type(baseScene) ~= "function" then
+    mod.log:warn("src.ui.gen2.BattleState has no drawScene -- backdrops will "
       .. "not appear")
     return
   end
 
-  local realClear = Chrome.clear
+  -- The engine's own approximation of what a DMG palette byte does to the
+  -- brightness of a whole screen: +1 solid black, -1 solid white, 0 nothing.
+  -- Borrowed rather than re-derived -- it is the same question the shaderless
+  -- animation path asks, and a second answer here would drift from it.
+  local palVeil
+  do
+    local okView, BattleAnimView = pcall(require, "src.ui.gen2.BattleAnimView")
+    if okView and type(BattleAnimView) == "table"
+        and type(BattleAnimView.palVeil) == "function" then
+      palVeil = BattleAnimView.palVeil
+    end
+  end
 
-  local function clearShim(...)
-    if active and not consumed and pendingImage then
-      consumed = true
-      paintField()
+  local function veilOver(self)
+    if not palVeil then return end
+    local okGbc, GbcPalette = pcall(require, "src.render.GbcPalette")
+    if not (okGbc and type(GbcPalette) == "table") then return end
+    local byte
+    if type(self.exitFadeBgp) == "function" then
+      local okByte, found = pcall(self.exitFadeBgp, self)
+      if okByte then byte = found end
+    end
+    byte = byte or GbcPalette.bgp
+    if not byte then return end
+    local okVeil, veil = pcall(palVeil, byte)
+    if not (okVeil and type(veil) == "number") or veil == 0 then return end
+    local shade = veil > 0 and 0 or 1
+    local r, g, b, a = love.graphics.getColor()
+    love.graphics.setColor(shade, shade, shade, math.min(1, math.abs(veil)))
+    realRectangle("fill", 0, 0, pendingW, pendingH)
+    love.graphics.setColor(r, g, b, a)
+  end
+
+  -- The three whole-surface fills, and only those.  A partial fill is a real
+  -- piece of chrome -- the START menu's own block, a text box's arrow cell --
+  -- and swallowing one would put a hole in it.
+  local realFill = Chrome.paletteFill
+
+  Chrome.paletteFill = function(px, py, pw, ph, ...)
+    if active and consumed and px == 0 and py == 0
+       and (pw or 0) >= Chrome.SCREEN_W * 8
+       and (ph or 0) >= Chrome.SCREEN_H * 8 then
       return
     end
-    return realClear(...)
+    return realFill(px, py, pw, ph, ...)
   end
 
   -- ------- WHAT A BACKDROP TAKES AWAY, AND HAS TO PUT BACK
@@ -1917,18 +1984,39 @@ local function installGen2()
   -- against it, so nothing is touched and the screen is the cart's exactly.
   local keying = false
 
-  -- The one place the paper is still wanted is the HUD BORDER's ink.  The
-  -- border tiles are 1bpp, black-on-transparent, and `placeBorder` draws them
-  -- with no palette at all -- so they come out flat black however the rest of
-  -- the game is themed.  Line art in the ink shade wants the ink, which under
-  -- UI THEME > DARK is the light one the HUD's own text is being drawn in.
-  local function themeInk()
-    local pal = Chrome.DEFAULT_BOX_PALETTE
-    if type(pal) ~= "table" then return nil end
-    local ink = pal[4]
-    if type(ink) ~= "table" then return nil end
-    return ink
-  end
+  -- ------- and the HUD does NOT take the theme
+  --
+  -- The first cut of this drew the HUD through the LIVE box palette, so under
+  -- UI THEME > DARK the names, the levels, the HP numbers and the border came
+  -- out WHITE.  Reported immediately: *"the stuff over the arena shouldn't
+  -- turn to white font when dark mode is on.  That stuff should stay the same
+  -- so it doesn't make it hard to read."*  Which is the right call and the
+  -- rule is worth naming, because it decides every case like it:
+  --
+  --   A THEME IS FOR BOXES.  Dark ink on dark paper is the problem a theme
+  --   exists to solve, and it solves it by owning both -- so the bottom
+  --   strip, the YES/NO box and the four command buttons all go dark
+  --   together and stay legible.  The HUD over a backdrop has no paper at
+  --   all: it is ink on a PHOTOGRAPH, which the theme does not own and
+  --   cannot reason about.  Flipping that ink to white is not theming it,
+  --   it is guessing at the picture -- and half the backdrops in this mod
+  --   are bright.
+  --
+  -- Red settles it the same way and always has: its battle HUD is black
+  -- whatever else the theme is doing, because `Font.draw` is black.  So while
+  -- a backdrop is up, the HUD is drawn through the CART's own four numbers --
+  -- white paper (swallowed anyway) and black ink -- and the theme reaches the
+  -- boxes and stops there.
+  local CART_PALETTE = {
+    { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 0, 0, 0 },
+  }
+
+  -- The HUD BORDER is the one part drawn with no palette at all: `placeBorder`
+  -- calls `drawTile` without one, so its 1bpp black-on-transparent tiles come
+  -- out flat black.  That is already the ink this wants, and it is given one
+  -- explicitly rather than left to the default so it cannot drift from the
+  -- text beside it.
+  local function hudInk() return CART_PALETTE[4] end
 
   -- The two HUD draws.  Wrapped rather than switched from `drawPanel`
   -- because the window has to close over the HUD and nothing else: the pics
@@ -1970,11 +2058,15 @@ local function installGen2()
   for _, name in ipairs({ "printThrough", "printRightThrough" }) do
     local base = Chrome[name]
     if type(base) == "function" then
-      Chrome[name] = function(...)
-        if not keying then return base(...) end
+      -- Both signatures put the palette fourth (`text, tx, ty, palette` and
+      -- `text, txEnd, ty, palette`), so one substitution serves both: the
+      -- cart's own numbers in place of the themed ones, for the reason under
+      -- CART_PALETTE.
+      Chrome[name] = function(text, a, b, palette, ...)
+        if not keying then return base(text, a, b, palette, ...) end
         local realRect = love.graphics.rectangle
         love.graphics.rectangle = function() end
-        local ok, width = pcall(base, ...)
+        local ok, width = pcall(base, text, a, b, CART_PALETTE, ...)
         love.graphics.rectangle = realRect
         if not ok then error(width, 0) end
         return width
@@ -2016,7 +2108,7 @@ local function installGen2()
     BattleHud.drawTile = function(self, key, firstTile, tile, tx, ty, colors,
                                   mirror)
       if colors == nil and keying then
-        local ink = themeInk()
+        local ink = hudInk()
         -- Colours 0 to 2 are never drawn: the sheet is 1bpp, so its only two
         -- shades are 0 (keyed away) and 3.
         if ink then colors = { ink, ink, ink, ink } end
@@ -2073,56 +2165,78 @@ local function installGen2()
       .. "backdrop showing through them")
   end
 
-  BattleState.drawPanel = function(self, ...)
+  BattleState.drawScene = function(self, bodyFn, ...)
     -- A battle with no sides yet draws "NO BATTLE" on a cleared screen; there
     -- is nothing to put a backdrop behind, and picking one would ask the
     -- world for a map that is halfway through changing.
-    if not (self and self.battle) then return basePanel(self, ...) end
+    local sides = type(self.hasBattleSides) == "function"
+      and self:hasBattleSides()
+    if not (self and self.battle and sides) then
+      self.gen1wildArenaField = nil
+      return baseScene(self, bodyFn, ...)
+    end
+    if mod.options:get("enabled") == false then
+      self.gen1wildArenaField = nil
+      return baseScene(self, bodyFn, ...)
+    end
 
-    local wanted = mod.options:get("enabled") ~= false
-    if not wanted then return basePanel(self, ...) end
+    -- Gold has a wide layout of its own -- `battleLayout = "wide"`, which
+    -- WideBattle draws at 304x144 through this same call -- so the slot is
+    -- picked off the layout rather than assumed to be `og`.  The mod has
+    -- always shipped both sets of art; the Gold arm just never asked for the
+    -- wide one.
+    local wide = type(self.wideLayout) == "function" and self:wideLayout()
+    local layout = wide and "wide" or "og"
+    local width = wide and WIDE_W or OG_W
+    local height = wide and WIDE_H or OG_H
 
     local chosen
     local okPick, problem = pcall(function()
-      chosen = pickBackdrop(self, "og")
+      chosen = pickBackdrop(self, layout)
     end)
     if not okPick then
       mod.log:warn("no backdrop this frame: %s", tostring(problem))
     end
-
-    active, consumed = true, false
-    pendingImage = chosen
-    pendingW, pendingH = OG_W, OG_H
-
-    Chrome.clear = clearShim
-    local okDraw, err = pcall(basePanel, self, ...)
-    Chrome.clear = realClear
-
-    -- Only when a backdrop actually replaced the field: with BACKDROPS off,
-    -- or on a battle no slot answered, Gold's own white field is still there
-    -- and the bars around it are the right colour for it.
-    if consumed then
-      bleedImage, bleedW, bleedH = pendingImage, OG_W, OG_H
+    if not chosen then
+      -- With BACKDROPS off, or on a battle no slot answered, Gold's own white
+      -- field is still there and everything below is the cart's.
+      self.gen1wildArenaField = nil
+      return baseScene(self, bodyFn, ...)
     end
+
+    active, consumed = true, true
+    pendingImage, pendingW, pendingH = chosen, width, height
+
+    -- Down FIRST, on the surface the scene composites onto, so an attack's
+    -- scanline scroll moves the panel over it instead of moving it.
+    local okPaint, paintProblem = pcall(function()
+      paintField()
+      veilOver(self)
+    end)
+    if not okPaint then
+      mod.log:warn("the field was not painted: %s", tostring(paintProblem))
+    end
+
+    bleedImage, bleedW, bleedH = chosen, width, height
     -- What UI THEME needs to know about this frame, on the instance rather
     -- than through an export, because it is a fact about ONE battle screen
     -- on ONE frame: is the field a picture, or is it the four numbers the
     -- theme owns?
     --
     -- The theme excludes battles outright, and the reason it gives is exact:
-    -- Gold's field IS `Chrome.clear()`, a whole-screen fill through the box
-    -- palette, so theming a battle would paint every field black.  That is
-    -- true of a battle the backdrop did not take, and false of one it did --
-    -- there the fill never happened and the field is art, which no palette
-    -- reaches.  So the boxes, the plates and the HUD can go dark while the
-    -- picture stays a picture.
-    self.gen1wildArenaField = consumed or nil
-    active, pendingImage = false, nil
+    -- Gold's field IS a whole-screen fill through the box palette, so theming
+    -- a battle would paint every field black.  That is true of a battle the
+    -- backdrop did not take, and false of one it did -- there the fill never
+    -- happens and the field is art, which no palette reaches.  So the boxes
+    -- and the bottom strip can go dark while the picture stays a picture.
+    self.gen1wildArenaField = true
 
+    local okDraw, err = pcall(baseScene, self, bodyFn, ...)
+    active, consumed, pendingImage = false, false, nil
     if not okDraw then error(err, 0) end
   end
 
-  mod.log:info("patched Gold's battle field (og)")
+  mod.log:info("patched Gold's battle field (og, wide)")
 end
 
 local function install()

@@ -6,6 +6,13 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.32] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: the battle HUD on Gold keeps
+  the cart's own ink under `DARK`, an attack no longer drags the
+  backdrop with it, and the move menu joins the command menu in the
+  four boxes with the type's colour in the letters.
+
 ## [0.32.31] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: the battle HUD on Gold

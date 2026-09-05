@@ -77,7 +77,7 @@ local IMAGE_DATA = {
   getPixel = function(_, x, y) return ringPixel(x, y) end,
 }
 
-local fills, draws, keyed
+local fills, draws, keyed, prints
 _G.love = _G.love or {}
 
 -- The ImageData the paper mask is built into, so a case can ask which pixels
@@ -148,22 +148,41 @@ package.loaded["src.render.GbcPalette"] = GbcPalette
 -- swallows -- and then "draws" its glyphs.
 local Chrome
 Chrome = {
+  SCREEN_W = 20,
+  SCREEN_H = 18,
   DEFAULT_BOX_PALETTE = {
     { 255, 255, 255 }, { 255, 255, 255 }, { 255, 255, 255 }, { 0, 0, 0 },
   },
-  clear = function() fills[#fills + 1] = { kind = "clear" } end,
   paletteFill = function(x, y, w, h)
     fills[#fills + 1] = { kind = "paper", x = x, y = y, w = w, h = h }
   end,
-  printThrough = function(text, tx, ty)
+  -- The real one IS a whole-surface palette fill, and that is the whole
+  -- reason one shim on paletteFill covers the panel, the wide surface and
+  -- the animation view's exposed strip alike.
+  printThrough = function(text, tx, ty, palette)
     love.graphics.rectangle("fill", tx * 8, ty * 8, #tostring(text) * 8, 8)
+    prints[#prints + 1] = { text = text, palette = palette }
     return #tostring(text) * 8
   end,
 }
-Chrome.printRightThrough = function(text, txEnd, ty)
-  return Chrome.printThrough(text, txEnd, ty)
+Chrome.clear = function()
+  Chrome.paletteFill(0, 0, Chrome.SCREEN_W * 8, Chrome.SCREEN_H * 8)
+end
+Chrome.printRightThrough = function(text, txEnd, ty, palette)
+  return Chrome.printThrough(text, txEnd, ty, palette)
 end
 package.loaded["src.ui.gen2.Chrome"] = Chrome
+
+-- The engine's own brightness approximation, which the arm borrows to veil
+-- the picture through an end-of-battle fade.
+package.loaded["src.ui.gen2.BattleAnimView"] = {
+  palVeil = function(byte)
+    if not byte then return 0 end
+    local sum = 0
+    for index = 0, 3 do sum = sum + math.floor(byte / (4 ^ index)) % 4 end
+    return (sum - 6) / 6
+  end,
+}
 
 -- The HUD's tiles.  Only the two things the arm reaches for: a tile drawn
 -- with a palette (the bars) and one drawn with none (the border).
@@ -181,6 +200,15 @@ package.loaded["src.ui.gen2.BattleHud"] = BattleHud
 -- so patching this table is patching Gold's.
 local drawn
 local BattleState = {}
+BattleState.hasBattleSides = function(self) return self.battle ~= nil end
+BattleState.wideLayout = function() return false end
+-- The one call every layout reaches the battle through, and the one the arm
+-- wraps: `draw`, `drawWidescreen` and WideBattle.draw all come here, each
+-- having set up its own transform, and battle.overlay is raised at the end.
+BattleState.drawScene = function(self, bodyFn)
+  drawn[#drawn + 1] = "scene"
+  if bodyFn then bodyFn() else self:drawPanel() end
+end
 BattleState.drawPanel = function(self)
   drawn[#drawn + 1] = "panel"
   Chrome.clear()
@@ -192,7 +220,10 @@ BattleState.drawPanel = function(self)
   end
   self:drawPlayerHud()
   -- The bottom strip, which is NOT the HUD: its box really does have paper.
-  Chrome.printThrough("HELLO", 1, 14)
+  Chrome.printThrough("HELLO", 1, 14, Chrome.DEFAULT_BOX_PALETTE)
+  -- A piece of chrome that fills part of the screen -- the START menu's own
+  -- block is one -- which must not be mistaken for the field.
+  if self.partialFill then Chrome.paletteFill(0, 104, 80, 40) end
 end
 BattleState.drawEnemyHud = function(self)
   drawn[#drawn + 1] = "enemy"
@@ -268,6 +299,7 @@ local function screen(opts)
   local self = {
     battle = opts.battle ~= false and { wild = true } or nil,
     drawsPics = opts.drawsPics,
+    partialFill = opts.partialFill,
   }
   -- The class behind it, so `self:drawEnemyHud()` reaches the wrapped method
   -- the way it does on a live instance.
@@ -275,8 +307,8 @@ local function screen(opts)
 end
 
 local function frame(self)
-  fills, draws, drawn, keyed = {}, {}, {}, {}
-  BattleState.drawPanel(self)
+  fills, draws, drawn, keyed, prints = {}, {}, {}, {}, {}
+  BattleState.drawScene(self)
 end
 
 local function kinds(want)
@@ -333,17 +365,77 @@ do
 end
 
 do
-  io.write("the border takes the theme's ink\n")
+  io.write("the field goes down before the scene, not inside it\n")
+  local self = screen({ drawsPics = false })
+  frame(self)
+  -- Gen1NightlyIndex#2: an attack does not move the background, it moves the
+  -- BG SCROLL -- BattleAnimView bakes the panel and blits it back a scanline
+  -- at a time.  A field inside that canvas is dragged across the screen with
+  -- everything else, so it has to be under it instead.
+  ok(draws[1] and draws[1].image and draws[1].image.getWidth,
+     "the backdrop is the first thing drawn this frame")
+  eq(draws[1] and draws[1].a, 0, "at the origin")
+  eq(draws[1] and draws[1].b, 0, "on both axes")
+  local sceneAt
+  for i, what in ipairs(drawn) do
+    if what == "scene" then sceneAt = i break end
+  end
+  eq(sceneAt, 1, "and the scene composites over it")
+
+  eq(#kinds("paper"), 0,
+     "the panel's own whole-surface fill is swallowed, so the picture is "
+     .. "what shows through wherever the panel paints nothing")
+end
+
+do
+  io.write("a partial fill is left alone\n")
+  local self = screen({ drawsPics = false, partialFill = true })
+  frame(self)
+  local paper = kinds("paper")
+  eq(#paper, 1, "a fill that is not the whole surface is a real piece of "
+     .. "chrome and goes through")
+  eq(paper[1] and paper[1].w, 80, "at its own size")
+end
+
+do
+  io.write("the HUD keeps the cart's ink under DARK\n")
+  -- The theme rewrites Chrome.DEFAULT_BOX_PALETTE in place, so this is what a
+  -- dark page looks like from inside the arm.
+  local vanilla = Chrome.DEFAULT_BOX_PALETTE
+  Chrome.DEFAULT_BOX_PALETTE = {
+    { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 255, 255, 255 },
+  }
   frame(screen({ drawsPics = false }))
+
+  -- "The stuff over the arena shouldn't turn to white font when dark mode is
+  -- on."  A theme is for BOXES: it owns the paper as well as the ink, so it
+  -- can flip both and stay legible.  The HUD over a backdrop has no paper --
+  -- it is ink on a photograph -- so flipping it is guessing at the picture.
+  local inkOf = {}
+  for _, printed in ipairs(prints) do
+    inkOf[printed.text] = printed.palette and printed.palette[4][1]
+  end
+  eq(inkOf["RATTATA"], 0,
+     "the enemy's name is printed in the cart's black, not the theme's white")
+  eq(inkOf["18/18"], 0, "and so are the HP numbers")
+  -- And the rule's other half, which is what makes it a rule rather than an
+  -- opt-out: the bottom strip is a BOX.  The theme owns its paper as well as
+  -- its ink, so it can flip both and stay legible -- and it must, or DARK
+  -- would print black text on a black box.
+  eq(inkOf["HELLO"], 255,
+     "while the bottom strip, which has paper of its own, still goes dark")
+
   local tiles = kinds("tile")
   eq(#tiles, 2, "both tiles drew")
   ok(tiles[1] and tiles[1].colors and tiles[1].colors[2][2] == 255,
      "a tile the cart coloured keeps the cart's colours")
   ok(tiles[2] and tiles[2].colors ~= nil,
      "and a tile the cart drew with no palette at all is given one, or it "
-     .. "comes out flat black on a dark page")
+     .. "comes out flat black rather than in the ink beside it")
   eq(tiles[2] and tiles[2].colors and tiles[2].colors[4][1], 0,
-     "in the live box palette's ink")
+     "in the same black the text is in")
+
+  Chrome.DEFAULT_BOX_PALETTE = vanilla
 end
 
 do

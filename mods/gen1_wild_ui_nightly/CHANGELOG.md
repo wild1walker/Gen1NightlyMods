@@ -6,6 +6,101 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.32] - 2026-09-05
+
+- **The battle HUD does not take the theme.**
+
+  0.32.31 drew Gold's HUD through the live box palette, so under `UI THEME >
+  DARK` the names, the levels, the HP numbers and the border came out white on
+  the picture. Reported immediately: *"the stuff over the arena shouldn't turn
+  to white font when dark mode is on. That stuff should stay the same so it
+  doesn't make it hard to read."*
+
+  That is the right call, and the rule is worth naming because it settles
+  every case like it:
+
+  > A theme is for **boxes**. Dark ink on dark paper is the problem a theme
+  > exists to solve, and it solves it by owning *both* — so the bottom strip,
+  > the YES/NO box and the four command buttons all go dark together and stay
+  > legible. The HUD over a backdrop has no paper at all: it is ink on a
+  > photograph, which the theme does not own and cannot reason about. Flipping
+  > that ink to white is not theming it, it is guessing at the picture — and
+  > half the backdrops in this mod are bright.
+
+  Red settles it the same way and always has: its battle HUD is black whatever
+  else the theme is doing, because `Font.draw` is black. So while a backdrop is
+  up, Gold's HUD is drawn through the cart's own four numbers, and the theme
+  reaches the boxes and stops there.
+
+- **An attack no longer drags the whole background with it.**
+  ([Gen1NightlyIndex#2](https://github.com/wild1walker/Gen1NightlyIndex/issues/2))
+
+  *"Battle background is tied to the pokemon sprite, so any attack moves the
+  whole background."* It is not tied to the sprite — it was tied to the **BG
+  scroll**, which is the same thing from the outside and a different thing to
+  fix.
+
+  `BattleAnimView:present` bakes the whole panel into a canvas and blits it
+  back one scanline at a time at each row's own SCX. That is what a shake, a
+  wobble and the intro's sliding bands all are, and on the cart it is
+  invisible: the field inside that canvas is flat white, so a scrolled
+  scanline of it looks exactly like an unscrolled one. Put a photograph in the
+  same canvas and every one of those effects drags the photograph across the
+  screen.
+
+  So the field is not painted inside the panel any more. It goes down
+  **first**, on the surface the scene composites onto, and the panel above it
+  is left transparent where the fill would have been — the bake canvas is
+  already cleared to transparent, so the shaken rows carry the mons, the HUD
+  and the boxes and nothing else, and the picture underneath them stays put.
+
+  Three things fall out of moving the seam to `drawScene`:
+
+  - it is one shim on `Chrome.paletteFill` instead of one on `Chrome.clear`,
+    which is what makes it reach all three of the cart's whole-surface fills
+    (the panel's, the wide surface's, and the animation view's exposed strip);
+  - Gold's **wide** layout gets a backdrop now, at the wide art rather than
+    the 160x144 art. The mod always shipped both sets; the Gold arm just never
+    asked for the second one;
+  - the picture gives up the per-effect rBGP byte, which is how a move's white
+    flash reached the background. The fade at the **end** of a battle is
+    reproduced instead, because it is long enough to notice. A one-frame
+    attack flash does not reach the picture, and that is the trade: a still
+    background that does not flash, against one that flashes and slides.
+
+- **The moves are in the four boxes too, in the type's own colour.**
+
+  *"Moves still aren't in the 2x2 tiles with the move coloring."* 0.32.31
+  framed the command menu and left Gold's move menu as the cart's four-row
+  list, on the grounds that its `MoveInfoBox` already showed the type and the
+  PP that Red's arm has to build a panel for. The list is still a list, which
+  was the point.
+
+  So the move menu gets the same four 10x3 boxes, and over them the panel —
+  the highlighted move's name whole, its type in the type's own colour, and
+  its PP — at (0,8), within a tile of where Gold's own `MoveInfoBox` sat and
+  covering what that box covered. The held-move marker and the `Disabled!`
+  line are both still the cart's. `battle.move_grid_navigation` was already
+  wired on Gold, so LEFT and RIGHT already knew how to cross a 2x2; it just
+  had to be told this one is a grid.
+
+  How a colour survives a theme here is the one part that is not a port. Red
+  has to *leave* the palette pass to keep one — its theme paints a four-shade
+  panel over every box a battle draws, so a real RGB colour under one comes
+  back as whichever grey its red channel landed on. Gen 2 themes the other way
+  round, handing each draw its own four numbers with no pass afterwards, so a
+  stencilled glyph is never in a palette pass and its colour survives on its
+  own. What does not survive is legibility: the ink table is written dark
+  because it was written for black ink on a white box, so on a dark one the
+  inks are wound up to full strength with the hue left exactly where it was —
+  and "is the box dark" is read off the live box palette's own ink rather than
+  asked of the theme, because that palette *is* what the theme changes.
+
+  Five rows under `BATTLE MENUS` on a Gen 2 boot: `COMMAND GRID`, `MOVE GRID`,
+  `MOVE PANEL`, `TYPE COLOUR` and `FULL NAMES`. The five that are settings on
+  machinery Gold shipped for itself — its XP bar, its level-up stat box, its
+  ball sprites — are still Gen 1 only.
+
 ## [0.32.31] - 2026-09-05
 
 - **The battle HUD had a box behind it, and it should have had nothing.**

@@ -260,34 +260,120 @@ already shipped:
 Each verdict is written next to its feature in `features.lua`, with what was
 checked to reach it.
 
-### BATTLE MENUS on Gold: the frame, and nothing else
+### BATTLE MENUS on Gold: the frame, on both menus
 
 This one was on the table above for six releases, and the reasoning held right
 up to the part that mattered. Gold's command menu really is a 2x2 already —
-`col = ((i-1)%2)*spacing`, `row = floor((i-1)/2)*2` — its battle really does
-have an XP bar with the cart's own fill sound, and its move list really does
-carry the type and PP panel that Red's arm has to build for itself.
+`col = ((i-1)%2)*spacing`, `row = floor((i-1)/2)*2` — `battle.move_grid_
+navigation` is already wired, so LEFT and RIGHT already know how to cross one,
+and the battle really does have an XP bar with the cart's own fill sound.
 
 What Gold does not have is the **frame**. Its four commands are four words in
-one box across the right of the strip; Red's arm draws four boxes, one per
-command. That is the difference between a block of text and four buttons, and
-it is the one the report was about.
+one box across the right of the strip, and its move menu is a plain four-row
+list in a box of its own. That is the difference between text in a window and
+four buttons, and it is what both reports were about.
 
-So the Gold arm is that and nothing else: four 10x3 boxes tiling rows 12–17 —
-the same `CLASSIC_BOXES` the Gen 1 arm draws, because Gold's bottom strip is
-the same twenty tiles by six — with the cart's own labels and the cart's own
-hand in them. Nothing about what the menu *does* is touched: `menuIndex` is
-still the cart's and is still moved by the cart's own input handling. The move
-list, the bug contest's menu and every message keep the cart's own box.
-`COMMAND GRID` turns it off.
+So the Gold arm is the frame, on both menus:
+
+- **four 10x3 boxes tiling rows 12–17** — the same `CLASSIC_BOXES` the Gen 1
+  arm draws, because Gold's bottom strip is the same twenty tiles by six —
+  with the cart's own labels and the cart's own hand in them;
+- **the panel over the move grid**, at (0,8), within a tile of where Gold's
+  own `MoveInfoBox` sat and covering what that box covered: the highlighted
+  move's name whole, its type in the type's own colour, and its PP.
+
+Nothing about what the menus *do* is touched: `menuIndex`, `moveIndex` and
+`moveSwapIndex` are still the cart's and are still moved by the cart's own
+input handling. The bug contest's menu (whose third label is `PARKBALL` and a
+count — eleven glyphs where a 10-tile box has seven) and every message keep
+the cart's own box. `COMMAND GRID` and `MOVE GRID` turn each half off.
+
+#### How a type colour survives a theme here
+
+Red has to **leave** the palette pass to keep one: its theme paints a
+four-shade panel over every box a battle draws, so a real RGB colour under one
+comes back as whichever grey its red channel landed on, and `C.onDark` has to
+claim the letters' rectangle and have the renderer re-blit it raw.
+
+Gen 2 themes the other way round — each draw is handed its own four numbers,
+and there is no pass afterwards — so a glyph stencilled by `C.inked` is never
+in a palette pass to begin with and its colour survives on its own. What does
+*not* survive is legibility: `TYPE_INK` is written dark because it was written
+for black ink on a white box. So the ink is lifted with `C.vivid` when the box
+is dark, and "is the box dark" is read off the live box palette's own ink
+rather than asked of the theme — that palette **is** what the theme changes,
+so reading it cannot disagree with it.
+
+### The battle HUD does not take the theme
+
+The HUD over a backdrop is drawn in the **cart's own black**, whatever `UI
+THEME` is set to, and that is a rule rather than an exception:
+
+> A theme is for **boxes**. Dark ink on dark paper is the problem a theme
+> exists to solve, and it solves it by owning *both* — so the bottom strip,
+> the YES/NO box and the four command buttons all go dark together and stay
+> legible. The HUD over a backdrop has no paper at all: it is ink on a
+> photograph, which the theme does not own and cannot reason about. Flipping
+> that ink to white is not theming it, it is guessing at the picture — and
+> half the backdrops in this mod are bright.
+
+Red settles it the same way and always has: its battle HUD is black whatever
+else the theme is doing, because `Font.draw` is black.
 
 ### BACKDROPS on Gold
 
-The seam is cleaner than Red's. Gold's battle field is one `Chrome.clear()`
-call — the first line of `BattleState:drawPanel`, and the only one in the file
-— so the backdrop goes in ahead of that instead of behind Red's
-geometry-matched `love.graphics.rectangle` shim. There is no wide arm either:
-Gold's battle is 160x144 inside `Chrome.withPanel` whatever the window does.
+The seam is cleaner than Red's. Gold's field is a whole-surface **palette
+fill**, and there are exactly three of them —
+
+```
+Chrome.clear()                    -- BattleState:drawPanel
+Chrome.paletteFill(0,0,304,144)   -- WideBattle.drawSurface
+Chrome.paletteFill(0,0,160,144)   -- BattleAnimView:fillBackground
+```
+
+— all three of which are `Chrome.paletteFill` at the origin, so one shim on
+that one function is the whole seam. Red needs its `love.graphics.rectangle`
+shim matched by exact geometry and two arms for where the paint lands; Gold
+needs neither, because its colour is already in the picture and there is no
+shade pass to dodge.
+
+#### The field goes down *before* the scene, not instead of the fill
+
+[Gen1NightlyIndex#2][issue2] — *"Battle background is tied to the pokemon
+sprite, so any attack moves the whole background."*
+
+An attack does not move the background on hardware. It moves the **BG
+scroll**: `BattleAnimView:present` bakes the whole panel into a canvas and
+blits it back one scanline at a time at each row's own SCX, which is what a
+shake, a wobble and the intro's sliding bands all are. On the cart the field
+inside that canvas is flat white, so a scrolled scanline of it is
+indistinguishable from an unscrolled one and nothing appears to move. Put a
+photograph in the same canvas and every one of those effects drags the
+photograph across the screen.
+
+So the field is not painted inside the panel at all. It goes down **first**,
+on the surface the scene composites onto, and the panel above it is left
+transparent where the fill would have been — the bake canvas is already
+cleared to transparent, so the shaken rows carry the mons, the HUD and the
+boxes and nothing else, and the picture underneath them stays put.
+
+`drawScene` is the one place that works for both layouts: `draw`,
+`drawWidescreen` and `WideBattle.draw` all reach the scene through it, each
+having set up its own transform, and `battle.overlay` is raised at the end of
+it. Which also means Gold's **wide** layout gets a backdrop now, at the wide
+art rather than the 160x144 art — the mod always shipped both sets and the
+Gold arm just never asked for the second one.
+
+The one thing the picture gives up by leaving the bake is the per-effect rBGP
+byte, which is how a move's white flash reaches the background. The fade at
+the **end** of a battle is reproduced instead, because it is long enough to
+notice: `exitFadeBgp` is read at paint time and turned into a veil with the
+engine's own approximation of a palette byte's brightness
+(`BattleAnimView.palVeil`). A one-frame attack flash does not reach the
+picture, and that is the trade: a still background that does not flash,
+against one that flashes and slides.
+
+[issue2]: https://github.com/wild1walker/Gen1NightlyIndex/issues/2
 
 **No new art was needed, and the reason is that there never was any Kanto
 art.** All twenty backdrops are FireRed *terrain* scenes. Six carry Kanto boss
