@@ -6,6 +6,13 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.56] - 2026-09-05
+
+### Fixed
+
+- Nothing in this bundle changed. The Wild Crystal save fix is in
+  Gen1WildQOL; the version moves together.
+
 ## [0.32.55] - 2026-09-05
 
 No change. This release is the day-care POKéMON's sprites, in the QOL bundle;

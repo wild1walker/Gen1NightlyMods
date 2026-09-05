@@ -7,6 +7,34 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.56] - 2026-09-05
+
+### Fixed
+
+- **Wild Crystal keeps its own save.** Launching the cart loaded — and then
+  overwrote — the regular Crystal playthrough. The engine scopes a cart's
+  saves by cart id and the launcher lists them from that scope, but Gold,
+  Silver and Crystal save through `src/core/gen2/Save.lua`, which builds its
+  filename out of the *version* alone and never asks whether a cart is
+  active. Gen 1 saves through `SaveData`, which is already cart-scoped, which
+  is why only the Crystal cart showed it.
+
+  Worse than sharing: the first save inside the cart registered a slot in the
+  base game's registry and made it active, so the cart's playthrough turned
+  up in the launcher's Crystal list and the player's own Crystal save was
+  what the cart then wrote over.
+
+  The bundle now states the rule the engine already keeps everywhere else —
+  *while a Gen 2 cart is active, the base version's slot resolution and save
+  paths are the cart's* — at the three public slot calls and the one
+  filesystem seam the Gen 2 save layer reaches them by. Saves land in
+  `saves/cart_<id>/<slot>.lua`, exactly where the launcher looks; no phantom
+  slot is added to the base game; and the whole thing stands down on its own
+  the moment the game hands back to the launcher.
+
+  A save already written into the base game's file stays there — it is a
+  Crystal save now, and the launcher's Crystal list is where to find it.
+
 ## [0.32.55] - 2026-09-05
 
 **The day-care pair wear this mod's sheets.** They were the one overworld
