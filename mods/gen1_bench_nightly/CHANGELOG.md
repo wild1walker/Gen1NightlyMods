@@ -5,6 +5,12 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.37] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: the trainer card's tiles go
+  dark with its text under `DARK`, leaving the portrait and the leader
+  faces as the art they are.
+
 ## [0.32.36] - 2026-09-05
 
 - No change. The release adds `ROW HINTS` to `MENU LAYOUT`: Gold's

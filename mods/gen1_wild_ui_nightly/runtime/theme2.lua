@@ -601,6 +601,61 @@ function Theme2.new(context)
         return { paper, palette[2] or paper, palette[3] or ink, ink }
       end
 
+      -- ------- and the trainer card's TILES, which are chrome and not art
+      --
+      -- The card is drawn almost entirely out of tiles rather than text: the
+      -- frame, the rules under NAME, the corner notches, the `ID No` badge,
+      -- the `STATUS` and `BADGES` captions and the blinking colon in PLAY
+      -- TIME are all `TileSheet:draw` through the same `colorsAt` the text
+      -- uses.  Reshading only what goes through Chrome left every one of them
+      -- as a white box on a black card -- reported as "some of the detail
+      -- pieces, the trainer sprite, the clock".
+      --
+      -- All of those are LINE ART: colour 0 is the paper the mark sits on, so
+      -- it is the page's paper, exactly as it is for the text beside them.
+      --
+      -- Two things on the card are not, and they are the reason this is a
+      -- pair of suspensions rather than a blanket rule:
+      --
+      --   the PORTRAIT      colour 0 is the space around the player AND the
+      --                     white in their own sprite -- shirt, socks, shoes.
+      --                     Darkening the one darkens the other, and what
+      --                     comes back is a silhouette with hair.
+      --   the LEADER FACES  eight more of the same thing on the badge pages.
+      --
+      -- So they keep the cart's white and read as photographs on the card,
+      -- which is what they are.  The `BADGES` caption above them comes off
+      -- the same sheet and IS reshaded, because it is a word.
+      local okCard, TrainerCard = pcall(require, "src.ui.gen2.TrainerCard")
+      if okCard and type(TrainerCard) == "table"
+          and not rawget(TrainerCard, "__gen1wildCardPaper") then
+        TrainerCard.__gen1wildCardPaper = true
+        local art = false
+        local baseColors = TrainerCard.colorsAt
+        if type(baseColors) == "function" then
+          TrainerCard.colorsAt = function(card, tx, ty)
+            local palette = baseColors(card, tx, ty)
+            if art then return palette end
+            return reshade(palette)
+          end
+        end
+        for _, name in ipairs({ "drawPortrait", "drawLeaderFace" }) do
+          local base = TrainerCard[name]
+          if type(base) == "function" then
+            TrainerCard[name] = function(card, ...)
+              art = true
+              local ok, result = pcall(base, card, ...)
+              art = false
+              if not ok then error(result, 0) end
+              return result
+            end
+          else
+            mod.log:warn("src.ui.gen2.TrainerCard has no %s; the card's art "
+              .. "goes dark with its chrome", name)
+          end
+        end
+      end
+
       if not rawget(Chrome, "__gen1wildPagePalettes") then
         Chrome.__gen1wildPagePalettes = true
         local basePrint = Chrome.printThrough

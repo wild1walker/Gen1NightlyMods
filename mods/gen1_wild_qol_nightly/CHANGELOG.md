@@ -7,6 +7,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.37] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: the trainer card's tiles go
+  dark with its text under `DARK`, leaving the portrait and the leader
+  faces as the art they are.
+
 ## [0.32.36] - 2026-09-05
 
 - `MENU LAYOUT` gains `ROW HINTS` on Gold — the START menu's per-row

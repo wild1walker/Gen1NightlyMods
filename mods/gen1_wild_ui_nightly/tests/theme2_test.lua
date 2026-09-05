@@ -487,6 +487,87 @@ do
   freshChrome()
 end
 
+do
+  io.write("the trainer card's tiles\n")
+  freshChrome()
+  -- The card is drawn almost entirely out of TILES rather than text -- the
+  -- frame, the rules, the corner notches, the ID No badge, the STATUS and
+  -- BADGES captions, the blinking colon -- and every one goes through the
+  -- same colorsAt the text does.  Reshading only what went through Chrome
+  -- left all of them as white boxes on a black card.
+  local drawn = {}
+  local TrainerCard = {}
+  TrainerCard.colorsAt = function(_, tx, ty)
+    return { { 255, 255, 255 }, { 200, 80, 40 }, { 120, 40, 20 }, { 0, 0, 0 } }
+  end
+  TrainerCard.drawPortrait = function(card)
+    drawn[#drawn + 1] = { what = "portrait", palette = card:colorsAt(14, 1) }
+  end
+  TrainerCard.drawLeaderFace = function(card, first, tx, ty)
+    drawn[#drawn + 1] = { what = "face", palette = card:colorsAt(tx, ty) }
+    return first + 10
+  end
+  package.loaded["src.ui.gen2.TrainerCard"] = TrainerCard
+
+  local stored = {}
+  local context, mod = fakeContext(stored)
+  local theme = Theme2.new(context)
+  theme.install()
+  local frame = mod.hooks.wrapped["core.update"]
+  local function tick(game) return frame(function() end, game, 1 / 60) end
+  local page = stackOf({ class = TrainerCardClass })
+
+  local function paper(palette)
+    return ("%d,%d,%d"):format(palette[1][1], palette[1][2], palette[1][3])
+  end
+  local function ink(palette)
+    return ("%d,%d,%d"):format(palette[4][1], palette[4][2], palette[4][3])
+  end
+
+  stored.ui_theme = "dark"
+  tick(page)
+
+  -- Chrome: the page's paper and ink, so a tile's mark sits on the card
+  -- rather than in a white box.
+  local chrome = TrainerCard.colorsAt(TrainerCard, 2, 4)
+  eq(paper(chrome), "0,0,0", "the ID No badge takes the page's paper")
+  eq(ink(chrome), "255,255,255", "and its ink")
+  eq(("%d,%d,%d"):format(chrome[2][1], chrome[2][2], chrome[2][3]),
+     "200,80,40", "with the card's own two hues untouched")
+
+  -- Art: left alone, because colour 0 there is the white IN the sprite as
+  -- well as the space around it.
+  drawn = {}
+  TrainerCard.drawPortrait(TrainerCard)
+  eq(paper(drawn[1].palette), "255,255,255",
+     "the portrait keeps the cart's white: darkening its colour 0 would "
+     .. "darken the player's own shirt and socks with the space around them")
+  eq(drawn[1].what, "portrait", "and it still draws")
+
+  drawn = {}
+  local nextId = TrainerCard.drawLeaderFace(TrainerCard, 0x29, 2, 10)
+  eq(paper(drawn[1].palette), "255,255,255",
+     "and so do the eight leader faces, for the same reason")
+  eq(nextId, 0x29 + 10,
+     "and the id the caller needs for the next face comes back through the "
+     .. "wrap")
+
+  -- ...and the suspension ends with the call, or the caption printed after
+  -- the faces would stay white too.
+  eq(paper(TrainerCard.colorsAt(TrainerCard, 2, 8)), "0,0,0",
+     "the BADGES caption above them is a WORD off the same sheet, and is "
+     .. "reshaded like the rest of the chrome")
+
+  -- LIGHT puts back exactly what it took.
+  stored.ui_theme = "light"
+  tick(page)
+  eq(paper(TrainerCard.colorsAt(TrainerCard, 2, 4)), "255,255,255",
+     "on a light page every tile is the cart's own again")
+
+  package.loaded["src.ui.gen2.TrainerCard"] = nil
+  freshChrome()
+end
+
 -- ------------------------------------------------- the bar's own colour 0
 
 do

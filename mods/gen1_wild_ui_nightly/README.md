@@ -304,6 +304,27 @@ is dark, and "is the box dark" is read off the live box palette's own ink
 rather than asked of the theme — that palette **is** what the theme changes,
 so reading it cannot disagree with it.
 
+### The trainer card: chrome goes dark, art does not
+
+The card is drawn almost entirely out of **tiles** rather than text — the
+frame, the rules under `NAME`, the corner notches, the `ID No` badge, the
+`STATUS` and `BADGES` captions and the blinking colon in `PLAY TIME` all come
+off a `TileSheet` through the same `colorsAt` the text uses. All of them are
+line art: colour 0 is the paper the mark sits on, so under `DARK` it is the
+page's paper, exactly as it is for the text beside them.
+
+Two things on the card are not, and they are why this is a pair of
+suspensions rather than a blanket rule:
+
+| | why it keeps the cart's white |
+|---|---|
+| the **portrait** | colour 0 is the space around the player *and* the white in their own sprite — shirt, socks, shoes. Darkening one darkens the other, and what comes back is a silhouette with hair. |
+| the **leader faces** | eight more of the same, on the badge pages. |
+
+So both read as photographs on the card, which is what they are. The `BADGES`
+caption above the faces comes off the same sheet and *is* reshaded, because it
+is a word.
+
 ### MENU LAYOUT on Gold: ROW HINTS
 
 Gold's START menu carries a second box in the bottom-left describing whichever

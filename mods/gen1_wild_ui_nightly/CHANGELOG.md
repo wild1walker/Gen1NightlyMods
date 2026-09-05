@@ -6,6 +6,35 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.37] - 2026-09-05
+
+- **The trainer card's tiles go dark with its text.**
+
+  0.32.35 reshaded everything that went through `Chrome`, which is the card's
+  text. The card is drawn almost entirely out of **tiles**, and every one of
+  them stayed white: the frame, the rules under `NAME`, the corner notches,
+  the `ID No` badge, the `STATUS` and `BADGES` captions and the blinking colon
+  in `PLAY TIME`. Reported as *"some of the detail pieces, the trainer sprite,
+  the clock"*.
+
+  They all come off a `TileSheet` through the same `colorsAt` the text uses,
+  and they are all line art: colour 0 is the paper the mark sits on, so it is
+  the page's paper, exactly as it is for the text beside them.
+
+  **Two things on the card are not**, and they are why this is a pair of
+  suspensions rather than a blanket rule:
+
+  | | why it keeps the cart's white |
+  |---|---|
+  | the **portrait** | colour 0 is the space around the player *and* the white in their own sprite — shirt, socks, shoes. Darkening one darkens the other, and what comes back is a silhouette with hair. |
+  | the **leader faces** | eight more of the same, on the badge pages. |
+
+  So both keep their white backing and read as photographs on the card, which
+  is what they are. The `BADGES` caption above the faces comes off the same
+  sheet and *is* reshaded, because it is a word. The badge sprites were never
+  affected — they draw through `badgePalette` rather than `colorsAt`, so they
+  keep their own colours either way.
+
 ## [0.32.36] - 2026-09-05
 
 - **`ROW HINTS`, and it is off.**
