@@ -5,6 +5,11 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.36] - 2026-09-05
+
+- No change. The release adds `ROW HINTS` to `MENU LAYOUT`: Gold's
+  START menu descriptions, off by default.
+
 ## [0.32.35] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: under `DARK`, the six Gold

@@ -6,6 +6,33 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.36] - 2026-09-05
+
+- **`ROW HINTS`, and it is off.**
+
+  Gold's START menu carries a second box in the bottom-left describing
+  whichever row the cursor is on — `.MenuDesc` / `._DrawMenuAccount`, two
+  lines per entry, which is why every item in the cart's list ships with two
+  lines of text. Red has nothing of the sort, so the row is Gold's only and is
+  appended rather than declared with the rest: a row that cannot do anything
+  is worse than a missing one.
+
+  Off by default, which is a deliberate departure from the cart. The box
+  covers the bottom-left tenth of the screen on every frame the menu is open,
+  and a player who has arranged their own menu knows what their rows do —
+  arranging it is what `MENU LAYOUT` is for.
+
+  On does **not** force them back. It stands down and leaves the cart's own
+  `MENU ACCOUNT` to decide, which is the switch Gold already has for this on
+  its OPTION screen — so the two never argue: this row can take the
+  descriptions away, and giving them back is the game's own setting.
+
+  It works by setting the same `showDescription` field `MENU ACCOUNT` sets, on
+  the live menu as it is pushed. `StartMenu:draw` reads it every frame, so
+  nothing is redrawn, nothing is patched, and the cart's own switch is still
+  the one doing the work. Verified against the real
+  `src/ui/gen2/StartMenu.lua`.
+
 ## [0.32.35] - 2026-09-05
 
 - **`DARK` left white boxes behind the text on six screens, not one.**

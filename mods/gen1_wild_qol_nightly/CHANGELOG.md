@@ -7,6 +7,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.36] - 2026-09-05
+
+- `MENU LAYOUT` gains `ROW HINTS` on Gold — the START menu's per-row
+  description box, off by default. Gen1WildUI owns the feature, so that is
+  where it is written up; this bundle carries the same module.
+
 ## [0.32.35] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: under `DARK`, the six Gold

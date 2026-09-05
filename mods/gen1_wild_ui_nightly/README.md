@@ -304,6 +304,25 @@ is dark, and "is the box dark" is read off the live box palette's own ink
 rather than asked of the theme — that palette **is** what the theme changes,
 so reading it cannot disagree with it.
 
+### MENU LAYOUT on Gold: ROW HINTS
+
+Gold's START menu carries a second box in the bottom-left describing whichever
+row the cursor is on — `.MenuDesc` / `._DrawMenuAccount`, two lines per entry,
+which is why every item in the cart's list ships with two lines of text. Red
+has nothing of the sort, so this row is Gold's only.
+
+It is **off by default**, which is a deliberate departure from the cart: the
+box covers the bottom-left tenth of the screen on every frame the menu is
+open, and a player who has arranged their own menu knows what their rows do —
+arranging it is what the feature is for.
+
+On does *not* force them back. It stands down and leaves the cart's own `MENU
+ACCOUNT` to decide, which is the switch Gold already has for this on its
+OPTION screen. So the two never argue: this row can take the descriptions
+away, and giving them back is the game's own setting. It works by setting the
+same `showDescription` field `MENU ACCOUNT` sets, on the live menu, so nothing
+is redrawn and nothing is second-guessed.
+
 ### The battle HUD does not take the theme
 
 The HUD over a backdrop is drawn in the **cart's own black**, whatever `UI

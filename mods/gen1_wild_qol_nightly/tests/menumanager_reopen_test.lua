@@ -47,6 +47,12 @@ local function readFile(path)
   return body
 end
 
+-- Gold, so the rows and the arms that are Gold's only are reachable.  Red's
+-- cases below take it away again.
+package.loaded["src.core.GameVersion"] = {
+  generation = function() return 2 end,
+}
+
 -- ------------------------------------------------------------- the harness
 
 local DIR = "modules/Gen1MenuManager"
@@ -69,9 +75,24 @@ local function fakeMod()
 
   function self:read(name) return readFile(DIR .. "/" .. name) end
 
+  -- define is called more than once: the Gold-only rows are appended in a
+  -- second call rather than declared with the rest, so they accumulate.
+  self.rows = {}
   self.options = {
-    define = function() end,
-    get = function(_, key) return self.stored[key] end,
+    define = function(_, rows)
+      for _, row in ipairs(rows or {}) do self.rows[#self.rows + 1] = row end
+    end,
+    -- The engine's store answers the row's DECLARED DEFAULT for a key
+    -- nobody has written, and a stub that answers nil instead hides every
+    -- bug about a default-off row.
+    get = function(_, key)
+      local value = self.stored[key]
+      if value ~= nil then return value end
+      for _, row in ipairs(self.rows) do
+        if row.key == key then return row.default end
+      end
+      return nil
+    end,
     set = function(_, key, value) self.stored[key] = value end,
   }
   self.save = {
@@ -341,12 +362,68 @@ do
   eq(#mod.logged, 0, "and there is nothing to report")
 end
 
+-- ---------------------------------------------------------- the row hints
+
+do
+  io.write("Gold's row descriptions\n")
+  -- Gold's START menu carries a second box in the bottom-left describing the
+  -- row under the cursor -- two lines per entry, on every frame the menu is
+  -- open.  Red has nothing of the sort.
+  local mod = install(fakeMod())
+  local game = goldGame()
+  local _, rows = editorCancelFor(mod, game)
+
+  local keys = {}
+  for _, row in ipairs(mod.rows or {}) do keys[row.key] = row end
+  ok(keys.row_hints, "ROW HINTS is offered on Gold")
+  eq(keys.row_hints and keys.row_hints.default, false,
+     "and it is OFF by default, which is a departure from the cart: the box "
+     .. "covers a tenth of the screen and arranging the menu is what this "
+     .. "feature is for")
+
+  -- Off: the descriptions go, through the cart's own field.
+  local menu = liveStartMenu(game, rows)
+  menu.showDescription = true
+  for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
+    fn({ state = menu })
+  end
+  eq(menu.showDescription, false,
+     "with the row off, the live menu stops drawing them -- the same field "
+     .. "Gold's own MENU ACCOUNT sets, read by StartMenu:draw every frame")
+
+  -- On: it stands down rather than forcing them back, so the cart's own
+  -- MENU ACCOUNT is still the switch that gives them.
+  mod.stored.row_hints = true
+  local off = liveStartMenu(game, rows)
+  off.showDescription = false
+  local on = liveStartMenu(game, rows)
+  on.showDescription = true
+  for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do
+    fn({ state = off })
+    fn({ state = on })
+  end
+  eq(off.showDescription, false,
+     "with the row ON, a player who turned MENU ACCOUNT off keeps it off")
+  eq(on.showDescription, true, "and one who left it on keeps them")
+  mod.stored.row_hints = nil
+end
+
 -- ------------------------------------------------------------------- Red
 
 do
   io.write("on Red\n")
+  package.loaded["src.core.GameVersion"] = {
+    generation = function() return 1 end,
+  }
   local mod = install(fakeMod())
   local game = redGame()
+
+  local keys = {}
+  for _, row in ipairs(mod.rows or {}) do keys[row.key] = row end
+  ok(not keys.row_hints,
+     "ROW HINTS is not offered, because Red's START menu has no descriptions "
+     .. "to turn off and a row that cannot do anything is worse than a "
+     .. "missing one")
 
   local cancel, rows = editorCancelFor(mod, game)
   for _, fn in ipairs(mod.listeners["screen.pushed"] or {}) do

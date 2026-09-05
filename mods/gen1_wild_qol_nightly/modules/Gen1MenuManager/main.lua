@@ -14,6 +14,23 @@
 
 local SCREEN = "Gen1MenuManagerEditor"
 
+-- Which game this is.  One row below is Gold's only -- Red's START menu has
+-- no descriptions to turn off -- and a row that cannot do anything is worse
+-- than a missing one, so it is appended rather than declared.
+local isGen2
+local function gen2()
+  if isGen2 == nil then
+    isGen2 = false
+    local ok, GameVersion = pcall(require, "src.core.GameVersion")
+    if ok and type(GameVersion) == "table"
+        and type(GameVersion.generation) == "function" then
+      local okCall, generation = pcall(GameVersion.generation)
+      isGen2 = okCall and generation == 2
+    end
+  end
+  return isGen2
+end
+
 local function loadSibling(mod, name)
   local source = mod:read(name)
   if not source then
@@ -71,6 +88,30 @@ return function(mod)
     { key = "select_row", type = "toggle", label = "SELECT ROW",
       default = false },
   })
+
+  -- ------- Gold's row descriptions
+  --
+  -- Gold's START menu carries a second box in the bottom-left describing
+  -- whichever row the cursor is on -- `.MenuDesc` / `._DrawMenuAccount`, two
+  -- lines per entry, which is why every item in the cart's list ships with
+  -- two lines of text.  Red has nothing of the sort, so this row is Gold's
+  -- only and is appended rather than declared above.
+  --
+  -- OFF by default, which is a deliberate departure from the cart: the box
+  -- covers the bottom-left tenth of the screen on every frame the menu is
+  -- open, and a player who has arranged their own menu knows what their rows
+  -- do.  Arranging it is what this feature is for.
+  --
+  -- ON does NOT force them back on -- it stands down and leaves the cart's
+  -- own `MENU ACCOUNT` to decide, which is the switch Gold already has for
+  -- this on its OPTION screen.  So the two never argue: this row can take the
+  -- descriptions away, and giving them back is the game's own setting.
+  if gen2() then
+    mod.options:define({
+      { key = "row_hints", type = "toggle", label = "ROW HINTS",
+        default = false },
+    })
+  end
 
   -- ------- persistence
   --
@@ -310,6 +351,15 @@ return function(mod)
       -- the player has. Filling in the two nils turns the worst outcome this
       -- mod can cause into no outcome at all -- and it only ever fills in a
       -- nil, so a menu the game opened properly is untouched.
+      -- The descriptions, on the instance rather than through a redraw: it
+      -- is the same field Gold's own MENU ACCOUNT sets
+      -- (`self.showDescription = options.menuAccount ~= false`), read by
+      -- `StartMenu:draw` on every frame, so this is the cart's own switch
+      -- rather than a second way of saying the same thing.  Only ever set
+      -- FALSE -- see the ROW HINTS note.
+      if gen2() and mod.options:get("row_hints") ~= true then
+        state.showDescription = false
+      end
       local options = startMenuOptions(game)
       if options then
         if type(state.onChoose) ~= "function" then

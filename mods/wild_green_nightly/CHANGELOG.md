@@ -6,6 +6,11 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.36] - 2026-09-05
+
+- No change. The release adds `ROW HINTS` to `MENU LAYOUT`: Gold's
+  START menu descriptions, off by default.
+
 ## [0.32.35] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: under `DARK`, the six Gold
