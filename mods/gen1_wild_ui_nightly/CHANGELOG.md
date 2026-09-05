@@ -6,6 +6,61 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.45] - 2026-09-05
+
+Two things on Gold: the PACK's search had no way out, and the box got its sort.
+
+### SEARCH in the PACK could not be left
+
+Opening SEARCH on Gold put you on the cart's naming screen with **no exit at
+all**. It is one missing line, and it caused both halves of what was reported.
+
+Gold's naming screen does not take itself down -- `NamingScreen:accept` calls
+`onDone(name)` and returns, and all five of the cart's own callers pop it from
+inside that callback. This one did not. And there is no second way off it:
+
+- **B is DELETE, not cancel.** The `.b` arm is `deleteCharacter`, and the cart's
+  own comment beside it says the only way out is END.
+- **`onCancel` is never called by anything.** `NamingScreen.new` stores it and
+  no code path invokes it, so the empty handler this passed was always dead.
+
+So B ate the query one letter at a time, END confirmed and left the keyboard
+standing, and the filter it had just applied was to a PACK you could no longer
+see -- which is why search looked broken as well as inescapable.
+
+Now the keyboard is popped in `onDone`, by identity rather than a bare pop, so
+a screen pushed over it is never taken by mistake. END with nothing typed
+clears the search and leaves -- the cancel this screen does not otherwise have,
+and the same reading the cart already gives an empty name.
+
+### SORT and UNDO in the box
+
+Deferred when Gold's box was written in 0.32.38, now ported. **SELECT** over the
+box opens it, the way it does on Red.
+
+- **BY DEX, BY LEVEL (strongest first), BY NAME, BY TYPE**, and one step of
+  **UNDO**. Ties keep the order you are already looking at: `table.sort` is not
+  stable, so each POKéMON's current position is carried alongside and used as
+  the last word.
+- **No COLLAPSE.** Red's box has a *saved* cell layout -- a gap you left there
+  is a decision -- so every sort on Red ends by closing the box up, and COLLAPSE
+  is the sort that only does that. Gold's box is a compact array; the cart's own
+  `Boxes.lua` keeps it that way. There is nothing to collapse. That is Gold's
+  storage not needing the row, not a row dropped.
+- **UNDO checks membership, not count.** One released and one deposited leaves
+  the count alone, and an undo that went ahead on that would resurrect the
+  released POKéMON. It is offered only while the box still holds exactly the
+  POKéMON the snapshot was taken of, and only on the box it was taken from.
+- Refused with a POKéMON in hand, which would otherwise reorder the box around
+  one that is not in it, and refused on a box of fewer than two, which says so
+  rather than opening an empty menu.
+
+SELECT was a third way to change box here -- L, R and the header's LEFT/RIGHT
+are the other two and all of them stay -- so it now has the job it has on Red.
+
+The box tests are up from 100 assertions to 129, every one of them still
+counting every POKéMON in the save before and after.
+
 ## [0.32.44] - 2026-09-05
 
 No change. This release is TRAINER REMATCH reaching Gold, in the QOL bundle; the

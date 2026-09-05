@@ -581,6 +581,130 @@ return function(mod)
     return items
   end
 
+  -- ------- sorting a box, and one step back
+  --
+  -- Red's box has a SAVED cell layout: a gap you left in it is a decision, so
+  -- every sort there ends by closing the box up into cells 1..n and COLLAPSE
+  -- is the sort that only does that.  Gold's box is a COMPACT array -- the
+  -- cart's own Boxes.lua keeps it that way and the only hole this screen ever
+  -- shows is the transient one under a POKeMON in hand -- so there is nothing
+  -- to collapse, and COLLAPSE is not on the menu.  It is not a feature that
+  -- was dropped; it is a feature Gold's storage does not have a use for.
+  --
+  -- Everything else is Red's, key for key, including the tie-break: table.sort
+  -- is not stable, so the position each POKeMON is already in is carried
+  -- alongside and used as the last word.  POKeMON that tie keep the order
+  -- somebody is looking at.
+  local SORT_LABELS = {
+    { "BY DEX", "dex" },
+    { "BY LEVEL", "level" },
+    { "BY NAME", "name" },
+    { "BY TYPE", "type" },
+  }
+
+  local function sortKey(screen, mode, entry)
+    local mon = entry.mon
+    local data = screen.game and screen.game.data
+    local def = data and data.pokemon and data.pokemon[mon.species]
+    if mode == "dex" then return (def and def.dex) or math.huge end
+    -- strongest first, which is what a box is usually being tidied for
+    if mode == "level" then return -(tonumber(mon.level) or 0) end
+    if mode == "name" then return nameOf(screen, mon) end
+    -- the primary type, alphabetically: the data carries type names rather
+    -- than the cart's numbering, so there is no other order to honour
+    if mode == "type" then
+      local types = def and def.types
+      return tostring(types and types[1] or "")
+    end
+    return entry.at
+  end
+
+  -- Is this box still holding exactly the POKeMON the snapshot was taken of?
+  -- Identity, not count: one released and one deposited leaves the count alone
+  -- and would otherwise let UNDO resurrect the released one.
+  local function sameMembers(list, snapshot)
+    if #list ~= #snapshot then return false end
+    local left = {}
+    for _, mon in ipairs(snapshot) do left[mon] = (left[mon] or 0) + 1 end
+    for _, mon in ipairs(list) do
+      local n = left[mon]
+      if not n or n == 0 then return false end
+      left[mon] = n - 1
+    end
+    return true
+  end
+
+  function Screen:sortBox(mode)
+    local list = boxList(self.save, self.boxIndex)
+    if not list or #list < 2 then return end
+
+    -- One step, and only for this box: changing box while a snapshot is held
+    -- would otherwise offer to restore another box's order.
+    local snapshot = { box = self.boxIndex, mons = {} }
+    for j = 1, #list do snapshot.mons[j] = list[j] end
+
+    local order = {}
+    for j = 1, #list do order[j] = { mon = list[j], at = j } end
+    for _, entry in ipairs(order) do
+      entry.key = sortKey(self, mode, entry)
+    end
+    table.sort(order, function(a, b)
+      if a.key ~= b.key then return a.key < b.key end
+      return a.at < b.at
+    end)
+
+    for j = 1, #order do list[j] = order[j].mon end
+    self.sortUndo = snapshot
+  end
+
+  function Screen:canUndoSort()
+    local undo = self.sortUndo
+    if not undo or undo.box ~= self.boxIndex then return false end
+    local list = boxList(self.save, undo.box)
+    return list ~= nil and sameMembers(list, undo.mons)
+  end
+
+  function Screen:undoSort()
+    if not self:canUndoSort() then return end
+    local undo = self.sortUndo
+    self.sortUndo = nil
+    local list = boxList(self.save, undo.box)
+    for j = 1, #undo.mons do list[j] = undo.mons[j] end
+  end
+
+  -- SELECT over the box.  Refused with a POKeMON in hand, because a sort that
+  -- reordered the box around one that is not in it reads as the box shuffling
+  -- itself for no reason.
+  --
+  -- SELECT rather than another row on START's menu, which is where Red puts
+  -- it: START's rows are what you do to ONE POKeMON and a sort is what you do
+  -- to the box.  SELECT was a third way to change box here -- L, R and the
+  -- header's LEFT/RIGHT are the other two and all of them stay -- so nothing
+  -- is lost by giving it the job it has on Red.
+  function Screen:openSort()
+    if self.held or self.pane == "header" then return end
+    local list = boxList(self.save, self.boxIndex)
+    if not list or #list < 2 then
+      return self:say(Strings("There is nothing\nto sort."))
+    end
+    local items = {}
+    for _, row in ipairs(SORT_LABELS) do
+      items[#items + 1] = { label = Strings(row[1]), id = row[2] }
+    end
+    if self:canUndoSort() then
+      items[#items + 1] = { label = Strings("UNDO"), id = "undo" }
+    end
+    items[#items + 1] = { label = Strings("CANCEL"), id = "cancel" }
+    self.sortMenu = { items = items, index = 1 }
+  end
+
+  function Screen:chooseSort(id)
+    self.sortMenu = nil
+    if not id or id == "cancel" then return end
+    if id == "undo" then return self:undoSort() end
+    self:sortBox(id)
+  end
+
   function Screen:openActions()
     if self.held or self.pane == "header" then return end
     local items = actionsFor(self)
@@ -657,6 +781,21 @@ return function(mod)
       return
     end
 
+    if self.sortMenu then
+      local list = self.sortMenu
+      if input:wasPressed("up") then
+        list.index = list.index > 1 and list.index - 1 or #list.items
+      elseif input:wasPressed("down") then
+        list.index = list.index < #list.items and list.index + 1 or 1
+      elseif input:wasPressed("a") then
+        local item = list.items[list.index]
+        self:chooseSort(item and item.id)
+      elseif input:wasPressed("b") or input:wasPressed("select") then
+        self.sortMenu = nil
+      end
+      return
+    end
+
     if self.actions then
       local list = self.actions
       if input:wasPressed("up") then
@@ -695,7 +834,7 @@ return function(mod)
 
     if input:wasPressed("l") then self:changeBox(-1) end
     if input:wasPressed("r") then self:changeBox(1) end
-    if input:wasPressed("select") then self:changeBox(1) end
+    if input:wasPressed("select") then self:openSort() end
 
     if input:wasPressed("a") then
       -- A on the header is not a grab: there is nothing under it to pick up,
@@ -814,6 +953,24 @@ return function(mod)
     end
   end
 
+  -- The same widget as START's rows, headed the way the box list is headed:
+  -- Chrome.box draws the border either way, and the title costs no row.
+  function Screen:drawSortMenu()
+    local list = self.sortMenu
+    if not list then return end
+    local th = #list.items * 2 + 2
+    local ty = math.max(0, 18 - th)
+    Chrome.box(8, ty, 12, th)
+    Chrome.printThrough(" " .. Strings("SORT") .. " ", 9, ty, palette())
+    for i, item in ipairs(list.items) do
+      local row = ty + 1 + (i - 1) * 2
+      if i == list.index then
+        Chrome.cursorThrough(9, row, palette())
+      end
+      Chrome.printThrough(tostring(item.label), 10, row, palette())
+    end
+  end
+
   function Screen:drawConfirm()
     local confirm = self.confirm
     if not confirm then return end
@@ -837,6 +994,7 @@ return function(mod)
     self:drawHeld()
     self:drawInfo()
     self:drawActions()
+    self:drawSortMenu()
     self:drawConfirm()
     if self.message then
       Chrome.textbox(0, 12, 18, 4)

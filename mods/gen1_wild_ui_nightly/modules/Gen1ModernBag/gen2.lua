@@ -409,19 +409,54 @@ function BagGen2.new(mod)
 
   -- The query itself, typed on Gold's own naming screen -- the cart's
   -- keyboard, in the cart's own idiom, rather than a text field of ours.
+  --
+  -- ------- who takes the keyboard back down
+  --
+  -- The screen does not take itself down.  `NamingScreen:accept` calls
+  -- `onDone(name)` and returns, and all five of the cart's own callers pop it
+  -- from inside that callback (NamePick:118, BattleState:3719, BoxMenu:699,
+  -- World:3180 and World:7706).  This one did not, and that was not a
+  -- cosmetic slip -- it was the only way off the screen:
+  --
+  --   B on Gold's naming screen is DELETE, not cancel.  The `.b` arm is
+  --   `deleteCharacter` and the comment beside it says so: "the only way out
+  --   is END (or an empty name, which callers treat as keep the default)".
+  --
+  --   `onCancel` is stored by NamingScreen.new and then called by nothing at
+  --   all, so the empty handler this used to pass was never going to run.
+  --
+  -- So SEARCH opened a keyboard with no exit: B ate the query one letter at a
+  -- time, END confirmed and left the screen standing, and the filter it had
+  -- just applied was to a PACK the player could no longer see.  One missing
+  -- pop, and both halves of the bug.
   function self.askQuery(screen)
     local game = screen.game
     local okScreens, Screens = pcall(require, "src.ui.Screens")
     if not (okScreens and Screens and Screens.push) then return end
-    Screens.push(game, "Gen2NamingScreen", {
+
+    -- By identity rather than a bare pop: if anything else has been pushed
+    -- over the keyboard, that is the thing a bare pop would take, and this
+    -- would trade a stuck keyboard for a missing screen.
+    local keyboard
+    local function dismiss()
+      local stack = game and game.stack
+      if not (stack and keyboard and type(stack.top) == "function") then return end
+      if stack:top() ~= keyboard then return end
+      stack:pop()
+    end
+
+    keyboard = Screens.push(game, "Gen2NamingScreen", {
       prompt = "SEARCH FOR?",
       maxLength = 10,
       initial = screen.gen1bagQuery or "",
       onDone = function(text)
+        dismiss()
+        -- Nothing typed clears the search -- which is also the way out.  END
+        -- on an empty query is the cancel this screen does not otherwise
+        -- have, and it is the reading the cart already gives an empty name.
         screen.gen1bagQuery = (text ~= "" and text) or nil
         screen:rebuild()
       end,
-      onCancel = function() end,
     })
   end
 

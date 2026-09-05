@@ -631,6 +631,187 @@ do
   eq(s.actions, nil, "and nothing while carrying")
 end
 
+-- ------------------------------------------------------------ SORT and UNDO
+--
+-- Red's box has a saved cell layout, so its sort ends by closing the box up
+-- and COLLAPSE is the sort that only does that.  Gold's box is a compact
+-- array -- Boxes.lua keeps it that way -- so there is nothing to collapse and
+-- the menu is the four orders plus UNDO.  Everything below is the census
+-- rule this file is built on: a sort moves POKeMON, it never makes or loses
+-- one.
+
+local function sortedSave()
+  local save = { party = {}, boxes = {}, currentBox = 1, mail = {} }
+  local box = Boxes.box(save, 1)
+  box[1] = mon({ species = 7, level = 30, nickname = "CHARLIE" })
+  box[2] = mon({ species = 1, level = 5,  nickname = "ALICE" })
+  box[3] = mon({ species = 4, level = 50, nickname = "BOB" })
+  return save
+end
+
+local function ids(list)
+  local out = {}
+  for i, m in ipairs(list) do out[i] = m.nickname end
+  return table.concat(out, ",")
+end
+
+-- The pokedex numbers and types the sort keys read.
+local DATA = { pokemon = {
+  [1] = { dex = 1, name = "BULBASAUR", types = { "GRASS" } },
+  [4] = { dex = 4, name = "CHARMANDER", types = { "FIRE" } },
+  [7] = { dex = 7, name = "SQUIRTLE", types = { "WATER" } },
+} }
+
+local function sortScreen()
+  local save = sortedSave()
+  local s = screenOn(save)
+  s.game.data = DATA
+  return s, save
+end
+
+do
+  local s, save = sortScreen()
+  local before = census(save, s)
+  eq(ids(Boxes.box(save, 1)), "CHARLIE,ALICE,BOB", "the box starts unsorted")
+
+  s:sortBox("dex")
+  eq(ids(Boxes.box(save, 1)), "ALICE,BOB,CHARLIE", "BY DEX orders by dex number")
+  eq(census(save, s), before, "and nothing was made or lost")
+end
+
+do
+  local s, save = sortScreen()
+  s:sortBox("level")
+  eq(ids(Boxes.box(save, 1)), "BOB,CHARLIE,ALICE",
+     "BY LEVEL puts the strongest first")
+end
+
+do
+  local s, save = sortScreen()
+  s:sortBox("name")
+  eq(ids(Boxes.box(save, 1)), "ALICE,BOB,CHARLIE", "BY NAME is alphabetical")
+end
+
+do
+  local s, save = sortScreen()
+  s:sortBox("type")
+  -- FIRE, GRASS, WATER
+  eq(ids(Boxes.box(save, 1)), "BOB,ALICE,CHARLIE",
+     "BY TYPE is the primary type, alphabetically")
+end
+
+-- Ties keep the order somebody is already looking at.
+do
+  local save = { party = {}, boxes = {}, currentBox = 1, mail = {} }
+  local box = Boxes.box(save, 1)
+  box[1] = mon({ species = 1, level = 9, nickname = "FIRST" })
+  box[2] = mon({ species = 1, level = 9, nickname = "SECOND" })
+  box[3] = mon({ species = 1, level = 9, nickname = "THIRD" })
+  local s = screenOn(save); s.game.data = DATA
+  s:sortBox("level")
+  eq(ids(Boxes.box(save, 1)), "FIRST,SECOND,THIRD",
+     "POKeMON that tie keep the order they were in")
+end
+
+-- ---- one step back
+
+do
+  local s, save = sortScreen()
+  eq(s:canUndoSort(), false, "nothing to undo before a sort")
+  s:sortBox("name")
+  eq(s:canUndoSort(), true, "a sort leaves one step of undo")
+  s:undoSort()
+  eq(ids(Boxes.box(save, 1)), "CHARLIE,ALICE,BOB", "UNDO puts the order back")
+  eq(s:canUndoSort(), false, "and is spent")
+end
+
+do
+  local s, save = sortScreen()
+  s:sortBox("name")
+  s.boxIndex = 2
+  eq(s:canUndoSort(), false, "a snapshot of box 1 is not offered on box 2")
+  s.boxIndex = 1
+  eq(s:canUndoSort(), true, "and is offered again back on box 1")
+end
+
+-- The identity check: one released and one deposited leaves the COUNT alone,
+-- and an undo that went ahead would resurrect the released one.
+do
+  local s, save = sortScreen()
+  s:sortBox("name")
+  local list = Boxes.box(save, 1)
+  list[1] = mon({ nickname = "NEWCOMER" })
+  eq(s:canUndoSort(), false,
+     "a box whose membership changed cannot be un-sorted")
+end
+
+do
+  local s, save = sortScreen()
+  s:sortBox("name")
+  local list = Boxes.box(save, 1)
+  list[#list] = nil
+  eq(s:canUndoSort(), false, "nor one that lost a POKeMON")
+end
+
+-- ---- the menu
+
+do
+  local s = sortScreen()
+  s.pane = "box"
+  s:openSort()
+  ok(s.sortMenu ~= nil, "SELECT over the box opens the sort menu")
+  eq(#s.sortMenu.items, 5, "four orders and CANCEL, with nothing to undo yet")
+  eq(s.sortMenu.items[1].label, "BY DEX", "headed by BY DEX")
+  eq(s.sortMenu.items[#s.sortMenu.items].label, "CANCEL", "and ending in CANCEL")
+  local labels = {}
+  for _, item in ipairs(s.sortMenu.items) do labels[item.label] = true end
+  eq(labels["COLLAPSE"], nil,
+     "no COLLAPSE: Gold's box is compact, so there is nothing to close up")
+
+  s:chooseSort("name")
+  eq(s.sortMenu, nil, "choosing an order closes the menu")
+  s.pane = "box"
+  s:openSort()
+  eq(#s.sortMenu.items, 6, "and UNDO joins the menu once there is one")
+  eq(s.sortMenu.items[5].label, "UNDO", "just above CANCEL")
+end
+
+do
+  local s = sortScreen()
+  s.pane = "box"
+  s:openSort()
+  s:chooseSort("cancel")
+  eq(s.sortMenu, nil, "CANCEL closes the menu")
+  eq(s.sortUndo, nil, "and sorts nothing")
+end
+
+-- A sort with a POKeMON in hand would reorder the box around one that is not
+-- in it, which reads as the box shuffling itself for no reason.
+do
+  local s, save = sortScreen()
+  s.pane = "box"
+  s.held = { mon = mon(), from = "box", box = 1, cell = 1 }
+  s:openSort()
+  eq(s.sortMenu, nil, "no sort with a POKeMON in hand")
+end
+
+do
+  local s = sortScreen()
+  s.pane = "header"
+  s:openSort()
+  eq(s.sortMenu, nil, "and none from the header")
+end
+
+do
+  local save = { party = {}, boxes = {}, currentBox = 1, mail = {} }
+  Boxes.box(save, 1)[1] = mon({ nickname = "ALONE" })
+  local s = screenOn(save); s.game.data = DATA
+  s.pane = "box"
+  s:openSort()
+  eq(s.sortMenu, nil, "one POKeMON is not a box that needs sorting")
+  ok(s.message ~= nil, "and it says so rather than opening an empty menu")
+end
+
 -- --------------------------------------------------------------- the cursor
 
 do
