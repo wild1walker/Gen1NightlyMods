@@ -6,6 +6,34 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.57] - 2026-09-05
+
+### Fixed
+
+- **The intro goes dark on Gold, Silver and Crystal.** Oak's speech was the
+  one place DARK stayed light all the way through, and it is the first thing
+  a new game shows — reported as "Prof Oak speech isn't dark mode".
+
+  The Gen 1 arm has themed Red's intro for a while, on exactly this reasoning.
+  Gold's could not simply be added to the same list: the speech paints its own
+  page with a hardcoded white fill rather than through the palette this theme
+  rewrites, so the list entry alone would have given a dark text box on a
+  white page — worse than leaving it.
+
+  So it is the entry plus two wraps, which is the same shape Gen 1 uses for
+  the same screen (there, the page plus the matte):
+
+  - **the ground** — that one full-page fill, repainted in the theme's paper.
+  - **the portraits** — Oak, the player and the overworld icon are drawn
+    through a four-shade remap whose shade 0 is opaque white, so on a dark
+    page they would have arrived on a white plate. They are drawn keyed
+    instead, so the page carries them. Their own colours are untouched:
+    pictures keep what they are, and only the shade the cart uses as
+    *background* is taken away.
+
+  The letterbox around the panel follows the page, through the intro's own
+  fade rather than around it. LIGHT is the cart back, all three.
+
 ## [0.32.56] - 2026-09-05
 
 ### Fixed

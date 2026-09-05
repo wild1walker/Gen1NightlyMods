@@ -150,6 +150,15 @@ local PAGE_MODULES = {
   "src.ui.gen2.SaveMenu",
   "src.ui.gen2.InitClock",
   "src.ui.gen2.GenderSelect",
+  -- Oak's speech.  It is the one entry here that is a PICTURE by the rule
+  -- above -- it owns the frame and draws portraits on it -- and it is a page
+  -- anyway, for the reason the Gen 1 arm gives for the same screen: it is the
+  -- first thing a new game shows, and it was the one place DARK stayed light
+  -- all the way through.  What makes it safe is the pair of wraps in
+  -- `install` below, which move its own white page and the white plate behind
+  -- its portraits onto the theme.  Without those this entry alone is a dark
+  -- box on a white page; without this entry those wraps never fire.
+  "src.ui.gen2.OakSpeech",
   -- The desks and counters: Mom's bank, the prize counters, the contest sign
   -- up, the radio, the Battle Tower, Buena's password.
   "src.ui.gen2.BankOfMom",
@@ -767,6 +776,142 @@ function Theme2.new(context)
         elseif type(baseTextbox) == "function" then
           mod.log:warn("no Font.drawCode to lend the gear's textbox an ink; "
             .. "its frame stays the cart's black")
+        end
+      end
+
+      -- ------- and the INTRO, which paints its own page and its own portraits
+      --
+      -- Reported as "Prof Oak speech isn't dark mode", and it is the same
+      -- complaint the Gen 1 arm already answers in its own list: "a white
+      -- screen behind Oak, the rival and the NIDORINO is the one place DARK
+      -- stayed light all the way through, and it is the first thing a new
+      -- game shows" (runtime/theme.lua, `src.ui.OakSpeech`).
+      --
+      -- Putting the class in PAGE_MODULES is necessary and NOT sufficient.
+      -- That much makes `pageOf` find a page under the speech's text box, so
+      -- the box and its glyphs reverse -- but the page they sit on is a
+      -- hardcoded white fill, not a palette:
+      --
+      --     G.setColor(1, 1, 1, 1)
+      --     G.rectangle("fill", 0, 0, 160, 144)   -- OakSpeech:drawPanel
+      --
+      -- Nothing in `Chrome.DEFAULT_BOX_PALETTE` reaches it, so the entry
+      -- alone would have given a DARK box on a WHITE page, which is worse
+      -- than leaving it. Both halves are needed, which is the shape the Gen 1
+      -- note gives for the same screen -- there it is the page plus
+      -- runtime/matte.lua; here it is the page plus the two wraps below.
+      --
+      --   the ground   that one fill, repainted in the theme's paper. It is
+      --                caught by lending `love.graphics.rectangle` a shim for
+      --                the length of `drawPanel` and matching the full-page
+      --                fill exactly, because there is no named seam to wrap.
+      --                An engine that moves the call fails to match and the
+      --                page comes back white -- the old bug, not a new one.
+      --
+      --   the pics     Oak, the player and the icon are drawn through
+      --                `GbcPalette.with`, whose shade 0 is OPAQUE and, for a
+      --                trainer palette, WHITE (_CGB_PlayerOrMonFrontpicPals
+      --                brackets the pic's two shipped colours with white and
+      --                black). On a dark page that is a white plate around
+      --                Oak. `GbcPalette.keyedWith` is the same draw with
+      --                shade 0 keyed to alpha 0, so the page shows through
+      --                instead. That is what Gen 1's matte does, said in
+      --                Gold's terms: it is the page colour that has to appear
+      --                under the art, not the cart's white.
+      --
+      -- The portraits themselves keep the cart's colours either way -- only
+      -- the shade the cart uses as BACKGROUND is taken away. Pictures keep
+      -- what they are; this is the paper behind them, which is a page.
+      local okOak, OakSpeech = pcall(require, "src.ui.gen2.OakSpeech")
+      if okOak and type(OakSpeech) == "table"
+          and not rawget(OakSpeech, "__gen1wildIntroPage") then
+        OakSpeech.__gen1wildIntroPage = true
+
+        -- The theme's paper as love wants it, or nil while LIGHT stands.
+        local function paper()
+          if same(live, vanilla) then return nil end
+          local c = live[1]
+          if type(c) ~= "table" then return nil end
+          return c[1] / 255, c[2] / 255, c[3] / 255
+        end
+
+        local basePanel = OakSpeech.drawPanel
+        if type(basePanel) == "function" then
+          OakSpeech.drawPanel = function(speech, ...)
+            local r, g, b = paper()
+            if not r then return basePanel(speech, ...) end
+            local G = love.graphics
+            local realRect = G.rectangle
+            local done = false
+            G.rectangle = function(mode, x, y, w, h, ...)
+              if not done and mode == "fill" and x == 0 and y == 0
+                  and w == 160 and h == 144 then
+                done = true
+                G.setColor(r, g, b, 1)
+                realRect(mode, x, y, w, h)
+                G.setColor(1, 1, 1, 1)
+                return
+              end
+              return realRect(mode, x, y, w, h, ...)
+            end
+            local ok, err = pcall(basePanel, speech, ...)
+            G.rectangle = realRect
+            if not ok then error(err, 0) end
+            return err
+          end
+        else
+          mod.log:warn("src.ui.gen2.OakSpeech has no drawPanel; the intro "
+            .. "keeps the cart's white page")
+        end
+
+        local okGbc, GbcPalette = pcall(require, "src.render.GbcPalette")
+        local keyable = okGbc and type(GbcPalette) == "table"
+          and type(GbcPalette.with) == "function"
+          and type(GbcPalette.keyedWith) == "function"
+        if keyable then
+          -- One wrap, used by both pic sites: for the length of the call the
+          -- plain remap IS the keyed one, so the shade the cart would have
+          -- painted white drops out and the page carries it.
+          local function overPage(base)
+            return function(speech, ...)
+              if same(live, vanilla) then return base(speech, ...) end
+              local realWith = GbcPalette.with
+              GbcPalette.with = GbcPalette.keyedWith
+              local ok, err = pcall(base, speech, ...)
+              GbcPalette.with = realWith
+              if not ok then error(err, 0) end
+              return err
+            end
+          end
+          for _, name in ipairs({ "drawPic", "drawPlayerIcon" }) do
+            local base = OakSpeech[name]
+            if type(base) == "function" then
+              OakSpeech[name] = overPage(base)
+            end
+          end
+        else
+          mod.log:warn("no GbcPalette.keyedWith; the intro's portraits keep "
+            .. "the cart's white plate on a themed page")
+        end
+
+        -- The letterbox around the 160x144 panel, which `drawWidescreen`
+        -- opens in white for the same reason the panel does.  Lending
+        -- IntroFade.surround the paper as its BASE keeps the fade maths --
+        -- the intro fades through this colour and has to go on doing so.
+        local baseWide = OakSpeech.drawWidescreen
+        local okFade, IntroFade = pcall(require, "src.ui.gen2.IntroFade")
+        if type(baseWide) == "function" and okFade and type(IntroFade) == "table"
+            and type(IntroFade.surround) == "function" then
+          OakSpeech.drawWidescreen = function(speech, winW, winH)
+            local r, g, b = paper()
+            if not r then return baseWide(speech, winW, winH) end
+            local realSurround = IntroFade.surround
+            IntroFade.surround = function(state) return realSurround(state, r, g, b) end
+            local ok, err = pcall(baseWide, speech, winW, winH)
+            IntroFade.surround = realSurround
+            if not ok then error(err, 0) end
+            return err
+          end
         end
       end
 
