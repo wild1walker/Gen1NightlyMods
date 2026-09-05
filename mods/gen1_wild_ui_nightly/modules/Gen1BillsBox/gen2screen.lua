@@ -130,20 +130,43 @@ return function(mod)
     love.graphics.setColor(r, g, b, a)
   end
 
-  -- A solid triangle pointing down at what is under it, and the same triangle
-  -- hollow while a POKeMON is in hand.  Drawn rather than printed because the
-  -- charmap has a down arrow but no hollow twin of it.
-  local function arrow(x, y, hollow)
+  -- A solid triangle, and the same triangle hollow while a POKeMON is in
+  -- hand.  Drawn rather than printed because the charmap has a down arrow but
+  -- no hollow twin of it -- the hollow/filled PAIR only exists sideways.
+  --
+  -- Two directions, and which one goes where is not decoration.  The grid
+  -- points DOWN because a cell has a band above the icon to point from.  The
+  -- party points RIGHT, because six rows of sixteen fill the pane's
+  -- ninety-six pixels exactly and there is no band above a party POKeMON's
+  -- head to put an arrow in -- and because a column of entries with the
+  -- cursor to their left is the party menu's own idiom on both games.  The
+  -- first cut of this screen used the down arrow for both and it read as
+  -- pointing at nothing.
+  local ARROW_LONG, ARROW_SHORT = 7, 4
+
+  local function arrow(x, y, dir, hollow)
     local r, g, b, a = love.graphics.getColor()
     local ir, ig, ib = inkColor()
     love.graphics.setColor(ir, ig, ib, 1)
-    for row = 0, 3 do
-      local width = 7 - row * 2
-      if hollow and row > 0 and row < 3 then
-        love.graphics.rectangle("fill", x + row, y + row, 1, 1)
-        love.graphics.rectangle("fill", x + row + width - 1, y + row, 1, 1)
+    for i = 0, ARROW_SHORT - 1 do
+      local span = ARROW_LONG - i * 2
+      local whole = not hollow or span <= 2 or i == 0
+      if dir == "down" then
+        if whole then
+          love.graphics.rectangle("fill", x + i, y + i, span, 1)
+        else
+          love.graphics.rectangle("fill", x + i, y + i, 1, 1)
+          love.graphics.rectangle("fill", x + i + span - 1, y + i, 1, 1)
+        end
       else
-        love.graphics.rectangle("fill", x + row, y + row, width, 1)
+        -- the same triangle a quarter turn round: columns instead of rows
+        local px = dir == "right" and (x + i) or (x + ARROW_SHORT - 1 - i)
+        if whole then
+          love.graphics.rectangle("fill", px, y + i, 1, span)
+        else
+          love.graphics.rectangle("fill", px, y + i, 1, 1)
+          love.graphics.rectangle("fill", px, y + i + span - 1, 1, 1)
+        end
       end
     end
     love.graphics.setColor(r, g, b, a)
@@ -202,6 +225,8 @@ return function(mod)
     self.onClose = opts.onClose
     self.boxIndex = (self.save and self.save.currentBox) or 1
     self.pane = option("startPane", "box") == "party" and "party" or "box"
+    -- Which pane the header was reached FROM, so DOWN goes back to it.
+    self.lastPane = self.pane
     self.boxSlot = 1
     self.partySlot = 1
     self.held = nil
@@ -470,10 +495,39 @@ return function(mod)
     if self.save then self.save.currentBox = index end
   end
 
+  -- The header is a stop on the way round rather than a wall: UP out of the
+  -- top of either pane lands on it, DOWN goes back where it came from, and UP
+  -- again wraps past it to the bottom of that pane.  Box changes live here,
+  -- beside the name and the count they change, rather than on a shortcut --
+  -- which is what makes them visible.
+  function Screen:moveHeader(dir)
+    if dir == "left" then
+      self:changeBox(-1)
+    elseif dir == "right" then
+      self:changeBox(1)
+    elseif dir == "down" then
+      self.pane = self.lastPane
+    elseif dir == "up" then
+      if self.lastPane == "party" then
+        self.partySlot = PARTY_ROWS
+        self.pane = "party"
+      else
+        self.boxSlot = (ROWS - 1) * COLS + ((self.boxSlot - 1) % COLS) + 1
+        self.pane = "box"
+      end
+    end
+  end
+
   function Screen:move(dir)
+    if self.pane == "header" then return self:moveHeader(dir) end
     if self.pane == "party" then
       if dir == "up" then
-        self.partySlot = self.partySlot > 1 and self.partySlot - 1 or PARTY_ROWS
+        if self.partySlot == 1 then
+          self.lastPane = "party"
+          self.pane = "header"
+        else
+          self.partySlot = self.partySlot - 1
+        end
       elseif dir == "down" then
         self.partySlot = self.partySlot < PARTY_ROWS and self.partySlot + 1 or 1
       elseif dir == "right" then
@@ -487,13 +541,90 @@ return function(mod)
       if col == 0 then self.pane = "party" return end
       col = col - 1
     elseif dir == "right" then
-      col = math.min(COLS - 1, col + 1)
+      -- the party is off the left edge, so the right edge wraps within the
+      -- row rather than stepping to the next box: box changes belong to the
+      -- header, where they are visible
+      col = col == COLS - 1 and 0 or col + 1
     elseif dir == "up" then
-      row = row > 0 and row - 1 or ROWS - 1
+      if row == 0 then
+        self.lastPane = "box"
+        self.pane = "header"
+        return
+      end
+      row = row - 1
     elseif dir == "down" then
       row = row < ROWS - 1 and row + 1 or 0
     end
     self.boxSlot = row * COLS + col + 1
+  end
+
+  -- ------- the actions pop-up
+  --
+  -- START on Red opens the verbs the vanilla PC put on its own menu -- STATS,
+  -- and RELEASE for a boxed POKeMON.  The first cut of this arm made START
+  -- CLOSE the screen, which is both wrong and the one thing a player will hit
+  -- by accident: reported as "clicking start closes the box instead of giving
+  -- me my options".  B is the way out and always was.
+  --
+  -- Drawn here rather than pushed as a screen because it is modal over this
+  -- one: a pop-up that owned the stack would take the box off the display
+  -- behind it, and the whole point of the verbs is that you can still see
+  -- what they are about.
+  local function actionsFor(screen)
+    local mon = (not screen.held) and screen:monUnder() or nil
+    if not mon then return nil end
+    local items = { { label = Strings("STATS"), id = "stats" } }
+    if screen.pane == "box" then
+      items[#items + 1] = { label = Strings("RELEASE"), id = "release" }
+    end
+    items[#items + 1] = { label = Strings("CANCEL"), id = "cancel" }
+    return items
+  end
+
+  function Screen:openActions()
+    if self.held or self.pane == "header" then return end
+    local items = actionsFor(self)
+    if not items then return end
+    self.actions = { items = items, index = 1 }
+  end
+
+  function Screen:openStats()
+    local mon = self:monUnder()
+    if not mon then return end
+    local game = self.game
+    if not (game and game.stack) then return end
+    local ok, Screens = pcall(require, "src.ui.Screens")
+    if not (ok and type(Screens) == "table") then return end
+    -- The cart's own summary, exactly as its BoxMenu opens one.
+    if not pcall(Screens.get, game, "Gen2SummaryMenu") then return end
+    pcall(Screens.push, game, "Gen2SummaryMenu", {
+      mon = mon, save = self.save,
+      onClose = function() game.stack:pop() end,
+    })
+  end
+
+  -- RELEASE is the one thing on this screen that destroys a POKeMON, so it
+  -- asks first and NO is where the cursor starts -- the same defaultNo the
+  -- cart's own QUIT box uses, and for the same reason.
+  function Screen:askRelease()
+    local mon = self:monUnder()
+    if not (mon and self.pane == "box") then return end
+    self.confirm = { mon = mon, choice = 2,
+                     text = Strings("Release this\nPOKéMON?") }
+  end
+
+  function Screen:doRelease()
+    local index = self:boxIndexAt(self.boxIndex, self.boxSlot)
+    if not index then return end
+    local ok = Boxes.release(self.save, self.boxIndex, index)
+    if not ok then return end
+    self:say(Strings("Released."))
+  end
+
+  function Screen:chooseAction(id)
+    self.actions = nil
+    if id == "stats" then return self:openStats() end
+    if id == "release" then return self:askRelease() end
   end
 
   -- ------- input
@@ -509,6 +640,34 @@ return function(mod)
     if self.message then
       if input:wasPressed("a") or input:wasPressed("b") then
         self.message = nil
+      end
+      return
+    end
+
+    if self.confirm then
+      if input:wasPressed("up") or input:wasPressed("down") then
+        self.confirm.choice = self.confirm.choice == 1 and 2 or 1
+      elseif input:wasPressed("a") then
+        local yes = self.confirm.choice == 1
+        self.confirm = nil
+        if yes then self:doRelease() end
+      elseif input:wasPressed("b") then
+        self.confirm = nil
+      end
+      return
+    end
+
+    if self.actions then
+      local list = self.actions
+      if input:wasPressed("up") then
+        list.index = list.index > 1 and list.index - 1 or #list.items
+      elseif input:wasPressed("down") then
+        list.index = list.index < #list.items and list.index + 1 or 1
+      elseif input:wasPressed("a") then
+        local item = list.items[list.index]
+        self:chooseAction(item and item.id)
+      elseif input:wasPressed("b") or input:wasPressed("start") then
+        self.actions = nil
       end
       return
     end
@@ -539,11 +698,14 @@ return function(mod)
     if input:wasPressed("select") then self:changeBox(1) end
 
     if input:wasPressed("a") then
+      -- A on the header is not a grab: there is nothing under it to pick up,
+      -- and LEFT/RIGHT are what it is for.
+      if self.pane == "header" then return end
       if self.held then self:place() else self:grab() end
     elseif input:wasPressed("b") then
       if self.held then self:returnHeld() else self:close() end
     elseif input:wasPressed("start") then
-      self:close()
+      self:openActions()
     end
   end
 
@@ -551,11 +713,16 @@ return function(mod)
 
   function Screen:drawHeader()
     Chrome.box(0, 0, 20, HEADER_TH)
+    -- The two box arrows and the selector between them: same shape, same
+    -- height, same row, so they line up by construction rather than by luck.
+    arrow(8, 8, "left")
+    arrow(148, 8, "right")
+    if self.pane == "header" then arrow(16, 8, "right") end
     local name = Boxes.name(self.save, self.boxIndex)
-    Chrome.printThrough(tostring(name), 1, 1, palette())
+    Chrome.printThrough(tostring(name), 3, 1, palette())
     local count = Boxes.count(self.save, self.boxIndex)
     Chrome.printRightThrough(("%d/%d"):format(count, Boxes.MONS_PER_BOX),
-                             19, 1, palette())
+                             18, 1, palette())
   end
 
   function Screen:drawParty()
@@ -567,7 +734,10 @@ return function(mod)
         pcall(self.icons.drawIcon, self.icons, mon, PARTY_X, y)
       end
       if self.pane == "party" and self.partySlot == row then
-        arrow(0, y + 4, self.held ~= nil)
+        -- In the gutter to the LEFT of the icon, pointing at it: six rows of
+        -- sixteen fill the pane exactly, so there is no band above a party
+        -- POKeMON's head for a down arrow to sit in.
+        arrow(0, y + 4, "right", self.held ~= nil)
       end
     end
   end
@@ -591,7 +761,7 @@ return function(mod)
         pcall(self.icons.drawIcon, self.icons, mon, x + ICON_DX, y + ICON_DY)
       end
       if self.pane == "box" and self.boxSlot == cell then
-        arrow(x + ARROW_DX, y + ARROW_DY, self.held ~= nil)
+        arrow(x + ARROW_DX, y + ARROW_DY, "down", self.held ~= nil)
       end
     end
   end
@@ -603,7 +773,9 @@ return function(mod)
     -- are trying to look at.
     if self.ticks % FLASH_PERIOD >= FLASH_ON then return end
     local x, y
-    if self.pane == "party" then
+    if self.pane == "header" then
+      return
+    elseif self.pane == "party" then
       x, y = PARTY_X, PARTY_Y + (self.partySlot - 1) * PARTY_H
     else
       local col = (self.boxSlot - 1) % COLS
@@ -625,6 +797,37 @@ return function(mod)
     end
   end
 
+  -- Hung from the bottom edge rather than centred, so the POKeMON the verbs
+  -- are about stays visible above it however many rows it grows to.
+  function Screen:drawActions()
+    local list = self.actions
+    if not list then return end
+    local th = #list.items * 2 + 2
+    local ty = math.max(0, 18 - th)
+    Chrome.box(9, ty, 11, th)
+    for i, item in ipairs(list.items) do
+      local row = ty + 1 + (i - 1) * 2
+      if i == list.index then
+        Chrome.cursorThrough(10, row, palette())
+      end
+      Chrome.printThrough(tostring(item.label), 11, row, palette())
+    end
+  end
+
+  function Screen:drawConfirm()
+    local confirm = self.confirm
+    if not confirm then return end
+    Chrome.textbox(0, 12, 18, 4)
+    local first, second =
+      tostring(confirm.text):match("^([^\n]*)\n?(.*)$")
+    Chrome.printThrough(first or "", 1, 14, palette())
+    Chrome.printThrough(second or "", 1, 16, palette())
+    Chrome.box(14, 7, 6, 5)
+    Chrome.printThrough(Strings("YES"), 16, 8, palette())
+    Chrome.printThrough(Strings("NO"), 16, 10, palette())
+    Chrome.cursorThrough(15, confirm.choice == 1 and 8 or 10, palette())
+  end
+
   function Screen:drawPanel()
     Chrome.clear()
     self:drawHeader()
@@ -633,6 +836,8 @@ return function(mod)
     self:drawGrid()
     self:drawHeld()
     self:drawInfo()
+    self:drawActions()
+    self:drawConfirm()
     if self.message then
       Chrome.textbox(0, 12, 18, 4)
       local first, second = tostring(self.message):match("^([^\n]*)\n?(.*)$")

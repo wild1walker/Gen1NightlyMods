@@ -63,6 +63,13 @@ function Boxes.enterBox(mon)
   mon.hp = mon.isEgg and 0 or (mon.maxHp or mon.hp)
   return mon
 end
+-- RELEASE from a box: the cart lets you release anything in storage, because
+-- the party's last-healthy rule cannot apply to a mon that is not in it.
+function Boxes.release(save, index, slot)
+  local box = Boxes.box(save, index)
+  if not box[slot] then return false, "There is no POKéMON there." end
+  return true, table.remove(box, slot)
+end
 function Boxes.canUsePc(save)
   if not (save and save.party and #save.party > 0) then
     return false, "You'll need a\nPOKéMON to call\fwith."
@@ -114,10 +121,17 @@ package.loaded["src.core.Strings"] = setmetatable({
 }, { __call = function(_, s) return s end })
 package.loaded["src.core.Sound"] = { playCry = function() end }
 
+local rects
 _G.love = _G.love or {}
 love.graphics = {
   setColor = function() end, getColor = function() return 1, 1, 1, 1 end,
-  rectangle = function() end, push = function() end, pop = function() end,
+  -- Recorded, because the CURSOR is drawn rather than printed and its
+  -- direction is one of the things under test: a down arrow is rows getting
+  -- shorter, a sideways one is 1-wide columns.
+  rectangle = function(_mode, x, y, w, h)
+    if rects then rects[#rects + 1] = { x = x, y = y, w = w, h = h } end
+  end,
+  push = function() end, pop = function() end,
   translate = function() end, scale = function() end,
 }
 
@@ -472,6 +486,186 @@ do
   for _, p in ipairs(prints) do names[p.text] = true end
   ok(names["BOX1"], "the box's name is on the header")
   ok(names["6/20"], "and how full it is")
+end
+
+-- ------------------------------------------------------------- the header
+
+do
+  io.write("the header is reachable, and box changes live there\n")
+  local save = saveWith(3, 4)
+  local s = screenOn(save)
+
+  -- UP out of the top row of the grid lands on it.
+  s.pane, s.boxSlot = "box", 3
+  s:move("up")
+  eq(s.pane, "header", "UP from the top row of the grid reaches the header")
+
+  -- Which is where box changes belong: beside the name and the count they
+  -- change, rather than on a shortcut, which is what makes them visible.
+  s:move("right")
+  eq(s.boxIndex, 2, "RIGHT there is the next box")
+  s:move("left")
+  eq(s.boxIndex, 1, "and LEFT the one before")
+
+  s:move("down")
+  eq(s.pane, "box", "DOWN goes back where it came from")
+  eq(s.boxSlot, 3, "with the cursor where it left it")
+
+  -- A stop on the way round rather than a wall.
+  s:move("up")
+  s:move("up")
+  eq(s.pane, "box", "UP again wraps past it")
+  eq(s.boxSlot, (Screen.ROWS - 1) * Screen.COLS + 3,
+     "to the bottom of the column it came up")
+end
+
+do
+  io.write("and from the party too\n")
+  local save = saveWith(3, 4)
+  local s = screenOn(save)
+  s.pane, s.partySlot = "party", 1
+  s:move("up")
+  eq(s.pane, "header", "UP from the top of the party reaches it")
+  s:move("down")
+  eq(s.pane, "party", "and DOWN goes back to the party, not to the grid")
+  s:move("up")
+  s:move("up")
+  eq(s.pane, "party", "UP twice wraps past it")
+  eq(s.partySlot, Screen.PARTY_ROWS, "to the bottom row")
+end
+
+do
+  io.write("A on the header is not a grab\n")
+  local save = saveWith(3, 4)
+  local before = census(save)
+  local s = screenOn(save)
+  s.pane = "header"
+  pressed = { a = true }
+  s:update(1 / 60)
+  pressed = {}
+  eq(s.held, nil, "nothing is picked up")
+  eq(census(save, s), before, "and nothing moved")
+end
+
+-- ------------------------------------------------------------ START
+
+do
+  io.write("START opens the actions, it does not close the box\n")
+  -- The first cut made START close the screen, which is both wrong and the
+  -- one thing a player hits by accident.  B is the way out and always was.
+  local save = saveWith(3, 4)
+  local closed = false
+  local s = screenOn(save, { onClose = function() closed = true end })
+  s.pane, s.boxSlot = "box", 1
+
+  pressed = { start = true }
+  s:update(1 / 60)
+  pressed = {}
+  eq(closed, false, "the box is still open")
+  ok(s.actions, "and the actions are up")
+  local labels = {}
+  for _, item in ipairs(s.actions.items) do labels[item.id] = item.label end
+  ok(labels.stats, "STATS is offered")
+  ok(labels.release, "RELEASE is offered over a boxed POKeMON")
+  ok(labels.cancel, "and a way out of the menu")
+
+  pressed = { b = true }
+  s:update(1 / 60)
+  pressed = {}
+  eq(s.actions, nil, "B closes the menu")
+  eq(closed, false, "without closing the box")
+end
+
+do
+  io.write("RELEASE asks first\n")
+  local save = saveWith(3, 4)
+  local before = census(save)
+  local s = screenOn(save)
+  s.pane, s.boxSlot = "box", 2
+  s:openActions()
+  for i, item in ipairs(s.actions.items) do
+    if item.id == "release" then s.actions.index = i end
+  end
+  pressed = { a = true }
+  s:update(1 / 60)
+  pressed = {}
+  ok(s.confirm, "a confirm comes up rather than a POKeMON going away")
+  eq(s.confirm.choice, 2,
+     "with NO where the cursor starts, the way the cart's own QUIT box is")
+  eq(census(save, s), before, "and nothing has gone yet")
+
+  pressed = { b = true }
+  s:update(1 / 60)
+  pressed = {}
+  eq(s.confirm, nil, "B backs out")
+  eq(census(save, s), before, "with everything still there")
+end
+
+do
+  io.write("...and then does it\n")
+  local save = saveWith(3, 4)
+  local before = census(save)
+  local s = screenOn(save)
+  s.pane, s.boxSlot = "box", 2
+  s:openActions()
+  for i, item in ipairs(s.actions.items) do
+    if item.id == "release" then s.actions.index = i end
+  end
+  pressed = { a = true }; s:update(1 / 60); pressed = {}
+  s.confirm.choice = 1
+  pressed = { a = true }; s:update(1 / 60); pressed = {}
+  eq(Boxes.count(save, 1), 3, "the box is one shorter")
+  eq(census(save, s), before - 1, "and the census is one down, deliberately")
+end
+
+do
+  io.write("no actions over an empty cell, or with a POKeMON in hand\n")
+  local save = saveWith(3, 2)
+  local s = screenOn(save)
+  s.pane, s.boxSlot = "box", 10
+  s:openActions()
+  eq(s.actions, nil, "nothing to act on")
+  s.boxSlot = 1
+  s:grab()
+  s:openActions()
+  eq(s.actions, nil, "and nothing while carrying")
+end
+
+-- --------------------------------------------------------------- the cursor
+
+do
+  io.write("the party cursor points AT the party\n")
+  -- Six rows of sixteen fill the pane's ninety-six pixels exactly, so there
+  -- is no band above a party POKeMON's head for a down arrow to sit in -- and
+  -- a column of entries with the cursor to their left is the party menu's own
+  -- idiom on both games.  A down arrow there points at nothing.
+  local save = saveWith(3, 4)
+  local s = screenOn(save)
+
+  s.pane, s.partySlot = "party", 1
+  rects = {}
+  s:drawParty()
+  local widths, heights = {}, {}
+  for _, r in ipairs(rects) do
+    widths[r.w] = (widths[r.w] or 0) + 1
+    heights[r.h] = (heights[r.h] or 0) + 1
+  end
+  ok((widths[1] or 0) >= 4,
+     "it is drawn as 1-wide COLUMNS, which is the triangle a quarter turn "
+     .. "round -- a sideways arrow, not a down one")
+  ok((heights[7] or 0) >= 1, "seven tall at its base")
+
+  s.pane, s.boxSlot = "box", 1
+  rects = {}
+  s:drawGrid()
+  local wide = 0
+  for _, r in ipairs(rects) do
+    if r.h == 1 and r.w == 7 then wide = wide + 1 end
+  end
+  ok(wide >= 1,
+     "while the grid's is rows getting shorter -- a DOWN arrow, because a "
+     .. "cell has a band above the icon to point from")
+  rects = nil
 end
 
 io.write(("bills box gen2: %d passed, %d failed\n"):format(passed, failed))

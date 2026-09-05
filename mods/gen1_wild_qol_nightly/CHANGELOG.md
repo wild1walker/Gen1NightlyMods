@@ -7,6 +7,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.40] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: three fixes to the Gold box
+  -- a reachable header, `START` opening the actions, and a party
+  cursor that points at the party.
+
 ## [0.32.39] - 2026-09-05
 
 - **`ON QUIT` never fired on Gold: it doesn't ask you to save before quitting.**

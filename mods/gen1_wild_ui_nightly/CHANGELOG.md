@@ -6,6 +6,63 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.40] - 2026-09-05
+
+Three fixes to the Gold box from 0.32.38. The fourth thing reported with them
+is diagnosed at the bottom and is not this screen's.
+
+- **The header is reachable, and box changes live there.** `UP` out of the top
+  row of the grid — or the top of the party — lands on the header; `LEFT` and
+  `RIGHT` there change box, beside the name and the count they change, which
+  is what makes them visible. `DOWN` goes back where it came from and `UP`
+  again wraps past it to the bottom of that pane, so the header is a stop on
+  the way round rather than a wall. `A` there is not a grab: there is nothing
+  under it to pick up. `L`/`R` still change box from anywhere.
+
+- **`START` opens the actions instead of closing the box.** It now offers
+  `STATS` — the cart's own `Gen2SummaryMenu`, exactly as its own `BoxMenu`
+  opens one — and `RELEASE` over a boxed Pokémon, hung from the bottom edge so
+  the Pokémon the verbs are about stays visible above them. `B` is the way out
+  of the box and always was; making `START` do it too was both wrong and the
+  one thing a player hits by accident.
+
+  `RELEASE` asks first, with `NO` where the cursor starts — the same
+  `defaultNo` the cart's own QUIT box uses, and for the same reason.
+
+- **The party cursor points at the party.** It was the grid's down arrow,
+  which up there points at nothing: six rows of sixteen fill the pane's
+  ninety-six pixels exactly, so there is no band above a party Pokémon's head
+  for one to sit in. It is the same triangle a quarter turn round, in the
+  gutter to their left — which is the party menu's own idiom on both games,
+  and what the Red arm does.
+
+### The follower icons are not this screen's to fix
+
+Reported alongside the three above, and worth writing down because the answer
+is somewhere else entirely. The box draws its icons through
+`PartyMenu:drawIcon` — the engine's own party-menu path, the same call Gold's
+own party list makes — so whatever the box shows, the party menu shows too.
+
+Two things are wrong on that path, and both are in the follower's Gen 2 icon
+registration rather than in either screen:
+
+- Gold's icon sheets are **16×32, two 16×16 frames**, swapped every 16 steps
+  (`newQuad(0, frame * 16, 16, 16)`). The follower's are **16×96, six frames**
+  of a walk cycle, registered as `width = 16, height = 16, frames = 1` — so
+  the game animates the first two frames of a walk instead of the cart's idle
+  bob.
+- Every party icon is drawn through `palettes.partyMenu[1]` with
+  `GbcPalette.with`, a four-shade remap. The follower's art carries three
+  opaque colours of its own; the remap maps them by luminance onto the party
+  menu's palette, so the shape arrives and the colours do not. Gold's own
+  icons are 2bpp grayscale, which is why the cart never needed an escape from
+  this — its battle pics have one (`trueColor`) and its icons do not.
+
+The Red arm solves the second for itself: it measures whether an icon file
+carries a colour a grey ramp cannot and blits those raw. That wants porting,
+and it wants porting where the party menu sees it too — which is the next
+piece of work rather than a line in this one.
+
 ## [0.32.39] - 2026-09-05
 
 - No change. The release is Gen1WildQOL's: `ON QUIT` reaches Gold's
