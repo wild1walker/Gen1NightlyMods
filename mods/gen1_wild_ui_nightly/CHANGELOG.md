@@ -6,6 +6,39 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.42] - 2026-09-05
+
+Two Gold bugs found by auditing the rest of the suite for the difference that
+has now bitten three times: **Gold's START menu rows carry a `value` where
+Red's carry the callback**, and `StartMenu:choose` runs a row's `onSelect`
+*only* when `value == nil`.
+
+- **START > MODS reaches the suite again.** With the suite installed, MODS is
+  the door to its settings rather than to a list of zips, so `runtime/menu.lua`
+  retargets that row. On Gold it was installing the callback beside a live
+  `value`, so the callback was never read and MODS still opened the cart's own
+  manager. Clearing the value is what makes it a mod's row. Nothing is lost by
+  the bypass: `mods` is the one entry whose engine arm is a bare push with no
+  fade and no pop, so the stack ends up exactly where the cart would have left
+  it. The OPTION screen's route to the same settings was always fine — this was
+  only the START menu door.
+- **START SAYS PARTY, START SAYS DEX and the BOX row find their rows on Gold
+  under a translation.** All three work by looking for a word on an existing
+  row. Red translates its labels before a hook sees them; Gold deliberately
+  does not, handing hooks the cart's stable *source* labels and translating
+  afterwards. Matching only the translated word therefore found nothing on Gold
+  the moment a translation was installed — POKéMON kept its name, the dex row
+  kept its long one, and BOX fell to the bottom of the menu instead of landing
+  between POKéMON and SAVE. Both forms are accepted now, and the replacement is
+  written in whichever shape the row is in, so a row still awaiting the engine's
+  translate pass is translated once rather than twice. In English the two forms
+  are the same string, so nothing about an English save changes.
+
+Both are covered by tests that load the cart's own `StartMenu` rather than a
+stub of it — a stub written by the same hand that misread the dispatch rule is
+a stub that agrees with the bug — and both were confirmed to fail against the
+code they replace.
+
 ## [0.32.41] - 2026-09-05
 
 The fourth thing reported with the box bugs: Gold was not using your follower

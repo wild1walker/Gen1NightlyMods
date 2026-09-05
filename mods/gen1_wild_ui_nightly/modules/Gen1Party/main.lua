@@ -82,10 +82,28 @@ local function installStartMenuRow(mod)
     local out = next(game, items)
     if type(out) ~= "table" then return out end
     if mod.options:get("start_says_party") == false then return out end
-    local engineWord, ours = Strings("POKéMON"), Strings("PARTY")
+    -- ------- and the two games hand a hook different halves of the same row
+    --
+    -- Red translates its labels before the hook sees them, so the word on the
+    -- row is the translated one.  Gold deliberately does NOT: it builds rows
+    -- with `Strings.source(...)` and translates afterwards, for rows that
+    -- carry `translateLabel`, "so hooks inspect the cart's stable source
+    -- labels" (src/ui/gen2/StartMenu.lua).  Matching only the translated word
+    -- therefore finds nothing on Gold the moment a translation is installed,
+    -- and this row quietly keeps saying POKéMON.
+    --
+    -- Both forms are accepted, which in English is the same string twice and
+    -- cannot match anything it did not match before.
+    local source = Strings.source("POKéMON")
+    local engineWord = Strings("POKéMON")
     for _, item in ipairs(out) do
-      if type(item) == "table" and item.label == engineWord then
-        item.label = ours
+      if type(item) == "table"
+          and (item.label == engineWord or item.label == source) then
+        -- Written in the shape the row is in: a row still waiting to be
+        -- translated gets the source word and is translated once, rather than
+        -- a translated word that would be put through the catalog twice.
+        item.label = item.translateLabel and Strings.source("PARTY")
+          or Strings("PARTY")
       end
     end
     return out

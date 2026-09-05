@@ -356,9 +356,17 @@ return function(mod)
     if not C.option("dex_label", true) then return out end
     local ok, Strings = pcall(require, "src.core.Strings")
     if not ok then return out end
-    local vanilla, short = Strings("POKéDEX"), Strings("DEX")
+    -- Both the translated word and the source one: Gold hands hooks its rows
+    -- before it translates them, so the translated form alone finds nothing
+    -- there once a translation is installed.  Identical strings in English.
+    -- (The write is shaped the same way -- see Gen1Party/main.lua for the
+    -- long version of why.)
+    local vanilla, source = Strings("POKéDEX"), Strings.source("POKéDEX")
     for _, item in ipairs(out) do
-      if item.label == vanilla then item.label = short end
+      if item.label == vanilla or item.label == source then
+        item.label = item.translateLabel and Strings.source("DEX")
+          or Strings("DEX")
+      end
     end
     return out
   end)

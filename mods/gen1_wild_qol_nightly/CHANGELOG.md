@@ -7,6 +7,14 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.42] - 2026-09-05
+
+- **START > MODS reaches the suite on Gold.** `runtime/menu.lua` ships in both
+  halves and had the same bug in both: the retarget installed a callback beside
+  the `value` Gold's rows carry, and `StartMenu:choose` only runs a callback
+  when there is no value, so MODS still opened the cart's own list. Fixed and
+  tested in both copies. See the UI bundle's changelog for the long version.
+
 ## [0.32.41] - 2026-09-05
 
 No change. This release is Gold's follower icons, in the UI bundle; the two

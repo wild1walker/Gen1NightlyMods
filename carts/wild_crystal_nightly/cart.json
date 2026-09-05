@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "wild_crystal_nightly",
   "title": "Wild Crystal Nightly",
-  "version": "0.32.41",
+  "version": "0.32.42",
   "author": "wild1walker",
   "repo": "wild1walker/Gen1NightlyMods",
   "summary": "The suite on Crystal, with the test bench. For testing, not for a playthrough you care about.",
@@ -15,22 +15,22 @@
       "id": "gen1_wild_qol_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.41",
-      "sha256": "d478db0a38474a3351aad02184559cbef80672970c087df6f4316367bfa34608"
+      "version": "0.32.42",
+      "sha256": "866ff5bf6b7b017fd9bf7a96dbac0b6ce8246a44f2b6fa7811d3b4f6c80db53e"
     },
     {
       "id": "gen1_wild_ui_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.41",
-      "sha256": "b4aea1d8d0b92fa4d634ef7b69263c204bfe45cacb1b94b49fa1a04ff255f1ef"
+      "version": "0.32.42",
+      "sha256": "6f1eeaf4340f4b878d93fcd403161acf8c8e1e077e79b4897deb969e4384469c"
     },
     {
       "id": "gen1_bench_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.41",
-      "sha256": "38789e3db03fb6f06d7a03a6eef396c6d894813d318d192152a052bff4bd1339"
+      "version": "0.32.42",
+      "sha256": "d832f31eab39bf4d0550b94587bca4de6c478796a5d1efc4c5027d1b863aef73"
     }
   ],
   "load_order": [

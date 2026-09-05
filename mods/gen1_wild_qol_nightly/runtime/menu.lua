@@ -1228,6 +1228,22 @@ function Menu.new(context)
         if isMods then
           item.__gen1wildRouted = true
           item.onSelect = function() mod.ui.push(game, rootScreenId) end
+          -- ------- and on Gold a callback alone is not a retarget
+          --
+          -- Gold's rows carry a `value` where Red's carry the callback, and
+          -- `StartMenu:choose` dispatches onSelect only when `value == nil`
+          -- (src/ui/gen2/StartMenu.lua) -- so on Gold the line above is
+          -- installed and then stepped over, and MODS still opens the cart's
+          -- own list of zips.  Clearing the value is what makes this a mod's
+          -- row rather than a cart row with a callback nobody reads.
+          --
+          -- The cart loses nothing by the bypass: `mods` is the one id in
+          -- Game2:pushStartMenuItem whose arm is a bare push of ManagerState
+          -- -- no `back`, no pop, and no fade (`mods` is absent from
+          -- MenuFade's OPEN_WHITE) -- so a push from here leaves exactly the
+          -- stack the engine would have left.  nil on Red, where the rows
+          -- never carried a value to begin with.
+          item.value = nil
           break
         end
       end

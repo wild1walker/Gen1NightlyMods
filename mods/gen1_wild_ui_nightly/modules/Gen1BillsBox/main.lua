@@ -195,11 +195,21 @@ return function(mod)
   --
   -- next() first, so another mod's rows survive.
   local function insertBoxRow(items, row)
-    for _, anchor in ipairs({ Strings("POKéMON"), Strings("SAVE") }) do
+    -- Each anchor is looked for in both the translated and the source word:
+    -- Gold hands hooks its rows before translating them, so the translated
+    -- form alone stops matching there the moment a translation is installed,
+    -- and BOX would fall through to the bottom of the menu instead of landing
+    -- between POKéMON and SAVE.  The same string twice in English.
+    local anchors = {
+      { after = true, Strings("POKéMON"), Strings.source("POKéMON") },
+      { after = false, Strings("SAVE"), Strings.source("SAVE") },
+    }
+    for _, anchor in ipairs(anchors) do
       for i, entry in ipairs(items) do
-        if type(entry) == "table" and entry.label == anchor then
+        if type(entry) == "table"
+            and (entry.label == anchor[1] or entry.label == anchor[2]) then
           -- after POKeMON, before SAVE
-          table.insert(items, anchor == Strings("SAVE") and i or i + 1, row)
+          table.insert(items, anchor.after and i + 1 or i, row)
           return items
         end
       end
