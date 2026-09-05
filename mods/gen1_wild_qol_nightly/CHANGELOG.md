@@ -7,6 +7,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.46] - 2026-09-05
+
+No change. This release is the POKéGEAR's dark mode, in the UI bundle; the two
+halves ship together and share a version.
+
 ## [0.32.45] - 2026-09-05
 
 No change. This release is Gold's PACK search and box sort, in the UI bundle;

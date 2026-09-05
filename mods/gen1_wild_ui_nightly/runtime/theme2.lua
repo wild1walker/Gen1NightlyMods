@@ -656,6 +656,107 @@ function Theme2.new(context)
         end
       end
 
+      -- ------- and the POKeGEAR, which paints its own paper
+      --
+      -- The gear is in PAGES and its TEXT was already themed -- it hands
+      -- `pals[1]` to `Chrome.printThrough`, which the wrap below reshades --
+      -- but the page under that text stayed the cart's pale cream, so the
+      -- phone came out as white-on-black bars floating on a green card.
+      --
+      -- Nothing on this screen goes through `Chrome.DEFAULT_BOX_PALETTE`.  The
+      -- gear draws itself out of `PokegearPals` (gfx/pokegear/pokegear.pal),
+      -- and its colour 0 is not white -- it is `RGB 28, 31, 20`, a pale cream
+      -- plate.  So the palette this theme rewrites in place is not one the
+      -- gear ever reads, and the page it draws is untouched by it.
+      --
+      -- Three seams, and the split between them is the trainer card's rule
+      -- again: WORDS follow the theme, PICTURES keep the cart's colours.
+      --
+      --   paperColor   the plate.  It is `pals[1][1]`, and every ' ' cell and
+      --                every `drawPlate` fill reads it, so this one number is
+      --                the whole of the page's ground under the text.
+      --
+      --   colorsFor    the tile palettes, reshaded ONLY for the font page.
+      --                The gear's own split is the same one: `colorsFor`
+      --                answers `pals[1]` for every tile id >= $60 -- the font
+      --                page, so every glyph cell and every blank -- and a
+      --                mapped art palette below that (TownMapPals).  Above
+      --                $60 is writing and follows the page; below it is the
+      --                card icons and the town map, which are pictures and
+      --                keep what they are.
+      --
+      --   textbox      its frame.  `Font.drawCode` sets no colour of its own,
+      --                so the cart tints the border glyphs by setting black
+      --                just before drawing them -- black being the gear's ink.
+      --                On a themed page that is the paper's colour, and the
+      --                box would have drawn its frame in the same black as the
+      --                plate behind it.  The tint is moved to the theme's ink
+      --                by lending `Font.drawCode` the colour for the length of
+      --                that one call; `drawPlate` fills with `rectangle` and
+      --                is not touched by it.
+      --
+      -- `groundColor` is deliberately NOT wrapped.  It reads the LAST entry of
+      -- the same palette rather than the first -- the gear sits on a solid
+      -- $4f fill, which is colour 3 -- so it is already black on the cart and
+      -- reshading it would have handed the gear a WHITE ground under DARK.
+      local okGear, Pokegear = pcall(require, "src.ui.gen2.Pokegear")
+      if okGear and type(Pokegear) == "table"
+          and not rawget(Pokegear, "__gen1wildGearPaper") then
+        Pokegear.__gen1wildGearPaper = true
+
+        local basePaper = Pokegear.paperColor
+        if type(basePaper) == "function" then
+          Pokegear.paperColor = function(gear)
+            if same(live, vanilla) then return basePaper(gear) end
+            return live[1] or basePaper(gear)
+          end
+        else
+          mod.log:warn("src.ui.gen2.Pokegear has no paperColor; the gear keeps "
+            .. "the cart's cream plate under a themed page")
+        end
+
+        local baseColorsFor = Pokegear.colorsFor
+        if type(baseColorsFor) == "function" then
+          -- TownMapPals' own boundary (pokegear.asm): $60 and up is the font
+          -- page and takes palette 0.
+          local FONT_PAGE = 0x60
+          Pokegear.colorsFor = function(gear, tile)
+            local palette = baseColorsFor(gear, tile)
+            if type(tile) == "number" and tile >= FONT_PAGE then
+              return reshade(palette)
+            end
+            return palette
+          end
+        else
+          mod.log:warn("src.ui.gen2.Pokegear has no colorsFor; the gear's "
+            .. "lettering keeps the cart's plate behind it")
+        end
+
+        local baseTextbox = Pokegear.textbox
+        local okFont, Font = pcall(require, "src.render.Font")
+        if type(baseTextbox) == "function" and okFont and type(Font) == "table"
+            and type(Font.drawCode) == "function" then
+          Pokegear.textbox = function(gear, ...)
+            if same(live, vanilla) then return baseTextbox(gear, ...) end
+            local ink = live[4]
+            if type(ink) ~= "table" then return baseTextbox(gear, ...) end
+            local realDrawCode = Font.drawCode
+            Font.drawCode = function(code, x, y)
+              love.graphics.setColor(ink[1] / 255, ink[2] / 255,
+                                     ink[3] / 255, 1)
+              return realDrawCode(code, x, y)
+            end
+            local drawn, problem = pcall(baseTextbox, gear, ...)
+            Font.drawCode = realDrawCode
+            if not drawn then error(problem, 0) end
+            return problem
+          end
+        elseif type(baseTextbox) == "function" then
+          mod.log:warn("no Font.drawCode to lend the gear's textbox an ink; "
+            .. "its frame stays the cart's black")
+        end
+      end
+
       if not rawget(Chrome, "__gen1wildPagePalettes") then
         Chrome.__gen1wildPagePalettes = true
         local basePrint = Chrome.printThrough

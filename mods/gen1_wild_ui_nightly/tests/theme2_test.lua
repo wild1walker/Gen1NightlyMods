@@ -658,5 +658,122 @@ do
   ok(not Theme2.same(a, nil), "and copes with a missing palette")
 end
 
+-- --------------------------------------------------------- the POKeGEAR
+--
+-- The gear is in PAGES and its TEXT was already themed, because it hands
+-- `pals[1]` to Chrome.printThrough.  The page UNDER that text was not: the
+-- gear paints its own paper out of PokegearPals, whose colour 0 is a pale
+-- CREAM rather than white, so nothing it draws ever reads the palette this
+-- theme rewrites.  The phone came out as white-on-black bars floating on a
+-- green card.
+--
+-- The split is the trainer card's: words follow the page, pictures do not.
+
+do
+  io.write("the POKeGEAR paints its own paper\n")
+  freshChrome()
+
+  local CREAM = { 232, 255, 168 }
+  local ART = { { 40, 80, 160 }, { 90, 130, 200 }, { 20, 40, 90 }, { 0, 0, 0 } }
+  local FONT_PAGE = 0x60
+
+  local Pokegear = {}
+  Pokegear.gearPals = { { CREAM, { 180, 200, 140 }, { 90, 110, 70 }, { 0, 0, 0 } }, ART }
+  Pokegear.pals = function(gear) return gear.gearPals end
+  Pokegear.paperColor = function(gear) return gear:pals()[1][1] end
+  Pokegear.groundColor = function(gear)
+    local pal = gear:pals()[1]
+    return pal[#pal]
+  end
+  -- TownMapPals' own split: $60 and up is the font page on palette 0.
+  Pokegear.colorsFor = function(gear, tile)
+    if tile >= FONT_PAGE then return gear:pals()[1] end
+    return gear:pals()[2]
+  end
+  -- The cart's frame: Font.drawCode sets no colour, so the border glyphs
+  -- wear whatever was set just before them -- black, the gear's ink.
+  local painted
+  Pokegear.textbox = function(gear)
+    painted = {}
+    local Font = package.loaded["src.render.Font"]
+    love.graphics.setColor(0, 0, 0, 1)
+    Font.drawCode(0x79, 0, 0)
+  end
+  package.loaded["src.ui.gen2.Pokegear"] = Pokegear
+
+  local lastColor
+  _G.love = _G.love or {}
+  love.graphics = love.graphics or {}
+  love.graphics.setColor = function(r, g, b) lastColor = { r, g, b } end
+  package.loaded["src.render.Font"] = {
+    drawCode = function() painted[#painted + 1] = lastColor end,
+  }
+
+  local PokegearClass = {}
+  package.loaded["src.ui.gen2.Pokegear"] = Pokegear
+
+  local stored = {}
+  local context, mod = fakeContext(stored)
+  local theme = Theme2.new(context)
+  theme.install()
+  local frame = mod.hooks.wrapped["core.update"]
+  local function tick(game) return frame(function() end, game, 1 / 60) end
+  local page = stackOf({ class = PartyMenuClass })
+
+  local function rgb(c) return ("%d,%d,%d"):format(c[1], c[2], c[3]) end
+
+  -- ---- LIGHT: the cart's own gear, untouched
+
+  stored.ui_theme = "light"
+  tick(page)
+  eq(rgb(Pokegear.paperColor(Pokegear)), rgb(CREAM),
+     "LIGHT leaves the gear its cream plate")
+  eq(rgb(Pokegear.colorsFor(Pokegear, 0x7f)[1]), rgb(CREAM),
+     "and its lettering on that plate")
+
+  -- ---- DARK: the plate and the words follow the page
+
+  stored.ui_theme = "dark"
+  tick(page)
+  eq(rgb(Pokegear.paperColor(Pokegear)), "0,0,0",
+     "DARK puts the gear's plate on the page's paper")
+
+  local lettering = Pokegear.colorsFor(Pokegear, 0x7f)
+  eq(rgb(lettering[1]), "0,0,0", "a font-page cell takes the page's paper")
+  eq(rgb(lettering[4]), "255,255,255", "and its ink")
+
+  -- ---- the card art and the town map keep what they are
+
+  local art = Pokegear.colorsFor(Pokegear, 0x10)
+  eq(rgb(art[1]), rgb(ART[1]), "a card icon keeps the cart's own colours")
+  eq(rgb(art[4]), rgb(ART[4]), "including its darkest one")
+
+  -- ---- the ground is NOT reshaded
+  --
+  -- It reads the LAST entry rather than the first -- the gear sits on a solid
+  -- $4f fill, which is colour 3 -- so it is already black, and reshading it
+  -- would have handed the gear a WHITE ground under DARK.
+
+  eq(rgb(Pokegear.groundColor(Pokegear)), "0,0,0",
+     "the gear's ground stays black; it was never the paper")
+
+  -- ---- the textbox frame is drawn in the page's ink, not in black
+
+  Pokegear.textbox(Pokegear)
+  eq(#painted, 1, "the frame drew a border glyph")
+  eq(("%d,%d,%d"):format(painted[1][1] * 255, painted[1][2] * 255,
+                         painted[1][3] * 255),
+     "255,255,255",
+     "and did it in the page's ink rather than the black the cart sets")
+
+  stored.ui_theme = "light"
+  tick(page)
+  painted = nil
+  Pokegear.textbox(Pokegear)
+  eq(("%d,%d,%d"):format(painted[1][1] * 255, painted[1][2] * 255,
+                         painted[1][3] * 255),
+     "0,0,0", "and back to the cart's black under LIGHT")
+end
+
 io.write(("theme2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

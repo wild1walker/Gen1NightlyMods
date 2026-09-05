@@ -6,6 +6,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.46] - 2026-09-05
+
+**The POKéGEAR follows the theme.** It was in the themed-page list and its text
+was already being themed -- which is what made it look the way it did: white
+lettering on black bars, floating on the cart's pale green card.
+
+Nothing on that screen goes through `Chrome.DEFAULT_BOX_PALETTE`. The gear
+paints itself out of `PokegearPals`, and its colour 0 is not white -- it is
+`RGB 28, 31, 20`, a pale cream plate. So the palette this theme rewrites in
+place is one the gear never reads, and the page under the text was untouched by
+it. Three seams now follow the page, split by the trainer card's rule: **words
+follow the theme, pictures keep the cart's colours.**
+
+- **The plate.** `paperColor` is that cream, and every `' '` cell and every
+  plate fill reads it -- one number, and the whole ground under the lettering.
+- **The lettering.** `colorsFor` is reshaded only for the font page. The gear's
+  own split is the same one: it answers palette 0 for every tile id from `$60`
+  up -- the glyphs and the blanks -- and a mapped art palette below that. Above
+  `$60` is writing and follows the page; below it are the card icons and the
+  town map, which are pictures and keep what they are.
+- **The textbox frame.** `Font.drawCode` sets no colour of its own, so the cart
+  tints the border glyphs by setting black immediately before drawing them --
+  black being the gear's ink. On a themed page that is now the *paper's* colour,
+  and the box would have drawn its frame in the same black as the plate behind
+  it. The tint follows the page's ink instead.
+
+`groundColor` is deliberately left alone. It reads the **last** entry of that
+palette rather than the first -- the gear sits on a solid `$4f` fill, which is
+colour 3 -- so it is already black on the cart, and reshading it would have
+handed the gear a *white* ground under DARK.
+
 ## [0.32.45] - 2026-09-05
 
 Two things on Gold: the PACK's search had no way out, and the box got its sort.
