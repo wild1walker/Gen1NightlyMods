@@ -54,6 +54,25 @@ local SpriteRenderer = {
 
 local World = {}
 local built
+-- The day-care pair's def is built on the fly and cached on the WORLD, not in
+-- the sprite table -- their species is whatever is being bred, so there is no
+-- fixed SPRITE_* row for them.
+World.breedmonSpriteDef = function(world, species)
+  -- An empty slot: the cart answers nil rather than a sprite, because the
+  -- object's own event flag stays set until a mon is actually in there.
+  if type(species) ~= "string" then return nil end
+  world.breedmonSprites = world.breedmonSprites or {}
+  local hit = world.breedmonSprites[species]
+  if hit then return hit end
+  local def = {
+    id = "SPRITE_DAY_CARE_MON",
+    image = "assets/generated/icons/gen2/" .. species:lower() .. ".png",
+    frames = 2, walker = false,
+    spriteType = "POKEMON_SPRITE", species = species,
+  }
+  world.breedmonSprites[species] = def
+  return def
+end
 -- rebuildPeople's own loop: a pooled NPC comes straight back, a fresh one is
 -- constructed from whatever the record says RIGHT NOW.
 World.rebuildPeople = function(world)
@@ -87,8 +106,11 @@ local function shipped()
   local install = source:match(
     "(  local function installGen2MapMons%(%).-\n  end)\n")
   assert(install, "could not find installGen2MapMons")
+  -- The installer also closes over the per-record rewrite and the option, so
+  -- the day-care wrap can reach both.
   return assert(load(
-    "local isGen2, SpriteRenderer, refreshOverworldMonDefs = ...\n"
+    "local isGen2, SpriteRenderer, refreshOverworldMonDefs, repointMonDef,"
+      .. " overworldMonsEnabled, TRUE_COLOR_ART, mod = ...\n"
       .. resync .. "\n" .. install .. "\nreturn installGen2MapMons, resyncGen2OverworldMons",
     "@Gen1Follower"))
 end
@@ -109,8 +131,28 @@ local function refreshOverworldMonDefs(game)
   end
 end
 
+-- The shipped per-record rewrite, lifted the same way, so the day-care wrap is
+-- driven by the real thing rather than a stand-in.
+local repointMonDef do
+  local handle = assert(io.open("modules/Gen1Follower/main.lua"))
+  local source = handle:read("*a")
+  handle:close()
+  local body = source:match(
+    "(  local function repointMonDef%(id, def, enabled, trueColor, walks%).-\n  end)\n")
+  assert(body, "could not find repointMonDef")
+  repointMonDef = assert(load(
+    "local gen2MonOriginals, dexForSpecies, assetPath, followerVisualScale = ...\n"
+      .. body .. "\nreturn repointMonDef", "@Gen1Follower"))(
+    {},
+    function(name) return name and 1 or nil end,
+    function() return OUR_SHEET end,
+    function() return 1 end)
+end
+
 local installGen2MapMons, resyncGen2OverworldMons =
-  shipped()(true, SpriteRenderer, refreshOverworldMonDefs)
+  shipped()(true, SpriteRenderer, refreshOverworldMonDefs, repointMonDef,
+            function() return enabled end, false,
+            { log = { warn = function() end } })
 
 eq(installGen2MapMons(), true, "the map POKeMON arm installs on Gold")
 eq(installGen2MapMons(), true, "and a second install is a no-op")
@@ -339,6 +381,51 @@ do
   eq(speciesFromSpriteId(game, nil), nil, "and so is no id")
   eq(speciesFromSpriteId({}, "SPRITE_SUDOWOODO"), nil,
      "and a game with no pokemon table answers nothing rather than erroring")
+end
+
+-- ---- the day-care pair, which has no row to rewrite
+--
+-- `World:breedmonSpriteDef` builds their def on the fly and caches it on the
+-- world.  Their species is whatever is being bred, so there is no fixed
+-- SPRITE_* row for them and the pass over the sprite table cannot reach one --
+-- however right its timing and its table are.  The def it returns is the same
+-- shape every other mon record has, so it is repointed on the way out.
+
+do
+  local world = scene()
+  local def = World.breedmonSpriteDef(world, "PIDGEY")
+  eq(def.image, OUR_SHEET,
+     "a breedmon's def is repointed even though it is in no table")
+  eq(def.species, "PIDGEY", "and still says which POKeMON it is")
+
+  -- Cached on the world, so the second ask is the same table, already ours.
+  eq(World.breedmonSpriteDef(world, "PIDGEY"), def,
+     "the world's own cache still answers")
+  eq(def.image, OUR_SHEET, "and it is still pointed at this mod's sheet")
+end
+
+do
+  -- The saved original is keyed by SPECIES, not by the id: every breedmon
+  -- shares `SPRITE_DAY_CARE_MON`, so keying on that would restore one
+  -- POKeMON's cart art onto another's record the moment the pair changed.
+  local world = scene()
+  local first = World.breedmonSpriteDef(world, "PIDGEY")
+  local second = World.breedmonSpriteDef(world, "RATTATA")
+  eq(first.image, OUR_SHEET, "the first breedmon is ours")
+  eq(second.image, OUR_SHEET, "and so is the one swapped in beside it")
+
+  enabled = false
+  world.breedmonSprites = nil
+  local off = World.breedmonSpriteDef(world, "RATTATA")
+  eq(off.image, "assets/generated/icons/gen2/rattata.png",
+     "OFF is RATTATA's own cart icon back, not PIDGEY's")
+  enabled = true
+end
+
+do
+  local world = scene()
+  eq(World.breedmonSpriteDef(world, nil), nil,
+     "an empty day-care slot is still nothing")
 end
 
 io.write(("mapmons_gen2: %d passed, %d failed\n"):format(passed, failed))

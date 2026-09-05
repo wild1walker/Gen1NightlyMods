@@ -6,6 +6,11 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.55] - 2026-09-05
+
+No change. This release is the day-care POKéMON's sprites, in the QOL bundle;
+the two halves ship together and share a version.
+
 ## [0.32.54] - 2026-09-05
 
 No change. Version-only, released alongside the UI bundle.

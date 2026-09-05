@@ -698,6 +698,42 @@ return function(mod)
     return name
   end
 
+  -- ------- one record, repointed
+  --
+  -- Lifted out of the loop below because not every POKeMON record on Gold
+  -- LIVES in the sprite table.  `World:breedmonSpriteDef` builds the day-care
+  -- pair's def on the fly and caches it on the WORLD -- its species is
+  -- whatever is being bred, so there is no fixed row for it -- which means the
+  -- pass over `data.gen2Sprites` never sees the two POKeMON standing outside
+  -- the Day Care however right its timing and its table are.
+  local function repointMonDef(id, def, enabled, trueColor, walks)
+    local saved = gen2MonOriginals[id]
+    if not saved then
+      saved = { image = def.image, frames = def.frames,
+                walker = def.walker, trueColor = def.trueColor }
+      gen2MonOriginals[id] = saved
+    end
+    if enabled and dexForSpecies(def.species) then
+      def.image = assetPath(def.species)
+      def.frames = 6
+      -- This mod's sheets are the follower's: 16x96, six frames, laid out as
+      -- a walk cycle.  A mon DOLL never walks, so it keeps the cart's `false`
+      -- and shows the first frame; one off the walking half is an object that
+      -- can be told to move, and configureSpriteDef pairs these sheets with
+      -- `walker = true` for exactly that.
+      def.walker = walks and true or false
+      def.trueColor = trueColor
+      def.pokepcFollowerSpecies = def.species
+      def.pokepcFollowerVisualScale = followerVisualScale(def.species)
+    else
+      def.image, def.frames = saved.image, saved.frames
+      def.walker, def.trueColor = saved.walker, saved.trueColor
+      def.pokepcFollowerSpecies = nil
+      def.pokepcFollowerVisualScale = nil
+    end
+    return def
+  end
+
   local function refreshOverworldMonDefs(game)
     local sprites = spritesFor(game)
     if type(sprites) ~= "table" then return end
@@ -715,30 +751,7 @@ return function(mod)
         end
         if type(def) == "table" and type(def.species) == "string"
            and (def.spriteType == "POKEMON_SPRITE" or named) then
-          local saved = gen2MonOriginals[id]
-          if not saved then
-            saved = { image = def.image, frames = def.frames,
-                      walker = def.walker, trueColor = def.trueColor }
-            gen2MonOriginals[id] = saved
-          end
-          if enabled and dexForSpecies(def.species) then
-            def.image = assetPath(def.species)
-            def.frames = 6
-            -- This mod's sheets are the follower's: 16x96, six frames, laid
-            -- out as a walk cycle.  A mon DOLL never walks, so it keeps the
-            -- cart's `false` and shows the first frame; one off the walking
-            -- half is an object that can be told to move, and configureSpriteDef
-            -- pairs these sheets with `walker = true` for exactly that.
-            def.walker = named and true or false
-            def.trueColor = trueColor
-            def.pokepcFollowerSpecies = def.species
-            def.pokepcFollowerVisualScale = followerVisualScale(def.species)
-          else
-            def.image, def.frames = saved.image, saved.frames
-            def.walker, def.trueColor = saved.walker, saved.trueColor
-            def.pokepcFollowerSpecies = nil
-            def.pokepcFollowerVisualScale = nil
-          end
+          repointMonDef(id, def, enabled, trueColor, named)
         end
       end
       return
@@ -835,6 +848,37 @@ return function(mod)
       return false, "no Gen 2 World; map POKeMON keep the cart's icons"
     end
     if rawget(World, "__gen1wildMapMons") then return true end
+
+    -- ------- the day-care pair, which has no row to rewrite
+    --
+    -- `World:breedmonSpriteDef` builds their def on the fly and caches it on
+    -- the world: their species is whatever is being bred, so there is no fixed
+    -- SPRITE_* row for them and the pass over `data.gen2Sprites` cannot reach
+    -- one.  The def it returns is the same shape every other mon record has
+    -- (`spriteType = "POKEMON_SPRITE"` and a `species`), so it is repointed on
+    -- the way out.
+    --
+    -- By species rather than by id: every breedmon shares the id
+    -- `SPRITE_DAY_CARE_MON`, so keying the saved original on that would have
+    -- one POKeMON's cart art restored onto another's record the moment the
+    -- pair changed.
+    local baseBreedmon = World.breedmonSpriteDef
+    if type(baseBreedmon) == "function" then
+      World.breedmonSpriteDef = function(world, species)
+        local def = baseBreedmon(world, species)
+        if type(def) ~= "table" or type(def.species) ~= "string" then
+          return def
+        end
+        local ok = pcall(repointMonDef, "SPRITE_DAY_CARE_MON:" .. def.species,
+                         def, overworldMonsEnabled(), TRUE_COLOR_ART, false)
+        if not ok then return def end
+        return def
+      end
+    else
+      mod.log:warn("no breedmonSpriteDef; the day-care pair keeps the cart's "
+        .. "icons")
+    end
+
     local baseRebuild = World.rebuildPeople
     World.rebuildPeople = function(world, ...)
       -- Ahead of the build, so an NPC made here is made from our sheet.

@@ -7,6 +7,26 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.55] - 2026-09-05
+
+**The day-care pair wear this mod's sheets.** They were the one overworld
+POKéMON the arm could never have reached, however right its timing (0.32.48)
+and its table (0.32.50) got.
+
+`World:breedmonSpriteDef` builds their sprite record **on the fly** and caches
+it on the world rather than in `data.gen2Sprites` -- their species is whatever
+is being bred, so there is no fixed `SPRITE_*` row for them to have. Every pass
+over the sprite table missed them by construction. The record it hands back is
+the same shape every other mon record has (`spriteType = "POKEMON_SPRITE"` and
+a `species`), so it is repointed on the way out instead.
+
+The saved original is kept **by species, not by id**: every breedmon shares the
+id `SPRITE_DAY_CARE_MON`, so keying on that would have restored one POKéMON's
+cart icon onto another's record the moment the pair changed.
+
+The per-record rewrite is now one function, used by both the table pass and
+this, so a record cannot be repointed two different ways.
+
 ## [0.32.54] - 2026-09-05
 
 No change. Version-only, released alongside the UI bundle.
