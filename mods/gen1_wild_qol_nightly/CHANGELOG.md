@@ -7,6 +7,44 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.48] - 2026-09-05
+
+**The POKéMON standing on Gold's maps wear this mod's sheets.** The arm for it
+was already there and already the right shape -- Gold's overworld POKéMON are
+`SPRITE_POKEMON_*` records that name a species, so the record itself can carry
+our art. What was wrong was *when* it ran.
+
+The rewrite went off the follower's `onMapEntered` wrapper, whose own comment
+says it happens "before the map's own objects are built". That is true on Red.
+On Gold, `Follower.onMapEntered` is called from the **tail** of `World:setMap`
+-- after `rebuildPeople`, which is the thing that builds the map's people -- and
+`NPC.new(mapId, obj, spriteDef)` calls `SpriteRenderer.new` on the spot. The
+sheet is baked at construction. So every map POKéMON was already wearing the
+cart's party-menu icon by the time the record changed underneath it.
+
+That is also exactly why the **follower** looked right and they did not:
+`onMapEntered` is what builds the follower, so it is the one entity in the game
+made *after* the rewrite.
+
+Two changes, and the second is not optional:
+
+- **The refresh moved to the front of `rebuildPeople`**, so an NPC built there
+  is built from our sheet.
+- **A resync runs behind it**, for the ones a rebuild does not rebuild.
+  `World:pooledNpc` keys NPCs by map and object index and hands back the *same
+  instance* on a revisit, and `NPC:setSpriteDef` early-returns when handed a def
+  it already holds -- which ours always is, because the rewrite is in place. So
+  a pooled POKéMON would have kept a renderer built from the cart's icon however
+  many times you walked back onto its map.
+
+Flipping **MAP POKÉMON** off now reaches the POKéMON already standing on the
+map, rather than waiting for the next one: Gold rebuilds nothing on an option
+change, and its NPCs bake the sheet at construction, so the live ones are
+re-pointed directly.
+
+Gen 1 is untouched -- its own path swaps the renderer per NPC and always ran at
+the right moment.
+
 ## [0.32.47] - 2026-09-05
 
 **The follower crosses a route boundary as one continuous walk on Gold.**

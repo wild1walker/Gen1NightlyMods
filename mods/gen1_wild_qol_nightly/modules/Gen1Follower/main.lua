@@ -701,6 +701,67 @@ return function(mod)
     end
   end
 
+  -- ------- and the same thing on Gold, which needs a different moment
+  --
+  -- The Gen 2 arm of refreshOverworldMonDefs above rewrites the shared
+  -- SPRITE_POKEMON_* records in place, and that is the right shape -- Gold's
+  -- overworld POKeMON already name a species, so the record itself can carry
+  -- this mod's sheet.  What was wrong was WHEN.
+  --
+  -- The refresh ran from the onMapEntered wrapper, whose comment says it goes
+  -- "before the map's own objects are built".  That is true on Red.  On Gold
+  -- the follower's onMapEntered is called from the TAIL of World:setMap --
+  -- after rebuildPeople, after applyPalettes, after the music -- and
+  -- rebuildPeople is what builds the map's people.  So by the time the record
+  -- was rewritten, every map POKeMON had already been through
+  -- `NPC.new(mapId, obj, spriteDef)`, which calls `SpriteRenderer.new` on the
+  -- spot.  The sheet is baked at construction.
+  --
+  -- That is why the follower was right and the POKeMON standing on the route
+  -- were not: onMapEntered BUILDS the follower, so it is the one entity made
+  -- after the rewrite.  Everything else was made before it.
+  --
+  -- So the refresh moves to the front of rebuildPeople, and a resync runs
+  -- behind it for the ones a rebuild did not rebuild: `World:pooledNpc` keys
+  -- NPCs by map and object index and hands back the SAME instance on a
+  -- revisit, and `NPC:setSpriteDef` early-returns when the def is the table it
+  -- already has -- which ours always is, because the rewrite is in place.  So
+  -- a pooled POKeMON would keep a renderer built from the cart's icon however
+  -- many times you walked back onto its map.
+  local function resyncGen2OverworldMons(world)
+    if not (isGen2 and world and world.npcs) then return end
+    for _, npc in ipairs(world.npcs) do
+      local def = type(npc) == "table" and npc.spriteDef or nil
+      if type(def) == "table" and def.spriteType == "POKEMON_SPRITE"
+          and type(def.image) == "string"
+          and npc.sprite and npc.sprite.image ~= def.image then
+        local ok, sprite = pcall(SpriteRenderer.new, def, npc.id)
+        if ok and sprite then npc.sprite = sprite end
+      end
+    end
+  end
+
+  local function installGen2MapMons()
+    local okWorld, World = pcall(require, "src.world.gen2.World")
+    if not (okWorld and type(World) == "table"
+            and type(World.rebuildPeople) == "function") then
+      return false, "no Gen 2 World; map POKeMON keep the cart's icons"
+    end
+    if rawget(World, "__gen1wildMapMons") then return true end
+    local baseRebuild = World.rebuildPeople
+    World.rebuildPeople = function(world, ...)
+      -- Ahead of the build, so an NPC made here is made from our sheet.
+      pcall(refreshOverworldMonDefs, world and world.game)
+      local ok, result = pcall(baseRebuild, world, ...)
+      if not ok then error(result, 0) end
+      -- And behind it, for the pooled ones the build handed straight back.
+      pcall(resyncGen2OverworldMons, world)
+      return result
+    end
+    World.__gen1wildMapMons = true
+    return true
+  end
+
   -- Declared here, installed below the hot-reload teardown.
   local gen2NPCModule, origBounceFrame, wrappedBounceFrame
   -- ----------------------------------------------------------------------
@@ -1613,13 +1674,21 @@ return function(mod)
 
   if isGen2 then
     -- Three values: whether the call itself survived, then the (installed,
-    -- reason) pair the function answers with.
+    -- reason) pair each function answers with.
     local ran, installed, problem = pcall(installGen2SeamlessFollow)
     if not ran then
       mod.log:warn("the follower's seam crossing did not install: %s",
                    tostring(installed))
     elseif not installed then
       mod.log:warn("%s", tostring(problem))
+    end
+
+    local mapRan, mapInstalled, mapProblem = pcall(installGen2MapMons)
+    if not mapRan then
+      mod.log:warn("the map POKeMON sheets did not install: %s",
+                   tostring(mapInstalled))
+    elseif not mapInstalled then
+      mod.log:warn("%s", tostring(mapProblem))
     end
   end
 
@@ -1931,6 +2000,10 @@ return function(mod)
       local game = liveGame()
       pcall(refreshOverworldMonDefs, game)
       pcall(resyncOverworldMons, game, worldFor(game))
+      -- Gold rebuilds nothing on an option flip, and its NPCs bake the sheet
+      -- at construction, so the live ones are re-pointed here rather than
+      -- waiting for the next map.
+      pcall(resyncGen2OverworldMons, worldFor(game))
       local mon = getActiveFollowerMon(game, true)
       if mon then configureSpriteDef(game, mon) end
       pcall(syncLiveFollowerDef, game, worldFor(game))
