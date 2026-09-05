@@ -78,9 +78,30 @@ local function fakeMod(stored)
     self.log[level] = function() end
   end
   self.hooks = { wrap = function(_, name, fn) self.hooked[name] = fn end }
-  self.events = { on = function() end, once = function() end }
+  -- Recorded rather than dropped: `state.dirty` is set from the engine's own
+  -- progress events, and "is there anything to save" is the gate the QUIT
+  -- offer turns on.
+  self.listeners = {}
+  self.events = {
+    on = function(_, name, fn)
+      self.listeners[name] = self.listeners[name] or {}
+      table.insert(self.listeners[name], fn)
+    end,
+    once = function(_, name, fn) self.events.on(_, name, fn) end,
+  }
+  function self.emit(name, payload)
+    for _, fn in ipairs(self.listeners[name] or {}) do fn(payload) end
+  end
   self.content = {}
-  self.ui = { push = function() end }
+  self.boxes = {}
+  self.ui = {
+    push = function() end,
+    TextBox = { new = function(_game, text, _, opts)
+      local box = { text = text, opts = opts }
+      self.boxes[#self.boxes + 1] = box
+      return box
+    end },
+  }
   self.world = {}
   self.find = function() return nil end
   function self:read() return nil end
@@ -99,7 +120,14 @@ end
 
 local function stackOf(...)
   local states = { ... }
-  return { states = states, top = function() return states[#states] end }
+  local stack
+  stack = {
+    states = states,
+    top = function() return states[#states] end,
+    push = function(_, s) states[#states + 1] = s end,
+    pop = function() return table.remove(states) end,
+  }
+  return stack
 end
 
 -- A world Gold's shape: not a stack state, with a player on it.
@@ -292,6 +320,123 @@ do
   -- A payload missing the field falls back to the playfield width, on both.
   eq(({ gold({}, 640) })[1], 4, "no scale at all falls back to gameWidth/160")
   eq(({ red({ scale = 0 }, 640) })[1], 4, "and so does a scale of zero")
+end
+
+-- --------------------------------------------------- ON QUIT, on both games
+--
+-- Red's START menu rows are CALLBACKS: `{ label, onSelect = function() ... }`.
+-- Gold's are VALUES: `{ label, value = "quit", desc, translateLabel }`, and
+-- `StartMenu:choose` dispatches on the value.  So a hook that only wrapped
+-- `onSelect` skipped Gold's QUIT row entirely and the save was never offered
+-- -- reported as "doesn't ask you to save before quitting", which is exactly
+-- what it did: nothing, silently.
+
+local function quitRow(mod, game, row)
+  local hook = mod.hooked["ui.start_menu.items"]
+  assert(type(hook) == "function", "the START menu hook was never wrapped")
+  local out = hook(function(_g, items) return items end, game, { row })
+  for _, entry in ipairs(out) do
+    if entry.label == "QUIT" then return entry end
+  end
+  return nil
+end
+
+-- Everything quitSaveOffered asks of the game, in Gold's shape.
+local function quitGame(mod)
+  local game, world = goldGame({ script = nil, fade = nil })
+  game.save = { player = { name = "GOLD" } }
+  game.writeSave = function() return true end
+  game.returnToTitle = function() game.quit = (game.quit or 0) + 1 end
+  return game, world
+end
+
+do
+  io.write("Gold's QUIT row is a value, not a callback\n")
+  local mod = install(2)
+  mod.stored.enabled = true
+  mod.stored.onquit = true
+  local game = quitGame(mod)
+  -- the shape src/ui/gen2/StartMenu.lua builds
+  local row = { label = "QUIT", value = "quit", translateLabel = true }
+  local taken = quitRow(mod, game, row)
+
+  ok(taken, "the row is still on the menu")
+  eq(type(taken.onSelect), "function", "and it is taken over")
+  -- Gold's own arm for a mod row is `item.onSelect and item.value == nil`, so
+  -- the two are exclusive there: taking the row means taking the value off it.
+  eq(taken.value, nil,
+     "with the value removed, or Gold would dispatch on it and never reach "
+     .. "the callback")
+end
+
+do
+  io.write("with something to save, QUIT offers to save\n")
+  local mod = install(2)
+  mod.stored.enabled = true
+  mod.stored.onquit = true
+  local game = quitGame(mod)
+  -- the player has walked a step, which is what marks the save dirty
+  mod.emit("world.stepped", {})
+  local row = quitRow(mod, game, { label = "QUIT", value = "quit" })
+  local menu = { items = {}, list = {} }
+  game.stack:push(menu)
+
+  row.onSelect(game)
+  eq(#mod.boxes, 1, "one box goes up")
+  ok(mod.boxes[1] and mod.boxes[1].text:find("SAVE"),
+     "and it says it is going to save, rather than saving behind a box that "
+     .. "says nothing about it")
+  eq(mod.boxes[1] and mod.boxes[1].opts and mod.boxes[1].opts.defaultNo, true,
+     "with NO preselected, the way the cart's own QUIT box is")
+  eq(menu.phase, nil, "the cart's own confirm does not also run")
+  eq(game.quit, nil, "and nothing has quit yet")
+end
+
+do
+  io.write("with nothing to save, the cart's own QUIT box is put back\n")
+  local mod = install(2)
+  mod.stored.enabled = true
+  mod.stored.onquit = true
+  local game = quitGame(mod)
+  -- no progress events: a clean save has nothing to offer, and the vanilla
+  -- prompt is the honest one because it promises nothing
+  local row = quitRow(mod, game, { label = "QUIT", value = "quit" })
+  local menu = { items = {}, list = {} }
+  game.stack:push(menu)
+
+  row.onSelect(game)
+  eq(#mod.boxes, 0, "no offer")
+  -- StartMenu:choose's own quit arm, which is what the value would have hit
+  eq(menu.phase, "confirm", "the cart's confirm comes up instead")
+  eq(menu.confirmChoice, 2, "with NO preselected, exactly as the cart sets it")
+  eq(game.quit, nil, "and nothing has quit")
+end
+
+do
+  io.write("Red's QUIT row is still a callback and still wrapped\n")
+  local mod = install(1)
+  mod.stored.enabled = true
+  mod.stored.onquit = true
+  local game = quitGame(mod)
+  mod.emit("world.stepped", {})
+  local ran = 0
+  local row = quitRow(mod, game,
+    { label = "QUIT", onSelect = function() ran = ran + 1 end })
+  eq(type(row.onSelect), "function", "the row is wrapped")
+  row.onSelect()
+  eq(#mod.boxes, 1, "and the offer goes up in front of the engine's prompt")
+  eq(ran, 0, "which replaces it rather than stacking on it")
+end
+
+do
+  io.write("ON QUIT off leaves the row alone\n")
+  local mod = install(2)
+  mod.stored.enabled = true
+  mod.stored.onquit = false
+  local game = quitGame(mod)
+  local row = quitRow(mod, game, { label = "QUIT", value = "quit" })
+  eq(row.value, "quit", "the value is untouched")
+  eq(row.onSelect, nil, "and no callback is put on it")
 end
 
 io.write(("autosave gen2: %d passed, %d failed\n"):format(passed, failed))

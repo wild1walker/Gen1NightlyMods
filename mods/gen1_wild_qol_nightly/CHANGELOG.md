@@ -7,6 +7,41 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.39] - 2026-09-05
+
+- **`ON QUIT` never fired on Gold: it doesn't ask you to save before quitting.**
+
+  The two games shape a START menu row differently, and this hook only knew
+  one of them.
+
+  Red's rows are **callbacks**. `src/ui/StartMenu.lua` builds QUIT as
+  `{ label, onSelect = function() ... end }`, so wrapping `onSelect` is the
+  whole of the interception.
+
+  Gold's rows are **values**. `StartMenu:visibleItems` builds
+  `{ label, value = "quit", desc, translateLabel }` and `StartMenu:choose`
+  dispatches on the value — there is no `onSelect` to wrap. The hook tested
+  `type(item.onSelect) == "function"` and skipped the row, so on Gold the
+  offer never came up and the last thing you did before quitting was never
+  written.
+
+  Taking the row over on Gold means taking the **value off it**: the cart's
+  own arm for a mod row is `item.onSelect and item.value == nil`, so the two
+  are exclusive there. Which hands the cart's own confirm back to this mod,
+  and the fallback reproduces the arm the value would have reached —
+  `phase = "confirm"` with `NO` preselected — so a frame where there is
+  nothing to offer is the cart's QUIT exactly, box and default and all.
+
+  Everything after the press was already generation-agnostic and is unchanged:
+  a clean save or a sync conflict still declines to offer, `YES` still holds
+  the quit behind *"Now saving…"* until the write and its upload are done, and
+  `QUIT_WAIT` still bounds the wait so a save that cannot finish is not
+  something to strand you in front of.
+
+  Matched on `value` rather than on the label, because the label at hook time
+  is the source string the engine translates afterwards — matching it alone
+  would work in this language and no other.
+
 ## [0.32.38] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: `POKEMON BOX` runs on Gold,

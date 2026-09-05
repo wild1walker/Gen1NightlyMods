@@ -5,6 +5,11 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.39] - 2026-09-05
+
+- No change. The release is Gen1WildQOL's: `ON QUIT` reaches Gold's
+  START menu, so picking QUIT there offers to save first.
+
 ## [0.32.38] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: `POKEMON BOX` runs on Gold,

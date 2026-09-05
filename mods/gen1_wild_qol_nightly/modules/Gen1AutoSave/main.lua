@@ -1908,23 +1908,75 @@ return function(mod)
     finishQuit(game)
   end
 
+  -- ------- and the two games shape the QUIT row differently
+  --
+  -- Red's rows are CALLBACKS.  `src/ui/StartMenu.lua` builds QUIT as
+  -- `{ label, onSelect = function() ... end }`, so wrapping onSelect is the
+  -- whole of the interception.
+  --
+  -- Gold's rows are VALUES.  `StartMenu:visibleItems` builds
+  -- `{ label, value = "quit", desc, translateLabel }` and `StartMenu:choose`
+  -- dispatches on the value -- so there is no onSelect to wrap, and this hook
+  -- skipped the row entirely.  Reported as "doesn't ask you to save before
+  -- quitting", which is exactly what it did: nothing, silently.
+  --
+  -- Gold's own arm for a mod row is `item.onSelect and item.value == nil`, so
+  -- taking the row over means taking the VALUE off it -- the two are
+  -- exclusive there.  Which puts the cart's own confirm back on this mod: the
+  -- fallback below reproduces the arm the value would have reached
+  -- (`self.phase = "confirm"`, NO preselected), so a frame where the offer is
+  -- declined is the cart's QUIT exactly, box and default and all.
+  local function cartQuit(game)
+    local stack = game and game.stack
+    local menu = stack and type(stack.top) == "function" and stack:top()
+    -- StartMenu:choose's quit arm, which is the one the value would have hit
+    if type(menu) == "table" and menu.list and menu.items then
+      menu.phase = "confirm"
+      menu.confirmChoice = 2
+      return true
+    end
+    -- No menu to ask through -- something has been pushed over it since the
+    -- press.  Quitting outright would throw the game away on a row the player
+    -- may have half-pressed, so this does nothing rather than guess.
+    return false
+  end
+
+  local function offerQuit(game, fallback)
+    -- our box replaces the engine's, so it is this or that, never both;
+    -- anything that stops us falls back to the vanilla prompt
+    if not state.quit and quitSaveOffered(game) and askQuit(game) then
+      return
+    end
+    return fallback()
+  end
+
   mod.hooks:wrap("ui.start_menu.items", function(nextFn, game, items)
     local out = nextFn(game, items)
     if type(out) ~= "table" then return out end
     if on() and mod.options:get("onquit") then
       for _, item in ipairs(out) do
-        local isQuit = item.id == "quit" or item.label == "QUIT"
-        if isQuit and type(item.onSelect) == "function"
-            and not item.gen1autosaveWrapped then
-          local original = item.onSelect
-          item.gen1autosaveWrapped = true
-          item.onSelect = function(...)
-            -- our box replaces the engine's, so it is this or that, never
-            -- both; anything that stops us falls back to the vanilla prompt
-            if not state.quit and quitSaveOffered(game) and askQuit(game) then
-              return
+        -- `value` is Gold's key and is the stable one: `label` is the source
+        -- string before the engine translates it, so matching on it alone
+        -- would stop working in every language but this one.
+        local isQuit = item.id == "quit" or item.value == "quit"
+          or item.label == "QUIT"
+        if isQuit and not item.gen1autosaveWrapped then
+          if type(item.onSelect) == "function" then
+            local original = item.onSelect
+            item.gen1autosaveWrapped = true
+            item.onSelect = function(...)
+              local args = { ... }
+              return offerQuit(game, function()
+                return original(unpack and unpack(args) or table.unpack(args))
+              end)
             end
-            return original(...)
+          elseif item.value ~= nil then
+            item.gen1autosaveWrapped = true
+            item.value = nil
+            item.onSelect = function(chosen)
+              local g = chosen or game
+              return offerQuit(g, function() return cartQuit(g) end)
+            end
           end
         end
       end
