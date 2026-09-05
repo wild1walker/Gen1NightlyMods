@@ -239,19 +239,18 @@ guessed one.
 
 ## Gold, Silver and Crystal
 
-The bundle claims `gen1` and `gen2`, and on a Gen 2 boot seven of its eleven
+The bundle claims `gen1` and `gen2`, and on a Gen 2 boot eight of its eleven
 features install: **BACKDROPS**, **POKEDEX**, **BAG**, **PARTY MENU**,
-**MENU LAYOUT**, **MOD MANAGER** and **BATTLE MENUS**, plus **UI THEME**.
-Most of them install whole; **BATTLE MENUS** installs one part of itself, for
-the reason under the table.
+**MENU LAYOUT**, **MOD MANAGER**, **BATTLE MENUS** and **POKEMON BOX**, plus
+**UI THEME**. Most of them install whole; **BATTLE MENUS** installs one part
+of itself, for the reason under the table.
 
-The other four stand down, and for the most part that is the honest answer
+The other three stand down, and for the most part that is the honest answer
 rather than a shortfall. This bundle exists to give Red the screens Gold
 already shipped:
 
 | feature | why not on Gold |
 |---|---|
-| **POKEMON BOX** | Gold's Bill's PC is already a box — the name in its own panel, five nicknames down the right, and the mon, level, gender and species of whatever the cursor is on. |
 | **ITEM INFO** | Gold's PACK and MART already print an item's description under the list, with a TM showing the move's. The text is the cart's own. |
 | **ELEVATOR PANEL** | Gold's lift is already a small panel against the right edge with the car on screen behind it. |
 | **BATTLE INTRO** | Gold's battle already draws edge to edge, and its intro is the cart's animated wipe. |
@@ -324,6 +323,49 @@ suspensions rather than a blanket rule:
 So both read as photographs on the card, which is what they are. The `BADGES`
 caption above the faces comes off the same sheet and *is* reshaded, because it
 is a word.
+
+### POKEMON BOX on Gold: the list becomes a grid
+
+This one was on the table above for six releases, and the verdict was too
+generous by half. Gold's storage is a **list**: `.PlaceNickname` writes five
+nicknames from (9,4), two rows apart, with a left panel carrying the front
+pic, the level, the gender and the species of whichever one the cursor is on.
+It is a good list. It is not a box — there is no grid, the party is not on
+screen beside it, and moving a Pokémon is a four-step modal flow reached from
+a third row on the PC menu.
+
+What this mod builds — the party down the left, the open box as a grid on the
+right, and a cursor that picks a Pokémon up and puts it down — is what
+*neither* game shipped. So it runs on Gold, and it replaces the list.
+`Gen2BoxMenu` is the id `PcMenu` pushes for all three of `WITHDRAW`, `DEPOSIT`
+and `MOVE POKéMON`, so the three verbs collapse into one `BOX` row on the PC
+menu and land on one screen.
+
+**The geometry is Red's, to the pixel.** Both games draw 160×144, so nothing
+was re-derived: a 5×4 grid of 24×24 cells at (32,24), the party's icons at
+x=8 stepping 16 from y=24, the hairline between the panes at x=28. A player
+who knows this screen on one cart knows it on the other.
+
+**Every write is the cart's.** This is the one screen in the suite where a
+mistake loses a Pokémon, so nothing here invents a rule or writes a save field
+directly — the refusals and the two tails are `src/core/gen2/Boxes.lua`'s:
+
+| | |
+|---|---|
+| `canDeposit` | the box is full / this is your last healthy Pokémon / it is holding **MAIL**, whose letter has nowhere to live in a box (`sPartyMail` is six structs keyed by *party slot*) |
+| `enterBox` | `RestorePPOfDepositedPokemon`, then status cleared and HP refilled from `MAXHP`, because `box_struct` has no `MON_STATUS` and no `MON_HP` |
+| `removeSlot` | every letter behind a departing party member moves up one |
+
+The one thing the cart has no call for is a **swap** — a Pokémon in hand
+landing on an occupied cell — and its rules are derived from those rather than
+guessed. A swap moves one each way, so the box cannot overflow and the party
+cannot shrink: the capacity halves of both checks are exactly the two that do
+not apply. What does apply is what a whiteout depends on, so the party must
+still hold a healthy Pokémon when the dust settles.
+
+Its suite counts the save. Every case asserts that every Pokémon present
+before an operation is still present after it, in exactly one place — carried,
+swapped, refused, or held when the screen closes.
 
 ### MENU LAYOUT on Gold: ROW HINTS
 

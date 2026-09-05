@@ -6,6 +6,54 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.38] - 2026-09-05
+
+- **`POKEMON BOX` runs on Gold.**
+
+  It had stood down on Gen 2 since it was written, on the grounds that "Gold
+  already has the screen this builds". That was too generous by half.
+
+  Gold's storage is a **list**: `.PlaceNickname` writes five nicknames from
+  (9,4), two rows apart, with a left panel carrying the front pic, the level,
+  the gender and the species of whichever one the cursor is on. It is a good
+  list. It is not a box — no grid, no party beside it, and moving a Pokémon is
+  a four-step modal flow reached from a third row on the PC menu. What this
+  mod builds is what *neither* game shipped.
+
+  So it replaces the list. `Gen2BoxMenu` is the id `PcMenu` pushes for all
+  three of `WITHDRAW`, `DEPOSIT` and `MOVE POKéMON`, so the three verbs
+  collapse into one `BOX` row and land on one screen. `CHANGE BOX`, `MAIL BOX`,
+  `DECORATION` and `SEE YA` are untouched.
+
+  **The geometry is Red's, to the pixel** — both games draw 160×144, so
+  nothing was re-derived: a 5×4 grid of 24×24 cells at (32,24), the party's
+  icons at x=8 stepping 16 from y=24, the hairline at x=28. A player who knows
+  this screen on one cart knows it on the other. Icons come from the engine's
+  own party-menu path, so per-species icons and the `pokemon.icon` hook land
+  in the box exactly as they land in the party.
+
+  **Every write is the cart's**, because this is the one screen in the suite
+  where a mistake loses a Pokémon. The refusals and the two tails are
+  `src/core/gen2/Boxes.lua`'s: `canDeposit`'s full box, last healthy Pokémon
+  and MAIL rules; `enterBox`'s PP restore and refill from `MAXHP`; and
+  `Mail.removeSlot`, which moves every letter behind a departing party member
+  up one.
+
+  The one thing the cart has no call for is a **swap**, and its rules are
+  derived rather than guessed: a swap moves one each way, so the box cannot
+  overflow and the party cannot shrink — the capacity halves of both checks
+  are exactly the two that do not apply. What does apply is what a whiteout
+  depends on, so the party must still hold a healthy Pokémon afterwards.
+
+  Two properties the suite asserts rather than assumes: a Pokémon lifted out
+  of the middle of a box leaves its cell **empty** rather than letting the grid
+  close up under the cursor, and closing the screen mid-carry puts the carried
+  Pokémon back — every case counts the save before and after and requires every
+  Pokémon to still be in it, in exactly one place.
+
+  This is the grid and the carry cursor. The sort menu and its undo, which the
+  Red arm also has, are not ported yet.
+
 ## [0.32.37] - 2026-09-05
 
 - **The trainer card's tiles go dark with its text.**

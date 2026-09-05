@@ -5,6 +5,11 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.38] - 2026-09-05
+
+- No change. The release is Gen1WildUI's: `POKEMON BOX` runs on Gold,
+  replacing the storage list with the grid and the carry cursor.
+
 ## [0.32.37] - 2026-09-05
 
 - No change. The release is Gen1WildUI's: the trainer card's tiles go

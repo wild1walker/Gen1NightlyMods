@@ -279,8 +279,26 @@ return {
       -- on.  MOVE POKéMON is there too, walking the party and the box the way
       -- _MovePKMNWithoutMail does.
       --
-      -- That is this feature, in the cart, four years earlier.
-      gen1_only = true,
+      -- ------- and that verdict was too generous by half
+      --
+      -- Gold's storage is a LIST.  `.PlaceNickname` writes five nicknames
+      -- from (9,4), two rows apart, with a left panel carrying the front
+      -- pic, the level, the gender and the species of whichever one the
+      -- cursor is on.  It is a good list.  It is not a box: there is no
+      -- grid, the party is not on screen beside it, and moving a POKeMON is
+      -- a four-step modal flow reached from a third row on the PC menu.
+      --
+      -- The thing this mod builds -- the party down the left, the open box
+      -- as a grid on the right, and a cursor that picks a POKeMON up and
+      -- puts it down -- is what NEITHER game shipped.  So it runs on Gold
+      -- too, and it replaces the list: `Gen2BoxMenu` is the id PcMenu pushes
+      -- for all three of WITHDRAW, DEPOSIT and MOVE POKéMON, so the three
+      -- verbs land on one screen and the PC menu keeps one door onto it.
+      --
+      -- Every write is the cart's own -- src/core/gen2/Boxes.lua's refusals
+      -- and its two tails, enterBox and the withdraw heal -- because this is
+      -- the one screen in the suite where a mistake loses a POKéMON.  See
+      -- modules/Gen1BillsBox/gen2screen.lua.
     },
 
     {
