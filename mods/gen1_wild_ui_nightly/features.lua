@@ -168,22 +168,35 @@ return {
       -- upstream registration is suppressed, so each has one home.
       adapter = "widescreen",
       suppress_hooks = { ["ui.options.rows"] = true },
-      -- Gen 1 only, because Gold's battle is already the thing this makes
-      -- Red's into.
+      -- Runs on Gold, Silver and Crystal -- for its two SETTINGS, not for
+      -- the widescreen.
       --
-      -- `BattleState:drawsWidescreen` answers true on Gold and its draw goes
-      -- through `Chrome.withPanel` (src/ui/gen2/BattleState.lua:4476), so the
-      -- battle already fills the window rather than sitting in a centred 4:3
-      -- square, and the intro is `src/ui/gen2/BattleTransition.lua`, which is
-      -- the cart's own animated wipe.
+      -- The widescreen half is Red's problem and stays there.  Gold's battle
+      -- already fills the window (`BattleState:drawsWidescreen` answers true,
+      -- src/ui/gen2/BattleState.lua:317) and Gold never calls Renderer at all,
+      -- so the endFrame overlay and the poison-pulse bands have nothing to fix
+      -- and nowhere to attach.  The module stands both down on a Gen 2 boot.
       --
-      -- Two of this mod's three seams would not fire there anyway.  It wraps
-      -- `Renderer.endFrame` to catch the flash, and Gold never calls Renderer
-      -- at all -- it draws straight to the screen, which is the reason
-      -- Game2:drawViewportFrame has to compose its own present canvas.  Half
-      -- an intro mod installing is worse than none, and `transition.style`
-      -- alone -- the one hook Gold does raise -- is not the feature.
-      gen1_only = true,
+      -- FLASHLESS INTROS and BLACK OUTRO are a different matter: neither is
+      -- about aspect ratio, both were missing on Gold, and both are reachable
+      -- there once you stop looking for Red's seam.
+      --
+      -- The flash on Red is a property of the WIPE -- the spiral defs carry no
+      -- flash flag -- so the setting is a `transition.style` hook.  On Gold it
+      -- is a PHASE every transition runs before its wipe, and all four of
+      -- Gold's wipes run after it, so no style names a flashless intro there
+      -- (and Red's "spiralout" is not among the four at all -- it would fall
+      -- back to the vanilla select and change nothing).  The Gen 2 arm shortens
+      -- the phase instead.
+      --
+      -- The white flash out of a battle is `Transition.battleReturn` on Red and
+      -- `World:battleReturnFade` on Gold, and Gold's is the better seam: it
+      -- picks a ramp out of `World.FADE_RAMP`, which already carries `black`
+      -- beside `white`.  So BLACK OUTRO on Gold draws nothing of its own -- it
+      -- names the other ramp and the cart's own fade plays in black.
+      --
+      -- See modules/WidescreenBattleIntro/main.lua for both.
+      
     },
 
     {

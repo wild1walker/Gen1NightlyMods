@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.43] - 2026-09-05
+
+**BATTLE INTRO's two settings now run on Gold, Silver and Crystal.** They were
+gated off with the rest of the feature, and they should not have been: neither
+is about aspect ratio.
+
+- **FLASHLESS INTROS.** On Red the flash is a property of the wipe -- the
+  spiral defs carry no flash flag -- so the setting is a `transition.style`
+  hook naming the Champion's spiral. Gold does not work that way. The flash is
+  a *phase* every transition runs before its wipe, and all four of Gold's wipes
+  -- spin, speckle, zoom, sine -- run after it, so no style names a flashless
+  intro there. Red's `spiralout` is not even one of the four; asking for it
+  would have fallen back to the vanilla select and changed nothing. The Gen 2
+  arm shortens the phase instead, so the transition steps straight to its wipe.
+  A trainer's pokeball is untouched, because a pokeball is not a flash.
+- **BLACK OUTRO.** Red's white return is `Transition.battleReturn`, which this
+  mod covers with a fade of its own. Gold's is `World:battleReturnFade`, and it
+  is the better seam: it sets a fade and lets the map-setup chain ramp it off,
+  picking from `World.FADE_RAMP` -- which already carries a `black` ramp beside
+  the white one. So on Gold this draws nothing of its own. It names the other
+  ramp, and the cart's own fade plays in black.
+
+The widescreen half stays Red's. Gold's battle already fills the window and Gold
+never calls `Renderer` at all, so the endFrame overlay and the poison-pulse
+bands have nothing to fix and nowhere to attach; the module stands them down on
+a Gen 2 boot rather than installing them to do nothing.
+
+Both arms are covered by a test that loads the cart's own `BattleTransition` and
+`World` rather than a stub -- the whole question is what Gold actually does --
+and that test caught a real bug while it was being written: the first version of
+the outro guard recoloured a white fade it had not started, because a warp's
+fade is white and carries a map setup too. It now recolours only the fade its
+own call began.
+
 ## [0.32.42] - 2026-09-05
 
 Two Gold bugs found by auditing the rest of the suite for the difference that
