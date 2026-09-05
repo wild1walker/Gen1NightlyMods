@@ -7,6 +7,10 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.54] - 2026-09-05
+
+No change. Version-only, released alongside the UI bundle.
+
 ## [0.32.53] - 2026-09-05
 
 No change. This release is four fixes to Gold's POKéDEX list, in the UI bundle;

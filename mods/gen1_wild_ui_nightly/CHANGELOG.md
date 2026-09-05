@@ -6,6 +6,33 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.54] - 2026-09-05
+
+No behaviour change: the phone-call theming shipped in **0.32.51** and this
+release adds the guard that proves it.
+
+`tests/callertheme_test.lua` loads the cart's own `CallerBox` and
+`src.render.TextBox` -- not stubs -- builds the stack a call actually makes,
+and runs the shipped theme over it. The stub test in `theme2_test.lua` states
+the *walk*, which is the right tool for that; this one states the three
+**shapes the engine owns** that the fix rests on:
+
+- the caller strip is pushed as a stack state, so the theme's walk can see it;
+- its metatable is the module the themed list names, so the match lands;
+- the page a call is read on is `src.render.TextBox`, which the furniture list
+  names -- so the walk steps *over* it and finds the strip underneath rather
+  than stopping there.
+
+If the cart ever moves any of those, the stub test keeps passing and this one
+does not. It covers the strip alone, the RING page over it, a text page left
+over the world after the strip comes down, and a bare overworld -- which stays
+the cart's own.
+
+A sweep of every Chrome-drawing Gen 2 screen not on the themed list turned up
+no other pop-up worth adding: the remainder are battle fields, cutscenes and
+minigames -- pictures rather than boxes, where ink correctly keeps the cart's
+black.
+
 ## [0.32.53] - 2026-09-05
 
 Four fixes to Gold's POKéDEX list from 0.32.49. The first is why it could not
