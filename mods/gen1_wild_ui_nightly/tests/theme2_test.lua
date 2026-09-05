@@ -775,5 +775,62 @@ do
      "0,0,0", "and back to the cart's black under LIGHT")
 end
 
+-- ------------------------------------------------- the incoming-call strip
+--
+-- A phone call came up as the cart's white box on a black page -- the one
+-- thing on screen that had not been told the lights were off.
+--
+-- It is a stack state (CallAsm's showCallerBox pushes it) drawn with nothing
+-- but `Chrome.textbox` and `Chrome.print`, and the overworld behind it reads
+-- none of these four numbers -- which is the same argument that puts the
+-- START menu and the lift panel in PAGES.  It was simply missing from the
+-- list.
+--
+-- A call puts a TEXT PAGE over the box while it is read, so the top of the
+-- stack during one is a TextBox rather than the strip: the case pageOf
+-- already walks down through.
+
+do
+  io.write("the incoming-call strip\n")
+  freshChrome()
+
+  local CallerBoxClass = {}
+  package.loaded["src.ui.gen2.CallerBox"] = CallerBoxClass
+  -- The page classes are resolved once and kept, so a stub registered after
+  -- an earlier block has already asked for them would never be seen.
+  Theme2.forgetClasses()
+
+  local stored = {}
+  local context, mod = fakeContext(stored)
+  local theme = Theme2.new(context)
+  theme.install()
+  local frame = mod.hooks.wrapped["core.update"]
+  local function tick(game) return frame(function() end, game, 1 / 60) end
+
+  local call = stackOf({ class = CallerBoxClass })
+  ok(Theme2.pageOf(call) ~= nil, "a caller box is a page")
+
+  stored.ui_theme = "dark"
+  tick(call)
+  eq(paletteOf(Chrome), DARK_PAGE, "so a call comes up dark with the rest")
+
+  stored.ui_theme = "light"
+  tick(call)
+  eq(paletteOf(Chrome), WHITE_PAGE, "and back to the cart's white on LIGHT")
+
+  -- The page a call is READ on sits over the strip, which must not lose it.
+  stored.ui_theme = "dark"
+  local reading = stackOf({ class = CallerBoxClass }, { class = TextBoxClass })
+  ok(Theme2.pageOf(reading) ~= nil,
+     "the text page a call is read on is still on a page")
+  tick(reading)
+  eq(paletteOf(Chrome), DARK_PAGE, "so the words stay dark too")
+
+  -- And the overworld with nothing over it is still not a page.
+  tick(stackOf())
+  eq(paletteOf(Chrome), WHITE_PAGE,
+     "an overworld with no call on it is left alone")
+end
+
 io.write(("theme2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -647,6 +647,57 @@ return function(mod)
   -- mod.game exists, so the Pokedex-derived size -- the one thing that needs
   -- the loaded game -- is filled in here instead, on map entry and whenever
   -- an option moves.
+  -- ------- the OTHER half of Gold's overworld POKeMON
+  --
+  -- The `SPRITE_POKEMON_*` block ($80 up) is the mon dolls: SpriteMons rows
+  -- that already name a species, which the arm below rewrites.  It is not all
+  -- of them.  The OverworldSprites half below $60 carries POKeMON too --
+  -- SUDOWOODO on Route 36 among them -- as ordinary walking sheets with no
+  -- `species` field at all, and those kept the cart's art.
+  --
+  -- Red needed a hand-written table of fifty-three names for this, because
+  -- its objects share five GENERIC sheets and the species is genuinely lost:
+  -- one "monster" is Mewtwo and a Machop at once.  Gold's are not generic --
+  -- each has its own sheet -- and the sprite is NAMED after what it is.  So
+  -- the name is the answer, and asking `data.pokemon` whether the rest of the
+  -- id is a species is exact where a written list would be a guess: it covers
+  -- every name in the cart's block without this file having to enumerate one,
+  -- and it cannot fire on a person or a prop, because YOUNGSTER and POKE_BALL
+  -- are not species.
+  --
+  -- ------- and the three it must not fire on
+  --
+  --   SPRITE_BIG_SNORLAX   the bedroom and Pokemon Center DOLLS.  They are
+  --   SPRITE_BIG_LAPRAS    drawn through SetFacingBigDoll as two-by-two dolls
+  --   SPRITE_BIG_ONIX      with a mirrored half (NPC.bigFacing), so they are
+  --                        neither 16x16 nor creatures -- and the joke, as
+  --                        with the three in Red's Copycat's house, is that
+  --                        they are dolls.  A sixteen-pixel Snorlax standing
+  --                        where a doll should be is worse art AND a worse
+  --                        joke.
+  local BIG_DOLLS = {
+    SPRITE_BIG_SNORLAX = true,
+    SPRITE_BIG_LAPRAS = true,
+    SPRITE_BIG_ONIX = true,
+  }
+
+  -- The species an id names, or nil.  Only the sprite half below the mon
+  -- block is asked: above it every row carries `species` already.
+  local function speciesFromSpriteId(game, id)
+    if type(id) ~= "string" then return nil end
+    if BIG_DOLLS[id] then return nil end
+    local name = id:match("^SPRITE_(.+)$")
+    if not name then return nil end
+    local pokemon = game and game.data and game.data.pokemon
+    if type(pokemon) ~= "table" or type(pokemon[name]) ~= "table" then
+      return nil
+    end
+    -- A species this mod has no sheet for is left alone rather than drawn as
+    -- the fallback: the cart's own art is better than the wrong POKeMON.
+    if not dexForSpecies(name) then return nil end
+    return name
+  end
+
   local function refreshOverworldMonDefs(game)
     local sprites = spritesFor(game)
     if type(sprites) ~= "table" then return end
@@ -654,8 +705,16 @@ return function(mod)
     local trueColor = TRUE_COLOR_ART
     if isGen2 then
       for id, def in pairs(sprites) do
-        if type(def) == "table" and def.spriteType == "POKEMON_SPRITE"
-           and type(def.species) == "string" then
+        local named = (type(def) == "table" and def.spriteType ~= "POKEMON_SPRITE")
+          and speciesFromSpriteId(game, id) or nil
+        if named and not def.species then
+          -- Written onto the record once, so everything below this reads one
+          -- shape whichever half the row came from -- and so a second pass
+          -- takes the ordinary branch rather than deriving it again.
+          def.species = named
+        end
+        if type(def) == "table" and type(def.species) == "string"
+           and (def.spriteType == "POKEMON_SPRITE" or named) then
           local saved = gen2MonOriginals[id]
           if not saved then
             saved = { image = def.image, frames = def.frames,
@@ -665,7 +724,12 @@ return function(mod)
           if enabled and dexForSpecies(def.species) then
             def.image = assetPath(def.species)
             def.frames = 6
-            def.walker = false
+            -- This mod's sheets are the follower's: 16x96, six frames, laid
+            -- out as a walk cycle.  A mon DOLL never walks, so it keeps the
+            -- cart's `false` and shows the first frame; one off the walking
+            -- half is an object that can be told to move, and configureSpriteDef
+            -- pairs these sheets with `walker = true` for exactly that.
+            def.walker = named and true or false
             def.trueColor = trueColor
             def.pokepcFollowerSpecies = def.species
             def.pokepcFollowerVisualScale = followerVisualScale(def.species)

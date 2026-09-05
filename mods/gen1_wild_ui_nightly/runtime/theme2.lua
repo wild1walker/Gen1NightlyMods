@@ -130,6 +130,19 @@ local PAGE_MODULES = {
   -- there, and the reason Red's is excluded does not survive the crossing.
   "src.ui.gen2.StartMenu",
   "src.ui.gen2.ElevatorMenu",
+  -- The incoming-call strip, for exactly the reason the two above are here.
+  -- It is pushed as a stack state (CallAsm's showCallerBox), it is drawn with
+  -- nothing but `Chrome.textbox` and `Chrome.print`, and the overworld behind
+  -- it reads none of these four numbers -- so the reversal lands on the strip
+  -- and stops there.  Without it a call came up as the cart's white box on a
+  -- black page: the one thing on screen that had not been told the lights
+  -- were off.
+  --
+  -- A call puts a TEXT PAGE over the box while it is being read, so the top of
+  -- the stack during one is a TextBox rather than this -- which is already the
+  -- case `pageOf` walks down through, the same way it does for a box over any
+  -- other page.
+  "src.ui.gen2.CallerBox",
   -- Naming, and the boot menu behind the title.
   "src.ui.gen2.NamingScreen",
   "src.ui.gen2.NamePick",

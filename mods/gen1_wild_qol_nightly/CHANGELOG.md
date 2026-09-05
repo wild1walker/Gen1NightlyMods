@@ -7,6 +7,41 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.51] - 2026-09-05
+
+**The other half of Gold's overworld POKéMON.** 0.32.50 got the sheets into the
+right table; this covers the POKéMON that were never in it.
+
+Gold's sprite ids come in two blocks. The `SPRITE_POKEMON_*` block from `$80`
+up is the mon dolls -- SpriteMons rows that already name a species, and the arm
+so far rewrote those. The **OverworldSprites half below `$60` carries POKéMON
+too** -- SUDOWOODO on Route 36 among them -- as ordinary walking sheets with no
+`species` field at all. They kept the cart's art because nothing looked at them.
+
+Red needed a hand-written table of fifty-three names for this, and it had to:
+its objects share five *generic* sheets, so a single "monster" is Mewtwo and a
+Machop at once and the species is genuinely lost. Gold's are not generic -- each
+has its own sheet -- and **the sprite is named after what it is**. So the name is
+the answer. Asking `data.pokemon` whether the rest of the id is a species covers
+every name in the cart's block without this mod enumerating one, and it cannot
+fire on a person or a prop, because YOUNGSTER and POKE_BALL are not species.
+
+**Three are deliberately excluded**, and they are the reason this is not a bare
+name match:
+
+- `SPRITE_BIG_SNORLAX`, `SPRITE_BIG_LAPRAS`, `SPRITE_BIG_ONIX` -- the bedroom
+  and Pokémon Center **dolls**. They are drawn through `SetFacingBigDoll` as
+  two-by-two dolls with a mirrored half, so they are neither 16×16 nor
+  creatures, and the joke -- as with the three in Red's Copycat's house -- is
+  that they *are* dolls. A sixteen-pixel Snorlax standing where a doll should be
+  is worse art and a worse joke.
+
+A species this mod has no sheet for is left alone rather than drawn as the
+fallback: the cart's own art beats the wrong POKéMON. And the `walker` flag now
+follows the sheet -- a doll keeps `false` and shows its first frame, one off the
+walking half gets `true`, which is the pairing these six-frame sheets are built
+for.
+
 ## [0.32.50] - 2026-09-05
 
 **The map POKéMON sheets were going into the wrong table.** 0.32.48 fixed *when*

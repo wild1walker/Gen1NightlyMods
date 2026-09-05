@@ -6,6 +6,23 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.51] - 2026-09-05
+
+**A phone call follows the theme.** An incoming call came up as the cart's white
+box on a black page -- the one thing on screen that had not been told the lights
+were off.
+
+The caller strip is a stack state (`CallAsm`'s `showCallerBox` pushes it) drawn
+with nothing but `Chrome.textbox` and `Chrome.print`, and the overworld behind
+it reads none of the four numbers this theme rewrites. That is the same argument
+that already put the START menu and the lift panel on the themed list -- the
+reversal lands on the box and stops there. It was simply missing from it.
+
+A call puts a text page *over* the strip while it is being read, so the top of
+the stack during one is a TextBox rather than the strip itself. That case
+already worked: it is the same walk the theme does for a box over any other
+page, and the words go dark with it.
+
 ## [0.32.50] - 2026-09-05
 
 No change. This release is the map POKéMON sprite-table fix, in the QOL bundle;

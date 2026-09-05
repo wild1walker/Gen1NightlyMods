@@ -280,5 +280,66 @@ do
   eq(onGold(nil), nil, "and neither is no game")
 end
 
+-- ---- the OTHER half: POKeMON drawn as ordinary walking sprites
+--
+-- The SPRITE_POKEMON_* block ($80 up) is the mon dolls, and they carry a
+-- `species`.  The OverworldSprites half below $60 carries POKeMON too --
+-- SUDOWOODO among them -- as plain walking sheets with no species field, and
+-- those kept the cart's art.
+--
+-- Red needed a written table of fifty-three names because its objects share
+-- five GENERIC sheets and the species is genuinely lost.  Gold's are not
+-- generic and the sprite is NAMED after what it is, so the name is the answer
+-- -- and asking data.pokemon whether the rest of the id is a species covers
+-- every name in the cart's block without enumerating one, while never firing
+-- on a person or a prop.
+
+do
+  local handle = assert(io.open("modules/Gen1Follower/main.lua"))
+  local source = handle:read("*a")
+  handle:close()
+  local dolls = source:match("(  local BIG_DOLLS = %b{})")
+  assert(dolls, "could not find BIG_DOLLS")
+  local body = source:match(
+    "(  local function speciesFromSpriteId%(game, id%).-\n  end)\n")
+  assert(body, "could not find speciesFromSpriteId")
+  local speciesFromSpriteId = assert(load(
+    "local dexForSpecies = ...\n" .. dolls .. "\n" .. body
+      .. "\nreturn speciesFromSpriteId", "@Gen1Follower"))(
+    function(name) return name ~= "MISSINGNO" and 1 or nil end)
+
+  local game = { data = { pokemon = {
+    SUDOWOODO = {}, TAUROS = {}, LAPRAS = {}, SNORLAX = {}, ONIX = {},
+    MISSINGNO = {},
+  } } }
+
+  eq(speciesFromSpriteId(game, "SPRITE_SUDOWOODO"), "SUDOWOODO",
+     "a sprite named after a species IS that species")
+  eq(speciesFromSpriteId(game, "SPRITE_TAUROS"), "TAUROS", "and so is another")
+
+  -- People and props are named after neither.
+  eq(speciesFromSpriteId(game, "SPRITE_YOUNGSTER"), nil,
+     "a person is not a POKeMON")
+  eq(speciesFromSpriteId(game, "SPRITE_POKE_BALL"), nil, "nor is a prop")
+  eq(speciesFromSpriteId(game, "SPRITE_FLY_MON"), nil,
+     "nor is a name that only sounds like one")
+
+  -- The three dolls, which are the whole reason this is not a bare match.
+  eq(speciesFromSpriteId(game, "SPRITE_BIG_SNORLAX"), nil,
+     "the bedroom SNORLAX is a doll, not a SNORLAX")
+  eq(speciesFromSpriteId(game, "SPRITE_BIG_LAPRAS"), nil, "so is the LAPRAS")
+  eq(speciesFromSpriteId(game, "SPRITE_BIG_ONIX"), nil, "and the ONIX")
+
+  -- A species this mod has no sheet for keeps the cart's art: better the
+  -- cart's own than the wrong POKeMON.
+  eq(speciesFromSpriteId(game, "SPRITE_MISSINGNO"), nil,
+     "a species with no sheet here is left alone")
+
+  eq(speciesFromSpriteId(game, "NOT_A_SPRITE"), nil, "a stray id is nil")
+  eq(speciesFromSpriteId(game, nil), nil, "and so is no id")
+  eq(speciesFromSpriteId({}, "SPRITE_SUDOWOODO"), nil,
+     "and a game with no pokemon table answers nothing rather than erroring")
+end
+
 io.write(("mapmons_gen2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

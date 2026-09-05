@@ -5,6 +5,10 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.51] - 2026-09-05
+
+No change. Version-only, released alongside the other two bundles.
+
 ## [0.32.50] - 2026-09-05
 
 No change. Version-only, released alongside the QOL bundle.
