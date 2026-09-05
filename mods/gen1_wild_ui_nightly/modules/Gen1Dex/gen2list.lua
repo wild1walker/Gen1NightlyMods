@@ -186,11 +186,29 @@ return function(mod, DexData, C)
     end
   end
 
+  -- Gold keeps the dex under `save.pokedex`, and the two cartridges name the
+  -- second half of it DIFFERENTLY.  Red's is `owned`; Gold's is `caught` --
+  -- the cart's own screen reads `save.pokedex.caught` (PokedexMenu:rebuild),
+  -- and so does its save writer.  `DexData.list` is Red's, so it asks for
+  -- `owned`, and handing it Gold's table raw meant `savedOwned` was always
+  -- empty: no POKeMON was ever OWNED on Gold.
+  --
+  -- Three things came off that one nil.  No ball marker beside anything the
+  -- player had actually caught; the CAUGHT view always empty; and -- because
+  -- `cycleView` refused to step INTO an empty view -- SELECT dead-ended on
+  -- POKeDEX A-Z with no way back to POKeDEX except closing the screen.
+  -- Reported as "when you use the sorting you can't go back to normal unless
+  -- you close it".
+  --
+  -- Normalised here rather than in DexData.list, so the Gen 1 arm keeps
+  -- reading exactly the table it always did.
   function Screen:dexSave()
-    local save = self.save
-    -- Gold keeps the dex under `save.pokedex`; DexData.list reads `seen` and
-    -- `owned` off whatever it is handed, which is why it is handed that.
-    return save and save.pokedex or nil
+    local pokedex = self.save and self.save.pokedex
+    if type(pokedex) ~= "table" then return nil end
+    return {
+      seen = pokedex.seen,
+      owned = pokedex.caught or pokedex.owned,
+    }
   end
 
   function Screen:rebuild(keepSpecies)
@@ -246,17 +264,27 @@ return function(mod, DexData, C)
     self:clampScroll()
   end
 
+  -- SELECT walks the three views.  An empty one is STEPPED OVER rather than
+  -- stopped at -- an empty list answers nothing but A and B, so landing in one
+  -- would strand the cycle, but refusing to move ALSO stranded it: with
+  -- nothing owned, CAUGHT was empty, and A-Z's only exit was into it.  So the
+  -- walk carries on round the ring and gives up only if it arrives back where
+  -- it started, which is the one case where every other view really is empty.
   function Screen:cycleView()
     if not C.option("view_cycle", true) then return end
-    local nextMode = DexData.NEXT_MODE[self.mode]
-    local build = DexData.list(self.game and self.game.data,
-                               self:dexSave(), nextMode)
-    -- An empty filtered view would strand SELECT: an empty list answers
-    -- nothing but A and B, so there would be no way back.
-    if #(build.items or {}) == 0 then return end
-    local keep = self:current() and self:current().species
-    self.mode = nextMode
-    self:rebuild(keep)
+    local data, save = self.game and self.game.data, self:dexSave()
+    local mode = self.mode
+    for _ = 1, #DexData.MODES do
+      mode = DexData.NEXT_MODE[mode]
+      if type(mode) ~= "string" or mode == self.mode then return end
+      local build = DexData.list(data, save, mode)
+      if #(build.items or {}) > 0 then
+        local keep = self:current() and self:current().species
+        self.mode = mode
+        self:rebuild(keep)
+        return
+      end
+    end
   end
 
   function Screen:open(view)

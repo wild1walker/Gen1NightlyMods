@@ -154,10 +154,12 @@ ok(type(List.new) == "function", "the Gold list builds")
 -- does.  A list that read the Gen 1 shape would mask every entry on the cart
 -- it was written for.
 
--- Gold's shape, and the trap in it: `constants` is RED's table on a Gold boot
--- (Data loads it under the Gen 1 key) and `gen2Constants` is the one Game2
--- loads beside it.  Red's stops at 2 here, standing in for the 151 that cut
--- the real Johto dex off at Kanto's last entry.
+-- Gold's shape.  The two `dexSize` values below are deliberately SMALLER than
+-- the roster beside them: the bound is derived from the roster and only raised
+-- by a declared dexSize, never lowered by one, so neither of these can cut the
+-- list short.  On the real cart there is no dexSize to read at all --
+-- `data.gen2Constants` is the ordered name lists -- which is what stopped the
+-- Johto dex at Kanto.  tests/dexgold_test.lua checks that against the engine.
 local DATA = {
   constants = { dexSize = 2, dexDigits = 3 },
   gen2Constants = { dexSize = 4, dexDigits = 3 },
@@ -175,7 +177,13 @@ local function scene()
   blitted = {}
   local game = {
     data = DATA,
-    save = { pokedex = { seen = { CHARMANDER = true }, owned = { BULBASAUR = true } } },
+    -- Gold's OWN key for the caught half is `caught` -- its dex screen reads
+    -- `save.pokedex.caught` (PokedexMenu:rebuild).  Written that way here so
+    -- this fixture cannot agree with the bug it is meant to catch: handing
+    -- DexData.list Gold's table raw left `owned` nil, so nothing was ever
+    -- caught, CAUGHT was always empty, and SELECT could not get back out of
+    -- A-Z.  The screen normalises it in `dexSave`.
+    save = { pokedex = { seen = { CHARMANDER = true }, caught = { BULBASAUR = true } } },
     input = { wasPressed = function() return false end },
     stack = { push = function(_, s) pushed[#pushed + 1] = s end,
               pop = function() end },
@@ -382,25 +390,34 @@ end
 
 -- ---- the whole dex, not Kanto's half of it
 --
--- Gold loads its constants a SECOND time under its own key (Game2:1056, the
--- same split data.sprites and data.gen2Sprites have), so `data.constants` on a
--- Gold boot is Red's table and its dexSize is 151.  Reading it stopped the
--- Johto dex at Kanto's last entry.
+-- This block used to say the bound came from `data.gen2Constants.dexSize`,
+-- and it was wrong on both halves: a Gold boot never loads src/core/Data.lua,
+-- which is the only thing that derives `dexSize`, and `data.gen2Constants` is
+-- the cart's ordered NAME LISTS -- it has no such key.  So the list fell to
+-- `or 151` and stopped at Kanto.  See tests/dexgold_test.lua, which checks
+-- both of those against the engine rather than restating them.
+--
+-- The bound is the UNION now: the roster's own highest dex number against any
+-- dexSize a dataset declares.  Deriving from the roster is what
+-- src/core/Data.lua does for Gen 1, and for its own stated reason -- "a
+-- dataset with a different roster gets the right upper bound without 151 being
+-- written down anywhere".
 
 do
   local screen = scene()
   eq(#screen.items, 4,
-     "the list runs to the Gen 2 dexSize, not the Gen 1 one")
+     "the list runs the whole roster, not Kanto's half of it")
   eq(screen.items[4].species, "SQUIRTLE", "so the last slot is really there")
 
-  -- And the Gen 1 arm is untouched: with no gen2Constants it reads the only
-  -- table there is.
+  -- The Gen 1 arm answers the same, because the roster is the same: with the
+  -- Gen 2 tables gone there is no gen2Constants to prefer and no dexSize of 4
+  -- to read, and the four species are still four species.
   local red = {}
   for k, v in pairs(DATA) do red[k] = v end
   red.gen2Constants = nil
   red.gen2Pokedex = nil
   local build = DexData.list(red, { seen = {}, owned = {} }, "num")
-  eq(#build.items, 2, "on Red the Gen 1 constants are still the answer")
+  eq(#build.items, 4, "on Red the roster is still the answer")
 end
 
 -- ---- and the cursor opens on the dex you are filling

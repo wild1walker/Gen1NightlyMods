@@ -357,16 +357,45 @@ function DexData.list(data, save, mode)
     if def.dex then byDex[def.dex] = def end
   end
 
-  -- Gold loads its constants a SECOND time under its own key -- Game2 at
-  -- :1056, "namespaced so nothing collides with the Gen 1 keys of the same
-  -- idea", the same split data.sprites and data.gen2Sprites have.  So
-  -- `data.constants` on a Gold boot is RED's table, whose dexSize is 151, and
-  -- reading it stopped the Johto dex at Kanto's last entry.  Preferring the
-  -- Gen 2 one needs no generation flag: on Red it is simply absent.
+  -- ------- how far the dex runs
+  --
+  -- This asked `constants.dexSize`, and an earlier pass "fixed" the Gold case
+  -- by preferring `data.gen2Constants` over `data.constants`.  Both halves of
+  -- that were wrong, which is why Gold's dex still stopped at 151:
+  --
+  --   * a Gold boot never loads src/core/Data.lua at all (Game2.lua:1161
+  --     says so in as many words), so there is no `data.constants` to fall
+  --     back TO -- and `dexSize` is derived in that file, so nothing else
+  --     computes it;
+  --   * `data.gen2Constants` is Game2's `data/generated/constants.lua` -- the
+  --     cart's ORDERED NAME LISTS (speciesOrder, spriteOrder, mapOrder), the
+  --     shape src/mods/Gen2Compat.lua calls "the cart's ordered name lists,
+  --     not Gen 1's".  It has no `dexSize` key at all.
+  --
+  -- So the preference picked a table that was truthy and silently answered
+  -- nil, and `or 151` did the rest -- worse than before, because it also
+  -- shadowed a fallback that might have held a number.
+  --
+  -- Derived from the roster instead, which is what src/core/Data.lua does for
+  -- Gen 1 and for the same stated reason: "a dataset with a different roster
+  -- gets the right upper bound without 151 being written down anywhere".  It
+  -- is also what the cart's own dex does -- `PokedexMenu:order` builds the
+  -- national list out of `dex.entries` rather than counting to a constant --
+  -- so a mod that adds a species is covered here without being enumerated.
   local constants = data.gen2Constants or data.constants or {}
+  -- The union of the two, so neither can shrink the list: the roster's own
+  -- highest number (the only answer Gold has) against a dexSize a dataset
+  -- declares explicitly (which may be HIGHER than the roster, when a dex has
+  -- slots nothing fills yet).  Both absent is Red's historical 151.
+  local dexSize = 0
+  for n in pairs(byDex) do
+    if type(n) == "number" and n > dexSize then dexSize = n end
+  end
+  dexSize = math.max(dexSize, constants.dexSize or 0)
+  if dexSize == 0 then dexSize = 151 end
   local numFmt = ("%%0%dd"):format(constants.dexDigits or 3)
   local entries, seen, owned = {}, 0, 0
-  for n = 1, constants.dexSize or 151 do
+  for n = 1, dexSize do
     local def = byDex[n]
     if def then
       local isOwned = savedOwned[def.id] and true or false

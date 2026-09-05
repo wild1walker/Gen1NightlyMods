@@ -6,6 +6,51 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.60] - 2026-09-05
+
+### Fixed
+
+- **Gold's Pokédex runs to 251, opens on Johto, and SELECT can always get
+  back.** All three reported together, and all three came off two wrong reads
+  of the cart's data.
+
+  **The dex stopped at 151.** The bound was taken from `constants.dexSize`,
+  and 0.32.53 "fixed" the Gold case by preferring `data.gen2Constants` over
+  `data.constants`. Both halves of that were wrong: a Gold boot never loads
+  `src/core/Data.lua` at all — the only thing that derives `dexSize` — so
+  there is no `data.constants` to fall back to; and `data.gen2Constants` is
+  the cart's **ordered name lists** (`speciesOrder`, `spriteOrder`,
+  `mapOrder`), which has no `dexSize` key. So the preference picked a table
+  that was truthy and silently answered nil, and `or 151` did the rest. It was
+  worse than before, because it also shadowed a fallback that might have held
+  a number.
+
+  The bound is now derived from the roster and only *raised* by a declared
+  `dexSize`, never lowered by one — which is what `src/core/Data.lua` does for
+  Gen 1, and what the cart's own dex does (`PokedexMenu:order` walks
+  `dex.entries` rather than counting to a constant).
+
+  **It didn't open on 152.** A consequence of the above: `openOnJohto` looks
+  up `newOrder[1]` — Chikorita, #152 — and #152 wasn't in a 151-long list to
+  land on. It lands now.
+
+  **SELECT dead-ended on POKéDEX A-Z.** Red names the caught half of the dex
+  save `owned`; Gold names it `caught` — its own screen reads
+  `save.pokedex.caught`. The Gold list handed that table over raw, so `owned`
+  was always nil and **nothing was ever caught**. Three things came off that
+  one nil: no ball marker beside anything you had actually caught, an always
+  empty POKéDEX CAUGHT view, and — because SELECT refused to step *into* an
+  empty view — no way out of A-Z except closing the screen. The save is
+  normalised now, and the cycle steps *over* an empty view instead of stopping
+  at it, so there is always a way round to POKéDEX.
+
+  `tests/dexgold_test.lua` reads all three shapes off the engine rather than
+  restating them — the roster's real size, that the cart's dex never counts to
+  a `dexSize`, and that it reads `pokedex.caught`. Six of its assertions fail
+  against the unfixed code. The existing Gold list test's fixture also carried
+  Red's `owned` key; it carries Gold's `caught` now, and five of *its*
+  assertions fail without the normalisation.
+
 ## [0.32.59] - 2026-09-05
 
 ### Changed
