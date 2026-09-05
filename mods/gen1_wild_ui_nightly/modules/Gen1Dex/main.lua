@@ -276,7 +276,10 @@ return function(mod)
       local makeGen2List = loadSibling(mod, "gen2list.lua")
       local C
       if type(makeChrome) == "function" then
-        local chromeOk, built = pcall(makeChrome, mod)
+        -- `true` is the generation: on Gold the chrome reads the theme's
+        -- live palette for its paper and ink, because nothing reverses the
+        -- frame afterwards the way Red's SGB zones do.
+        local chromeOk, built = pcall(makeChrome, mod, true)
         if chromeOk and type(built) == "table" then C = built end
       end
       if not (C and type(makeGen2List) == "function") then

@@ -6,6 +6,30 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.61] - 2026-09-05
+
+### Fixed
+
+- **The Gold Pokédex prints in the theme's ink, not black letters in white
+  boxes.** Reported as "in dark mode those words should just be white, not in
+  white boxes".
+
+  Every screen in Gen1Dex draws through two colours in its shared `chrome.lua`
+  — `C.black` for the ink and `C.white` for the paper — and both were literal.
+  On Red that is correct: its theme reverses the **whole frame** afterwards
+  through the SGB zone list, so reading a palette here would reverse them
+  twice. Gold has no such pass — its colour is per tile out of
+  `Chrome.DEFAULT_BOX_PALETTE`, which the theme rewrites in place. So the page
+  went dark and every label arrived as a white slab with black letters in it:
+  `Font.drawBox` fills its interior white, and `C.black` printed on top.
+
+  The two colours are read from that table now, live — the theme rewrites
+  those four numbers every frame, so a row drawn this frame asks this frame —
+  and the header and footer box interiors take the page's colour instead of
+  white. Under DARK the words on the black are white, with nothing behind
+  them; under LIGHT it is the cart's own look, unchanged. Red is untouched and
+  a Red build cannot read the Gold palette even if one is present.
+
 ## [0.32.60] - 2026-09-05
 
 ### Fixed
