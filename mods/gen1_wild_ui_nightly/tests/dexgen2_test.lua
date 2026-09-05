@@ -360,6 +360,13 @@ do
     local back = 0
     for _ in pairs(mod.content.screens.registered) do back = back + 1 end
     eq(back, 1, "and it is still the only registration")
+    -- And its own rows come back with it, for the same reason they were held
+    -- back: now they can act.
+    local onKeys = {}
+    for _, row in ipairs(mod.defined or {}) do onKeys[row.key] = true end
+    ok(onKeys.view_cycle, "SELECT VIEWS is offered again")
+    ok(onKeys.wrap, "and LIST WRAPS")
+    ok(onKeys.species_colours, "and COLOURED NAMES")
     mod.stored.gen2_list = nil
   end
   -- The START menu is on both cartridges, so this row always meant something
@@ -371,10 +378,13 @@ do
   ok(not keys.area_hints,
      "AREA HINTS is not: that screen is the cart's here, and a row that "
      .. "cannot do anything is worse than a missing one")
-  -- SELECT VIEWS and LIST WRAPS DO mean something now: they are the list's
-  -- own rows, and the list is this mod's.
-  ok(keys.view_cycle, "SELECT VIEWS is offered, because the list is ours")
-  ok(keys.wrap, "and LIST WRAPS with it")
+  -- SELECT VIEWS and LIST WRAPS are the LIST's own rows, and by default the
+  -- list is the cart's -- so they are held back by the same rule AREA HINTS
+  -- is: a row that cannot do anything is worse than a missing one.
+  ok(not keys.view_cycle,
+     "SELECT VIEWS is not offered while the dex is the cart's own")
+  ok(not keys.wrap, "and neither is LIST WRAPS")
+  ok(not keys.species_colours, "nor COLOURED NAMES")
   ok(not keys.nickname_backdrop, "nor NAME IN PLACE")
 end
 

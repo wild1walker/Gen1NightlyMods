@@ -6,6 +6,24 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.64] - 2026-09-05
+
+### Fixed
+
+- **The dex list's own option rows follow the list.** A follow-on to 0.32.63:
+  with `DEX LIST` off by default, `SELECT VIEWS`, `LIST WRAPS` and
+  `COLOURED NAMES` were still on the menu — three controls that could not do
+  anything, because the list they control was no longer there.
+
+  They are offered only when `DEX LIST` is on now, by the same rule this
+  module already applied to `AREA HINTS` on Gold and states in its own words:
+  *a row that cannot do anything is worse than a missing one.* Turn `DEX LIST`
+  on and all three come back with it.
+
+  The switch is read from the player's stored settings, which is the same test
+  the screen registration makes — so the menu and the screen cannot disagree
+  about which dex is up.
+
 ## [0.32.63] - 2026-09-05
 
 ### Changed

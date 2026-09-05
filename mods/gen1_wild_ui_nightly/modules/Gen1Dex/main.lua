@@ -159,20 +159,38 @@ return function(mod)
   -- mod actually adds there.
   local GEN2_ROWS = {
     gen2_pages = true,
-    -- The list's own rows, which mean the same thing on both carts once the
-    -- list is this mod's.
-    view_cycle = true,
-    wrap = true,
-    species_colours = true,
     -- The START menu is on both cartridges, so this row always meant
     -- something here -- it was simply never installed (see installDexLabel).
     dex_label = true,
   }
 
+  -- The LIST's own rows: SELECT's three views, the cursor wrap and the
+  -- coloured names.  They mean the same thing on both carts, but only once
+  -- the list is this mod's -- so they are offered only when DEX LIST is on.
+  --
+  -- With Gold's own dex as the default (below), leaving them on the menu
+  -- unconditionally would have put three controls there that do nothing,
+  -- which is the complaint that started the Gen 2 work in the first place:
+  -- "none of our start qol options are working on gen 2 like they did in
+  -- gen 1".  A row that cannot act is worse than a row that is not there.
+  --
+  -- Read before `define`, which is fine: optionset.read answers from the
+  -- player's stored settings and does not need the row to exist yet.  No
+  -- stored answer means no list, which is the same test the registration
+  -- below makes -- so the menu and the screen cannot disagree.
+  local GEN2_LIST_ROWS = {
+    view_cycle = true,
+    wrap = true,
+    species_colours = true,
+  }
+
   if isGen2 then
+    local listOn = mod.options:get("gen2_list") == true
     local kept = {}
     for _, row in ipairs(schema) do
-      if GEN2_ROWS[row.key] then kept[#kept + 1] = row end
+      if GEN2_ROWS[row.key] or (listOn and GEN2_LIST_ROWS[row.key]) then
+        kept[#kept + 1] = row
+      end
     end
     -- STATS, EVOLVES and MOVES on the entry screen.  Live: the wrap reads it
     -- on every frame and every press, so OFF is Gold's own two-page entry
