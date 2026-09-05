@@ -233,5 +233,52 @@ do
   ok(pcall(resyncGen2OverworldMons, {}), "and neither is a world with no people")
 end
 
+-- ---- and WHICH sprite table the mod writes into
+--
+-- 0.32.48 fixed the moment the records are rewritten and the POKeMON still
+-- wore the cart's icons, because the rewrite was landing on the wrong TABLE.
+-- A Gen 2 boot has two, holding the same data:
+--
+--   data.sprites       what src/core/Data.lua loads, under the Gen 1 key
+--   data.gen2Sprites   what Game2 loads separately at :1044, "namespaced so
+--                      nothing collides with the Gen 1 keys of the same idea"
+--
+-- World:dataTable("gen2Sprites", ...) and PartyMenu.new both read the SECOND,
+-- so it is the one every overworld NPC and every party icon is built from.
+--
+-- The block above could not catch that: it stubs the refresh, so it never
+-- reaches the real chooser -- and its `game.data` carries only gen2Sprites,
+-- which is not the shape a real boot has.  So the shipped chooser is lifted
+-- out and asked directly, with BOTH tables present, which is the case that
+-- was wrong.
+
+do
+  local handle = assert(io.open("modules/Gen1Follower/main.lua"))
+  local source = handle:read("*a")
+  handle:close()
+  local body = source:match("(  local function spritesFor%(game%).-\n  end)\n")
+  assert(body, "could not find spritesFor in the module")
+  local make = assert(load("local isGen2 = ...\n" .. body
+    .. "\nreturn spritesFor", "@Gen1Follower"))
+
+  local gen1Table, gen2Table = { which = "sprites" }, { which = "gen2Sprites" }
+  local both = { data = { sprites = gen1Table, gen2Sprites = gen2Table } }
+
+  local onGold = make(true)
+  eq(onGold(both).which, "gen2Sprites",
+     "on Gold the mod writes into the table World and PartyMenu read")
+
+  local onRed = make(false)
+  eq(onRed(both).which, "sprites", "on Red it is still the Gen 1 key")
+
+  -- Neither arm may go blind when its own key is the one missing.
+  eq(onGold({ data = { sprites = gen1Table } }).which, "sprites",
+     "Gold falls back rather than finding nothing")
+  eq(onRed({ data = { gen2Sprites = gen2Table } }).which, "gen2Sprites",
+     "and so does Red")
+  eq(onGold({ data = {} }), nil, "no table at all is nil, not an error")
+  eq(onGold(nil), nil, "and neither is no game")
+end
+
 io.write(("mapmons_gen2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

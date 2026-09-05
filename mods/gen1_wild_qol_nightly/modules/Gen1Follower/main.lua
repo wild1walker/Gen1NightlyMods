@@ -45,9 +45,32 @@ return function(mod)
     return worldApi and worldApi.overworld and worldApi:overworld() or nil
   end
 
+  -- ------- which sprite table, and it is not the obvious one on Gold
+  --
+  -- A Gen 2 boot has TWO, and they are different tables holding the same
+  -- data:
+  --
+  --   data.sprites       what src/core/Data.lua loads, under the Gen 1 key
+  --   data.gen2Sprites   what Game2 loads separately at :1044, "namespaced so
+  --                      nothing collides with the Gen 1 keys of the same
+  --                      idea"
+  --
+  -- `World:dataTable("gen2Sprites", ...)` and `PartyMenu.new` both read the
+  -- SECOND one, so it is the second one every overworld NPC and every party
+  -- icon is actually built from.  Preferring `sprites` here therefore rewrote
+  -- a table nothing draws from: the map POKeMON arm has been writing this
+  -- mod's sheets into a copy since it was written, which is why they kept the
+  -- cart's icons however the timing was fixed.
+  --
+  -- The FOLLOWER hid it.  It never depended on the record reaching the world
+  -- -- syncLiveFollowerDef rebuilds its SpriteRenderer straight from
+  -- getFollowerImage -- so it looked right while everything that DOES depend
+  -- on the record looked wrong.
   local function spritesFor(game)
     local data = game and game.data
-    return data and (data.sprites or data.gen2Sprites) or nil
+    if not data then return nil end
+    if isGen2 then return data.gen2Sprites or data.sprites end
+    return data.sprites or data.gen2Sprites
   end
 
   -- Unique Menu Icons deliberately owns the party icon column when both mods

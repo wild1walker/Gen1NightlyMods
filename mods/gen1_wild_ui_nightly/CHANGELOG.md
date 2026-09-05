@@ -6,6 +6,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.50] - 2026-09-05
+
+No change. This release is the map POKéMON sprite-table fix, in the QOL bundle;
+the two halves ship together and share a version.
+
 ## [0.32.49] - 2026-09-05
 
 **The POKéDEX list on Gold is this suite's** -- the first stage of bringing the

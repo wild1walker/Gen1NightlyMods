@@ -7,6 +7,46 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.50] - 2026-09-05
+
+**The map POKéMON sheets were going into the wrong table.** 0.32.48 fixed *when*
+the records are rewritten and they still wore the cart's icons, because the
+rewrite was landing on a table nothing draws from.
+
+A Gen 2 boot has **two** sprite tables holding the same data:
+
+- `data.sprites` -- what `src/core/Data.lua` loads, under the Gen 1 key.
+- `data.gen2Sprites` -- what `Game2` loads separately at `:1044`, and the
+  comment beside it says why: *"namespaced so nothing collides with the Gen 1
+  keys of the same idea"*.
+
+They are **different tables**. `World:dataTable("gen2Sprites", ...)` and
+`PartyMenu.new` both read the second, so the second is what every overworld NPC
+and every party icon is actually built from. This mod's chooser preferred
+`sprites`, so on Gold it had been writing our sheets into a copy since the arm
+was written -- and no amount of fixing the timing could have helped.
+
+**The follower is what hid it.** It never depended on the record reaching the
+world: `syncLiveFollowerDef` rebuilds its `SpriteRenderer` straight from the
+image path. So the one thing that bypassed the record looked right while
+everything that goes through it looked wrong.
+
+The chooser now prefers `gen2Sprites` on a Gen 2 boot and `sprites` on Gen 1,
+each falling back to the other so neither arm goes blind if its own key is
+missing.
+
+The test that shipped with 0.32.48 could not have caught this -- it stubs the
+refresh, so it never reached the real chooser, and its fake `game.data` carried
+only `gen2Sprites`, which is not the shape a real boot has. The shipped chooser
+is now lifted out and asked directly with **both** tables present, which is the
+case that was wrong.
+
+*If a specific POKéMON still shows the cart's art after this, it is a different
+case: Gold draws a few of them as ordinary walking sprites (`SPRITE_SUDOWOODO`
+and the like) rather than as the `SPRITE_POKEMON_*` records this arm rewrites,
+and those need a name-to-species table the way Red's fifty-three did. Name one
+and it can be added.*
+
 ## [0.32.49] - 2026-09-05
 
 No change. This release is Gold's POKéDEX list, in the UI bundle; the two halves
