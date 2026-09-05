@@ -6,6 +6,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.47] - 2026-09-05
+
+No change. This release is the follower's route-seam crossing on Gold, in the
+QOL bundle; the two halves ship together and share a version.
+
 ## [0.32.46] - 2026-09-05
 
 **The POKéGEAR follows the theme.** It was in the themed-page list and its text

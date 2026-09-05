@@ -7,6 +7,50 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.47] - 2026-09-05
+
+**The follower crosses a route boundary as one continuous walk on Gold.**
+Walking off the edge of a route made it vanish and reappear standing *on* the
+player, then trail back out -- a jump at every seam, on a crossing that is
+otherwise seamless.
+
+Crossing an edge is not a map *entry*. Nothing loads and nothing warps: the
+world swaps its map data underneath a step that is still running, which is why
+`World:tryConnection` passes `{ seamless = true }` and parks the player one cell
+short of the landing so the same world pixels stay on screen. Red does the
+follower's half of that too, in three lines:
+
+1. take the **live** follower before the swap,
+2. hand it through `setMap` as `keepPikachu`, so the map-entry hook adopts it
+   instead of destroying it and spawning a new one, and
+3. `rebase` it -- and the cell it is chasing -- by the same translation the
+   player just took, sliding both into the new map's frame.
+
+Gold's `tryConnection` does none of the three. It calls `setMap` with a bare
+`{ seamless = true }`, and `setMap` calls `Follower.onMapEntered(..., true)` --
+`viaMapLoad` **true for every load, connection included** -- whose whole meaning
+is "a fresh load parks it under the player and it walks out as the trail opens".
+That is right for a door and wrong for an edge.
+
+Both engine parts already existed and neither had a caller: `Follower.rebase` is
+written for exactly this and says so ("slide into a connected map's frame by the
+seam's delta"), and `onMapEntered` already honours `opts.keepFollower`. So this
+supplies Red's three lines rather than inventing a mechanism -- the same
+instance crosses the seam, translated, and keeps walking.
+
+It is scoped tightly. The adoption is armed only for the length of one
+`tryConnection` call, and it will not adopt a follower unless that call armed it
+**and** the load is seamless **and** nobody has already named one -- so every
+other map load in the game still takes the engine's own path, doors and warps
+included. A rebase happens only on a crossing that actually succeeded; an edge
+with no neighbour, or one the step could not land on, translates nothing.
+
+Because it is a translation rather than a re-placement, whatever offset the
+follower had is what comes out the other side -- so one caught mid-step, or
+standing off to one side, crosses looking exactly as it did.
+
+Gen 1 already did this correctly and is untouched.
+
 ## [0.32.46] - 2026-09-05
 
 No change. This release is the POKéGEAR's dark mode, in the UI bundle; the two

@@ -1522,6 +1522,107 @@ return function(mod)
   end
 
   -- Apply wrappers
+  -- ----------------------------------------------------------------------
+  -- 9b. The seam between two maps, on Gold
+  -- ----------------------------------------------------------------------
+  -- Walking off the edge of a route and onto the next one made the follower
+  -- vanish and reappear standing ON the player, then trail back out -- a jump
+  -- at every seam, on a crossing that is otherwise seamless.
+  --
+  -- Crossing an edge is not a map ENTRY.  Nothing loaded, nothing warped: the
+  -- world swapped its map data underneath a step that is still running, which
+  -- is why `World:tryConnection` passes `{ seamless = true }` and parks the
+  -- player one cell short of the landing so the same world pixels stay on
+  -- screen.  Red does the follower's half of that too, in three lines
+  -- (src/world/OverworldController.lua:1956-1971):
+  --
+  --   1. take the LIVE follower before the swap,
+  --   2. hand it through `setMap` as `keepPikachu`, so onMapEntered adopts it
+  --      instead of destroying and re-spawning it, and
+  --   3. `rebase` it -- and the cell it is chasing -- by the same translation
+  --      the player just took, which slides both into the new map's frame.
+  --
+  -- Gold's `tryConnection` does none of the three.  It calls setMap with a
+  -- bare `{ seamless = true }`, and setMap calls `Follower.onMapEntered(...,
+  -- true)` -- viaMapLoad TRUE for every load, connection included -- whose
+  -- whole meaning is "a fresh load parks it under the player and it walks out
+  -- as the trail opens".  That is right for a door and wrong for an edge.
+  --
+  -- The engine already has the parts: `Follower.rebase` is written for exactly
+  -- this and says so ("slide into a connected map's frame by the seam's
+  -- delta"), and `onMapEntered` already honours `opts.keepFollower`.  Neither
+  -- has a caller.  So this supplies Red's three lines rather than inventing a
+  -- mechanism: the same instance crosses the seam, translated, and keeps
+  -- walking.
+  --
+  -- Scoped tightly on purpose.  `carried` is set only for the length of one
+  -- `tryConnection` call, and the setMap wrap will not adopt a follower
+  -- unless that call set it AND the load is seamless AND nobody has already
+  -- named one -- so every other map load in the game still takes the engine's
+  -- own path, doors and warps included.
+  local function installGen2SeamlessFollow()
+    local okWorld, World = pcall(require, "src.world.gen2.World")
+    if not (okWorld and type(World) == "table"
+            and type(World.tryConnection) == "function"
+            and type(World.setMap) == "function") then
+      return false, "no Gen 2 World to cross; the follower re-spawns at a seam"
+    end
+    if rawget(World, "__gen1wildSeamFollow") then return true end
+    if type(PikachuFollower.rebase) ~= "function"
+        or type(PikachuFollower.current) ~= "function" then
+      return false, "this follower has no rebase; the seam is left alone"
+    end
+
+    local carried = nil
+
+    local baseSetMap = World.setMap
+    World.setMap = function(world, mapId, cx, cy, facing, opts, ...)
+      if carried and type(opts) == "table" and opts.seamless
+          and opts.keepFollower == nil and opts.keepPikachu == nil then
+        opts.keepFollower = carried
+      end
+      return baseSetMap(world, mapId, cx, cy, facing, opts, ...)
+    end
+
+    local baseTry = World.tryConnection
+    World.tryConnection = function(world, dir, ...)
+      local player = world and world.player
+      local npc = player and PikachuFollower.current(world) or nil
+      if not (npc and player.cellX and player.cellY) then
+        return baseTry(world, dir, ...)
+      end
+      -- The player's cell in the OLD map's frame, read before the swap.
+      local fromX, fromY = player.cellX, player.cellY
+      carried = npc
+      local ok, crossed = pcall(baseTry, world, dir, ...)
+      carried = nil
+      if not ok then error(crossed, 0) end
+      -- Only on a crossing that happened: tryConnection answers false for an
+      -- edge with no neighbour, or one the step could not land on, and
+      -- translating the follower then would walk it off the map.
+      if crossed then
+        pcall(PikachuFollower.rebase, world,
+              player.cellX - fromX, player.cellY - fromY)
+      end
+      return crossed
+    end
+
+    World.__gen1wildSeamFollow = true
+    return true
+  end
+
+  if isGen2 then
+    -- Three values: whether the call itself survived, then the (installed,
+    -- reason) pair the function answers with.
+    local ran, installed, problem = pcall(installGen2SeamlessFollow)
+    if not ran then
+      mod.log:warn("the follower's seam crossing did not install: %s",
+                   tostring(installed))
+    elseif not installed then
+      mod.log:warn("%s", tostring(problem))
+    end
+  end
+
   if originalOnMapEntered then PikachuFollower.onMapEntered = wrappedOnMapEntered end
   if originalUpdate then PikachuFollower.update = wrappedUpdate end
   if originalTalk then PikachuFollower.talk = wrappedTalk end
