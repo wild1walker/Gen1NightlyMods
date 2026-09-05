@@ -531,6 +531,75 @@ def own_bundle_id():
     return found.group(1) if found else None
 
 
+def _same_module(problems: Problems, feature: dict, paired: Path,
+                 paired_name: str, label: str) -> None:
+    """A shared feature's code must be the SAME code in both bundles.
+
+    ------- why this check exists
+
+    A shared feature is declared in both bundles and installed by ONE of
+    them: `shared.owner` names the winner, and the loser stands down so the
+    player gets one copy of the feature rather than two.  Both bundles still
+    SHIP the module, because either may be installed alone.
+
+    Which means there are two copies of the same code, only one of which
+    runs -- and nothing was comparing them.  They drifted, and the way it
+    surfaced is worth writing down because it cost three releases:
+
+      MENU LAYOUT is owned by gen1_wild_ui_nightly.  Three consecutive fixes
+      to Gold's START menu went into the QOL copy, which is the one that
+      never runs.  Every one of them was written, tested, released and
+      verified against a copy the game does not load, and the bug came back
+      unchanged three times.  The fix was right; the file was not.
+
+    A one-line difference here is invisible in review, invisible in the
+    tests -- they load whichever copy the suite points at -- and invisible
+    in the game until a player finds it.  So it is a hard error naming the
+    file, which is the only form of this that cannot be walked past.
+
+    ------- and why two copies rather than one
+
+    A bundle has to install alone, so neither can reach into the other for
+    code.  Two copies is the price of that; keeping them equal is this
+    function's job.
+    """
+    directory = feature.get("dir")
+    if not directory:
+        return
+    mine = ROOT / "modules" / directory
+    theirs = paired.parent / "modules" / directory
+    if not mine.is_dir() or not theirs.is_dir():
+        # A bundle taking this feature from upstream or maintained/ has no
+        # forked copy to compare; check_sources covers that case.
+        return
+
+    def files(root: Path) -> dict:
+        return {
+            str(p.relative_to(root)): p.read_bytes()
+            for p in sorted(root.rglob("*")) if p.is_file()
+        }
+
+    here, other = files(mine), files(theirs)
+    owner = feature["shared"].get("owner", "?")
+    for name in sorted(set(here) | set(other)):
+        if name not in here:
+            problems.error(
+                f"{label}: {paired_name} carries modules/{directory}/{name} "
+                f"and this bundle does not; a shared feature is the same code "
+                f"in both, and only ONE copy runs")
+        elif name not in other:
+            problems.error(
+                f"{label}: modules/{directory}/{name} is not in "
+                f"{paired_name}; a shared feature is the same code in both, "
+                f"and only ONE copy runs")
+        elif here[name] != other[name]:
+            problems.error(
+                f"{label}: modules/{directory}/{name} differs from "
+                f"{paired_name}'s copy. {owner} is the bundle that INSTALLS "
+                f"this feature, so a fix made in the other copy is a fix the "
+                f"game never loads -- copy one over the other")
+
+
 def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
     """A feature carried by both bundles has to be declared the same in both.
 
@@ -659,6 +728,8 @@ def check_shared(problems: Problems, features: list[dict], quiet: bool) -> None:
             problems.error(
                 f"{label}: built from {feature.get('dir')!r} here and "
                 f"{twin.get('dir')!r} in {paired_name}")
+            continue
+        _same_module(problems, feature, paired, paired_name, label)
 
     if not quiet:
         print(f"  shared:     {len(shared)} declared, cross-checked "

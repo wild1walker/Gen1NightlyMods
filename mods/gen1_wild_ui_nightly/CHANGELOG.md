@@ -6,6 +6,52 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.34] - 2026-09-05
+
+- **`MENU LAYOUT` bricked Gold's START menu, and had done through three
+  releases that each fixed it.**
+
+  Three times the same report came back — you cannot close the menu, and its
+  rows open nothing. Three times a fix went out. The fix was right every time;
+  **the file was not.**
+
+  `MENU LAYOUT` is a *shared* feature. Both bundles declare it and both ship
+  the module, because either can be installed alone — and exactly one of them
+  installs it: `shared.owner`, which is **this bundle**. Every one of those
+  three fixes went into Gen1WildQOL's copy, which is the copy that never runs.
+  Written, tested, released and verified against code the game does not load.
+
+  What the copy that *does* run was still doing is the original bug, unchanged
+  since it was first reported:
+
+  ```lua
+  if startMenuId then mod.ui.push(game, startMenuId) end
+  ```
+
+  Gold's `StartMenu.new(game, opts)` takes `onChoose` and `onClose` as **push
+  options**. A bare push builds a menu with neither, and Gold's own `choose`
+  ends in `if self.onChoose then` and its `close` in `if self.onClose then`.
+  So the rows draw, the cursor moves, A opens nothing and B does not shut it.
+  Red is not affected: its `StartMenu.new(game)` takes no options and builds
+  every row's `onSelect` itself, which is why a bare push was correct there
+  and why it read as correct here.
+
+  The copy is now byte-identical to its twin, and carries everything the three
+  releases put in the wrong one: re-opening through `Game2:openStartMenu`,
+  dropping the stale menu the editor was opened on top of (Gold's `choose`
+  does not pop before `onSelect`; Red's `Menu` does), callbacks on the
+  fallback push, and a backstop that fills in the two nils on any Gold START
+  menu that reaches this mod without them.
+
+- **And `check.py` now fails on the drift itself**, which is the part that
+  matters. A shared feature's module directory is compared byte for byte
+  against the paired bundle's, from both sides, naming the file and which
+  bundle installs it. A one-line difference between two copies of the same
+  module is invisible in review, invisible in the tests — they load whichever
+  copy the suite points at — and invisible in the game until a player finds
+  it. It is a hard error now. The suite that covers this feature also lives in
+  the bundle that owns it.
+
 ## [0.32.33] - 2026-09-05
 
 - **The white box on every HP bar in Gold's party list.**

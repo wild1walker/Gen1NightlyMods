@@ -7,6 +7,18 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.34] - 2026-09-05
+
+- **`MENU LAYOUT`'s module is the same code in both bundles again.**
+  Gen1WildUI owns the feature -- `shared.owner` -- so its copy is the
+  one that installs, and three releases of START-menu fixes had gone
+  into this one, which never runs. Nothing here behaves differently;
+  the fixes now reach the game.
+
+- `check.py` fails when a shared feature's module differs between the
+  two bundles, from either side, naming the file and which bundle
+  installs it.
+
 ## [0.32.33] - 2026-09-05
 
 - **`MENU LAYOUT` no longer leaves Gold with a START menu you cannot get out
