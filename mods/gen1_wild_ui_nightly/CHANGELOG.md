@@ -6,6 +6,74 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.90] - 2026-09-06
+
+### Fixed
+
+- **Free placement in Gold's box**, the **hole the party keeps until you close
+  it**, and the **carried POKeMON drawn once** instead of twice. One change:
+  they were all the same missing piece.
+
+  Reported as "Box is still doing the wrong animation and I can't free place my
+  Pokemon, and my party isn't doing the keep hole behavior until closed like
+  Gen 1."
+
+  **What was wrong.** Gold stores a box the way Red does — `save.boxes[i]` is a
+  plain array and `#` is the count — and this screen treated that array *as the
+  grid*: cells 1..count full, everything after them empty. An array cannot hold
+  a gap, so neither could the grid. Putting a POKeMON down in cell 12 of an
+  empty box appended it to the list and it appeared in cell 1. Lifting the
+  second of six let the other four slide up behind it.
+
+  The Gen 1 screen has never had this problem, and not because Red's save format
+  is different — it is the same compact array. It keeps the **arrangement beside
+  the box** in the mod's own save data: one cell number per POKeMON, reconciled
+  against the box on every read. That is now ported to Gold, and the earlier
+  note that this was blocked on the save format was simply wrong.
+
+  - **The save format is untouched.** The cart's list stays the cart's list —
+    what is added is one cell number per POKeMON. Remove the mod and the box is
+    exactly what the cartridge expects.
+  - **Reconciled on every read**, which is what makes it safe on a shared save.
+    A catch overflowing into the box, another mod, an imported save: extra
+    POKeMON take the lowest free cells, extra entries are dropped, and a cell
+    that is out of range or claimed twice is thrown away. The worst case is the
+    compact arrangement nobody could see a gap in anyway.
+  - **A gap in storage is remembered**, because leaving one there is a decision.
+  - **The party's is not.** `save.party` is never sparse — only which *row* each
+    member is drawn in, and the array is kept sorted by that row. Party order is
+    battle order, so the list and the screen can never disagree about who leads,
+    and closing the box has nothing to collapse: it was already the list it
+    looked like. That is the "keep the hole until closed" behaviour.
+  - **The letters move with the POKeMON.** `sPartyMail` is keyed by party slot,
+    so an insert into the middle of the party shifts the letters back down —
+    the inverse of the cart's own `removeSlot`, which the cartridge has no name
+    for because nothing in it ever inserts into the middle of a party.
+  - **Sorting** still ends with the box closed up into cells 1..n, and **UNDO
+    now puts the gaps back**, not just the order.
+  - **Releasing** takes the released POKeMON's entry out of the arrangement, not
+    the last one — so nobody else moves.
+
+  **And the animation.** The POKeMON in your hand used to be drawn as a second
+  pass *on top of* the grid, while the grid was still drawing whatever the
+  cursor's cell held underneath: two icons in one cell, one blinking through the
+  other. It is now drawn **by** the grid, in place of the cell's occupant, which
+  is what Gen 1 does — so the flash is a skipped draw rather than a second
+  sprite, and a POKeMON in your hand keeps walking, because it is still the one
+  you are looking at.
+
+  The hovered icon also now walks at **the Gen 1 box's cadence** — a step every
+  eight frames rather than the party list's sixteen. A storage grid next to a
+  party list is not the place for the two to disagree.
+
+  Driven against the real `src/core/gen2/Boxes` and `src/core/gen2/Mail`, with
+  the compact-array fact read off the cartridge rather than assumed: a POKeMON
+  lands in the cell you aimed at, the cell it left stays empty, the arrangement
+  survives closing and reopening the box, an outside change to the box is
+  reconciled rather than lost, the party's hole holds while the array stays
+  dense and sorted, and the grid draws three icons rather than four when one of
+  the four is in your hand.
+
 ## [0.32.89] - 2026-09-06
 
 ### Fixed

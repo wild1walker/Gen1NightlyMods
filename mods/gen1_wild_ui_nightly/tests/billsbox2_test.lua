@@ -327,7 +327,12 @@ do
   eq(#save.party, 6, "the party is still six")
   eq(Boxes.count(save, 1), 2, "and the box is still two")
   eq(save.party[6], fromBox, "the boxed one took the row")
-  eq(save.boxes[1][1], displaced, "and the party one took its cell")
+  -- Through the screen's own cell reader, not `save.boxes[1][1]`.  As of
+  -- 0.32.90 the compact array's ORDER no longer says where a POKeMON sits --
+  -- the arrangement beside it does, which is what lets the grid hold a gap --
+  -- so "took its cell" is a question about the CELL, and the array index it
+  -- happens to occupy is not the same question.
+  eq(s:boxCells(1)[1], displaced, "and the party one took its cell")
   eq(census(save, s), before, "census unchanged")
 end
 
@@ -399,7 +404,7 @@ do
   s:grab()
   s:returnHeld()
   eq(s.held, nil, "the hand is empty")
-  eq(save.boxes[1][2], carried, "and it is back in its own cell")
+  eq(s:boxCells(1)[2], carried, "and it is back in its own cell")
   eq(census(save, s), before, "census unchanged")
 end
 

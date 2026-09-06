@@ -266,12 +266,23 @@ if ENGINE then
   local boxSrc = assert(slurp("modules/Gen1BillsBox/gen2screen.lua"))
   ok(boxSrc:find("local ok, icons = pcall(PartyMenu.new", 1, true) ~= nil,
      "the Gold box draws its icons through a borrowed PartyMenu")
-  ok(boxSrc:find("self.pane == \"box\" and self.boxSlot == cell", 1, true) ~= nil,
+  ok(boxSrc:find("local selected = self.pane == \"box\" and self.boxSlot == cell",
+                 1, true) ~= nil,
      "so it names the hovered grid cell itself")
-  ok(boxSrc:find("self.pane == \"party\" and self.partySlot == row", 1, true) ~= nil,
+  ok(boxSrc:find("local selected = self.pane == \"party\" and self.partySlot == row",
+                 1, true) ~= nil,
      "and the hovered party row")
-  ok(boxSrc:find("self.icons.gen1wildAnimate = true", 1, true) ~= nil,
-     "and the one in your hand walks, because it is the one you are watching")
+  ok(boxSrc:find("self.icons.gen1wildAnimate = selected and true or false",
+                 1, true) ~= nil,
+     "and hands that one flag to the renderer, in one place")
+  -- The POKeMON in your hand is drawn BY the grid, in the cell the cursor is
+  -- on, rather than by a second pass over the top of it -- so "the one you are
+  -- watching" and "the one in your hand" are the same icon and need no second
+  -- rule.  See tests/boxfree_gen2_test.lua.
+  ok(boxSrc:find("function Screen:drawHeld", 1, true) == nil,
+     "and there is no separate held-POKeMON pass left to disagree with it")
+  ok(boxSrc:find("function Screen:monDrawnAt", 1, true) ~= nil,
+     "...because monDrawnAt puts the carried POKeMON in the cell instead")
 end
 
 io.write(("icons2: %d passed, %d failed\n"):format(passed, failed))
