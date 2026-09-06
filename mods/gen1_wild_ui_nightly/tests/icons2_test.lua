@@ -207,5 +207,72 @@ do
   eq(binds[1], "palette", "on the cart's palette, which is the safe answer")
 end
 
+-- Resolved here rather than assumed.  Three test files in this suite have now
+-- shipped assertions behind an `ENGINE` that was never a local in them -- nil,
+-- so every read behind it was passed over in silence and the suite reported a
+-- pass it had not earned.  An assertion that never runs is worse than no
+-- assertion, because it looks like one.
+local ENGINE do
+  local candidates = { os.getenv("GEN1RECOMP") }
+  for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+    for _, name in ipairs({ "gen1recompog", "gen1recomp", "bryanthaboi/gen1recomp" }) do
+      candidates[#candidates + 1] = prefix .. "/" .. name
+    end
+  end
+  for _, dir in ipairs(candidates) do
+    if dir then
+      local probe = io.open(dir .. "/src/ui/gen2/PartyMenu.lua")
+      if probe then probe:close(); ENGINE = dir; break end
+    end
+  end
+end
+local function slurp(path)
+  local handle = io.open(path)
+  if not handle then return nil end
+  local text = handle:read("*a") handle:close() return text
+end
+ok(ENGINE ~= nil, "an engine tree is found, so the reads below actually run")
+
+-- ---- only the icon you are hovering walks
+--
+-- `iconFor` picks the frame off the screen's own clock, so every icon in the
+-- list flips together -- "the sprites shouldn't play flipping between back and
+-- forth, only the one I'm hovered over should play the walk south animation".
+--
+-- Which row is selected comes from the engine's own call order rather than a
+-- copy of its loop: drawIcon is always reached as
+-- `self:drawIcon(mon, self:iconX(i), ...)`, and iconX already answers "is this
+-- the selected row" -- it is why the highlighted icon sits a tile right.
+if ENGINE then
+  local partySrc = assert(slurp(ENGINE .. "/src/ui/gen2/PartyMenu.lua"))
+  ok(partySrc:find("local frame = math.floor(self.clock / ICON_FRAME_STEPS) % 2",
+                   1, true) ~= nil,
+     "every icon takes its frame from one clock, so they all flip together")
+  ok(partySrc:find("self:drawIcon(mon, self:iconX(i)", 1, true) ~= nil,
+     "and iconX(i) is called immediately before each drawIcon")
+  ok(partySrc:find("return index == self.index and 8 or 0", 1, true) ~= nil,
+     "where it already decides whether this row is the selected one")
+
+  local src = assert(slurp("runtime/icons2.lua"))
+  ok(src:find("menu.gen1wildAnimate = (index == menu.index)", 1, true) ~= nil,
+     "so the row is taken from iconX rather than re-derived")
+  ok(src:find("if image and not menu.gen1wildAnimate then return image, 0 end",
+              1, true) ~= nil,
+     "and an unhovered icon rests on frame 0 -- the pose the cart draws "
+     .. "between flips, not a second one")
+
+  -- The Gold box borrows a PartyMenu purely as an icon renderer, so it never
+  -- reaches iconX and has to name its own hovered cell.
+  local boxSrc = assert(slurp("modules/Gen1BillsBox/gen2screen.lua"))
+  ok(boxSrc:find("local ok, icons = pcall(PartyMenu.new", 1, true) ~= nil,
+     "the Gold box draws its icons through a borrowed PartyMenu")
+  ok(boxSrc:find("self.pane == \"box\" and self.boxSlot == cell", 1, true) ~= nil,
+     "so it names the hovered grid cell itself")
+  ok(boxSrc:find("self.pane == \"party\" and self.partySlot == row", 1, true) ~= nil,
+     "and the hovered party row")
+  ok(boxSrc:find("self.icons.gen1wildAnimate = true", 1, true) ~= nil,
+     "and the one in your hand walks, because it is the one you are watching")
+end
+
 io.write(("icons2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

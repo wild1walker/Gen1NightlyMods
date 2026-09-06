@@ -870,6 +870,11 @@ return function(mod)
       local mon = cells[row]
       local y = PARTY_Y + (row - 1) * PARTY_H
       if mon and self.icons then
+        -- Only the row under the cursor walks; see runtime/icons2.lua.  This
+        -- screen borrows a PartyMenu purely as an icon renderer, so it never
+        -- reaches the engine's own `iconX` and has to say so itself.
+        self.icons.gen1wildAnimate =
+          (self.pane == "party" and self.partySlot == row and not self.held)
         pcall(self.icons.drawIcon, self.icons, mon, PARTY_X, y)
       end
       if self.pane == "party" and self.partySlot == row then
@@ -897,6 +902,8 @@ return function(mod)
       local y = GRID_Y + row * CELL_H
       local mon = cells[cell]
       if mon and self.icons then
+        self.icons.gen1wildAnimate =
+          (self.pane == "box" and self.boxSlot == cell and not self.held)
         pcall(self.icons.drawIcon, self.icons, mon, x + ICON_DX, y + ICON_DY)
       end
       if self.pane == "box" and self.boxSlot == cell then
@@ -922,6 +929,9 @@ return function(mod)
       x = GRID_X + col * CELL_W + ICON_DX
       y = GRID_Y + row * CELL_H + ICON_DY
     end
+    -- The one in your hand IS the one you are looking at, so it walks -- and
+    -- it flashes as well, which is the line above this one.
+    self.icons.gen1wildAnimate = true
     pcall(self.icons.drawIcon, self.icons, held.mon, x, y)
   end
 

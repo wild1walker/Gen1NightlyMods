@@ -6,6 +6,32 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.87] - 2026-09-06
+
+### Fixed
+
+- **Only the icon you are hovering walks, in the party and the box.** Gold's
+  `iconFor` picks the frame off one clock — `math.floor(self.clock /
+  ICON_FRAME_STEPS) % 2` — so every icon in the list flips between its two
+  frames at once, all six stepping together. Now the row under the cursor plays
+  its walk-south animation and the rest rest on frame 0, which is the pose the
+  cart draws between flips rather than a second one.
+
+  Which row is selected is taken from the engine's own call order rather than a
+  copy of its loop: `drawIcon` is always reached as `self:drawIcon(mon,
+  self:iconX(i), ...)`, and `iconX(index)` already answers "is this the
+  selected row" — it is the reason the highlighted icon sits a tile further
+  right.
+
+  The Gold box borrows a `PartyMenu` purely as an icon renderer, so it never
+  reaches `iconX` and names its own hovered cell — grid, party column, and the
+  one in your hand, which walks because it is the one you are watching.
+
+- A third test file had assertions behind an `ENGINE` that was never a local in
+  it, so ten reads were passed over in silence and the suite reported a pass it
+  had not earned. `tests/icons2_test.lua` resolves its own now and says so if it
+  cannot; it reports 27 where it reported 17.
+
 ## [0.32.86] - 2026-09-06
 
 ### Fixed

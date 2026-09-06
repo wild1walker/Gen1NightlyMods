@@ -126,6 +126,50 @@ function Icons2.install(context)
 
   if rawget(PartyMenu, PATCH_KEY) then return false end
 
+  -- ------- only the one you are hovering walks
+  --
+  -- `iconFor` picks the frame off the screen's own clock:
+  --
+  --     local frame = math.floor(self.clock / ICON_FRAME_STEPS) % 2
+  --
+  -- so EVERY icon in the list flips between its two frames at once, all six
+  -- stepping together.  Reported as "the sprites shouldn't play flipping
+  -- between back and forth -- only the one I'm hovered over should play the
+  -- walk south animation", which is what Red's box and party do: the row under
+  -- the cursor animates and the rest stand still.
+  --
+  -- Which row that is comes from the engine's own call order rather than from
+  -- a copy of its loop: `drawIcon` is always reached as
+  --
+  --     self:drawIcon(mon, self:iconX(i), 4 + (i - 1) * 16 + self:iconBob(i))
+  --
+  -- and `iconX(index)` already answers "is this the selected row" -- it is the
+  -- reason the highlighted icon sits a tile further right.  So the row is
+  -- taken there, and `iconFor` reads it back.
+  --
+  -- `gen1wildAnimate` is also the door for a screen that is NOT the cart's
+  -- party list.  Gen1BillsBox's Gold box borrows a PartyMenu purely as an icon
+  -- renderer, so it never calls `iconX` at all and would otherwise animate
+  -- every cell; it sets the flag itself around the cell it is hovering.
+  local baseIconX = PartyMenu.iconX
+  if type(baseIconX) == "function" then
+    PartyMenu.iconX = function(menu, index)
+      menu.gen1wildAnimate = (index == menu.index)
+      return baseIconX(menu, index)
+    end
+  end
+
+  local baseIconFor = PartyMenu.iconFor
+  if type(baseIconFor) == "function" then
+    PartyMenu.iconFor = function(menu, mon, ...)
+      local image, frame = baseIconFor(menu, mon, ...)
+      -- Frame 0 is the one the cart rests on, so a still icon is the icon the
+      -- cart would draw between flips rather than a second pose.
+      if image and not menu.gen1wildAnimate then return image, 0 end
+      return image, frame
+    end
+  end
+
   local base = PartyMenu.drawIcon
   local broken = false
 
