@@ -330,6 +330,29 @@ return function(mod)
       end
     end
 
+    -- ------- the pic the cart cannot find
+    --
+    -- Built before the mask, so the mask's wrap sits outside this one too.
+    -- `PokedexMenu:drawPic` returns silently before it draws ANYTHING when a
+    -- species' picture does not resolve, which is a black square on the page
+    -- and no way to tell it from the mod not being installed.  This puts the
+    -- cart's own question mark there instead and says once, in the log, which
+    -- link broke.  See gen2pic.lua.
+    local makePic = loadSibling(mod, "gen2pic.lua")
+    if type(makePic) == "function" then
+      local picOk, Pic = pcall(makePic, mod, DexData)
+      if picOk and type(Pic) == "table" then
+        local installed, why = pcall(Pic.install)
+        if not installed then
+          mod.log:error("the missing-pic placeholder was not wrapped: %s",
+                        tostring(why))
+        end
+      else
+        mod.log:error("the missing-pic placeholder did not build: %s",
+                      tostring(Pic))
+      end
+    end
+
     -- ------- and the press that reaches it
     --
     -- Last of the three, and deliberately: its wraps have to sit OUTSIDE the

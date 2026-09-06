@@ -124,12 +124,13 @@ ok(pic:find("image = self:questionMark()", 1, true) ~= nil,
    "an unseen row already draws the question mark, whatever the caller asked")
 ok(src:find("PokedexMenu.drawPic", 1, true) == nil,
    "so this file never wraps drawPic -- the ? stays, as asked")
--- theme2.lua DOES wrap it, to repaint the white plate under the pic on a
--- themed page, and it asks for `row.seen` before it does -- so an unseen entry
--- keeps the question mark on the cart's own green square, untouched by both.
-local themeSrc = assert(slurp("runtime/theme2.lua"))
-ok(themeSrc:find("local mine = ownColors and row and row.seen", 1, true) ~= nil,
-   "and the one arm that does wrap it leaves an unseen row's plate alone")
+-- gen2pic.lua wraps drawPic, to put the cart's own question mark where a
+-- picture would not resolve -- and it hands an unseen row straight through,
+-- because the cart already draws the question mark for one.  So the ? an
+-- undiscovered entry shows is the cart's, reached by the cart's own path.
+local picSrc = assert(slurp("modules/Gen1Dex/gen2pic.lua"))
+ok(picSrc:find("if not (row and row.seen and row.species) then", 1, true) ~= nil,
+   "and the one arm that does wrap it hands an unseen row straight through")
 ok(body:find("if not row.caught then", 1, true) ~= nil,
    "and height, weight and the description already stop at CAUGHT")
 

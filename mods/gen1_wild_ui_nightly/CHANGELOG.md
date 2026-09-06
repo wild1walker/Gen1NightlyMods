@@ -6,6 +6,48 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.70] - 2026-09-06
+
+### Fixed
+
+- **The missing sprite on Gold's dex entry no longer draws nothing.** Measured
+  off the screenshot rather than judged by eye: the 7x7 block where the picture
+  goes was 118,608 pixels of exactly one value, `(0,0,0)`, and the whole
+  160x144 frame carried three colours -- paper, ink and the dex sheet's orange.
+  The POKeMON's own two palette colours were not on the screen at all.
+
+  Only one path produces that. `PokedexMenu:drawPic` has
+
+  ```lua
+  if not image then return end
+  ```
+
+  **before** it fills the plate, so a species whose picture does not resolve
+  draws nothing whatever -- not a blank plate, not a placeholder, not a warning
+  -- and leaves the rest of the page correct. A silent early return looks
+  exactly like the mod not being installed.
+
+  It now shows the cart's own question mark instead, in the question-mark
+  palette -- reached by handing the base call a row that says "not seen", so
+  the placeholder is the cart's, at the cart's size, in the cart's colours, and
+  this mod draws nothing itself.
+
+  **And it says which link broke**, once per species and at most six lines per
+  session: no `pokemon` table at all, no row for that species (a key that does
+  not match), no `spriteFront` on the row, or a `spriteFront` that would not
+  load. The cause is not yet known -- `spriteFront` is the same field
+  `BattleState` draws a battle pic from, and battle pics work -- so this ships
+  the measurement rather than a guess at the fix.
+
+### Removed
+
+- **The dex plate arm from 0.32.67 is reverted.** It repainted the square
+  behind the entry's pic in the theme's paper. It answered a complaint that was
+  never made -- the report was about white boxes behind *text*, which 0.32.66
+  fixed -- and it made things worse: a black plate is indistinguishable from a
+  missing picture, so it hid the bug above rather than causing it. The cart's
+  own plate is back.
+
 ## [0.32.69] - 2026-09-06
 
 ### Added
