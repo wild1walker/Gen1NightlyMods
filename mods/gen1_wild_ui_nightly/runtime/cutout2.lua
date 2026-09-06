@@ -251,12 +251,35 @@ function Cutout2.new(context)
     return nil
   end
 
+  -- Said once, and only the first few.  A cut that is REFUSED looks exactly
+  -- like one that never ran -- the picture keeps its square and nothing on
+  -- screen says why -- which is what made the #DEX look untouched for two
+  -- releases while the arm was working perfectly on every fixture.
+  local told = 0
+  local function refused(what, why)
+    told = told + 1
+    if told <= 4 then
+      mod.log:warn("%s kept its square: %s", what, why)
+    elseif told == 5 then
+      mod.log:warn("...and more besides; the cut is refusing most of what it "
+        .. "is handed, which is a rule rather than a picture")
+    end
+  end
+
   local function buildImage(image)
     built[image] = false
     local data, w, h = readImage(image)
-    if not data then return end
+    if not data then
+      refused("a picture", "it could not be read back at its own size")
+      return
+    end
     local cutData = Cutout2.cut(data, w, h)
-    if cutData then built[image] = toImage(cutData) end
+    if not cutData then
+      refused("a picture", "it carries its own alpha, has only one colour, "
+        .. "has too many to be cart art, or has no field the border can see")
+      return
+    end
+    built[image] = toImage(cutData)
   end
 
   -- ------- a block, replayed
@@ -319,7 +342,12 @@ function Cutout2.new(context)
     -- `true`: a gap in the replay is where the engine drew nothing, which is
     -- outside the figure rather than a reason to refuse.
     local cutData = Cutout2.cut(canvas:newImageData(), w, h, true)
-    if cutData then blocks[job.key] = toImage(cutData) end
+    if not cutData then
+      refused(tostring(job.key), "the replay had no field the border can see, "
+        .. "or too many colours to be cart art")
+      return
+    end
+    blocks[job.key] = toImage(cutData)
   end
 
   -- One picture per frame.  A trainer card asks for nine at once and a
@@ -434,11 +462,20 @@ function Cutout2.new(context)
         local okMark, mark = pcall(screen.questionMark, screen)
         image = okMark and mark or nil
       end
-      if not image then return basePic(screen, row, tx, ty, ownColors, ...) end
+      -- THE PLATE GOES EITHER WAY, and that is the fix this arm was missing.
+      --
+      -- It used to bail unless a cut picture was ready, which made the whole
+      -- thing depend on a readback succeeding -- and the square on the screen
+      -- is 56x56, the plate's exact size, whether or not the picture inside it
+      -- has a baked field of its own.  Two independent halves were treated as
+      -- one, so a cut that was slow, refused, or simply on its first frame
+      -- left the plate standing and nothing appeared to happen at all.
+      --
+      -- So the plate is dropped whenever this is on, and the cut picture goes
+      -- in when there is one.  The worst case is now the first frame after an
+      -- entry opens: no plate, and a picture still carrying its own white
+      -- field.  That is one frame, and it is strictly less square than before.
       local cut = self.imageFor(image)
-      if not cut then
-        return basePic(screen, row, tx, ty, ownColors, ...)
-      end
 
       local realRect = love.graphics.rectangle
       local realDraw = love.graphics.draw
@@ -451,7 +488,7 @@ function Cutout2.new(context)
         return realRect(mode, x, y, w, h, ...)
       end
       love.graphics.draw = function(what, ...)
-        if what == image then return realDraw(cut, ...) end
+        if cut and what == image then return realDraw(cut, ...) end
         return realDraw(what, ...)
       end
       local okDraw, err = pcall(basePic, screen, row, tx, ty, ownColors, ...)

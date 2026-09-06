@@ -6,6 +6,37 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.75] - 2026-09-06
+
+### Fixed
+
+- **The #DEX entry's white square.** It is the *plate* — the 56x56 rectangle
+  `PokedexMenu:drawPic` fills in the palette's colour 0 before the picture
+  lands — and the arm was only dropping it when a cut picture was ready to go
+  in its place.
+
+  Those are two independent halves and treating them as one is the whole bug.
+  The plate is a square whether or not the picture inside it has a baked field
+  of its own, so a cut that was refused, slow, or simply on its first frame
+  left the plate standing and the screen looked exactly as if nothing had been
+  installed. The plate now goes whenever the feature is on, and a cut picture
+  is substituted when there is one.
+
+  Everything else checked out under measurement before this was changed, which
+  is why it took two goes to find: the engine's own `drawPic` draws the pic
+  correctly, the extractor writes mon pics fully opaque (`decode2bpp` is called
+  with no `transparent` flag, so the field really is baked white and eligible
+  to be cut), `GbcPalette`'s plain shader returns `vec4(rgb, px.a)` so a cut
+  picture's transparency survives the remap, and driven end to end against the
+  real `PokedexMenu` the arm queued, built and substituted exactly as intended.
+  The arm was right; what it was gated on was wrong.
+
+- **A refused cut now says so, once.** A cut that is declined — art that
+  carries its own alpha, a single flat colour, too many colours to be cart art,
+  or no field the border can reach — looked identical to one that never ran:
+  the picture keeps its square and nothing says why. That is what made this
+  look untouched for two releases while every fixture passed.
+
 ## [0.32.74] - 2026-09-06
 
 ### Fixed

@@ -121,8 +121,17 @@ ok(dexSrc:find('G.rectangle("fill", tx * 8, ty * 8, 7 * 8, 7 * 8)', 1, true) ~= 
    "the #DEX fills a plate behind its pic")
 ok(dexSrc:find("local blank = colors and GbcPalette.color(colors, 1)", 1, true) ~= nil,
    "in the palette's colour 0 -- so the plate is half the square")
-ok(src:find("dropped = true", 1, true) ~= nil,
-   "which the arm drops, but only when a cut picture is going in its place")
+ok(src:find("dropped = true", 1, true) ~= nil, "which the arm drops")
+-- The plate and the picture's own field are two independent halves, and
+-- treating them as one is what left the #DEX looking untouched: the arm bailed
+-- unless a cut was ready, so a cut that was refused, slow, or simply on its
+-- first frame left the 56x56 plate standing.
+ok(src:find("if not cut then\n        return basePic", 1, true) == nil,
+   "and drops it whether or not a cut picture is ready")
+ok(src:find("if cut and what == image then", 1, true) ~= nil,
+   "substituting the cut picture only when there IS one")
+ok(src:find("local function refused(", 1, true) ~= nil,
+   "and a refused cut says so once, rather than looking like nothing ran")
 
 -- ---- nothing is built inside a draw
 --
