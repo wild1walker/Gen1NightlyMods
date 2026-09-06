@@ -6,6 +6,56 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.69] - 2026-09-06
+
+### Added
+
+- **An undiscovered POKeMON's entry opens on Gold, masked.** A on a row of
+  five dashes was a dead press -- `Pokedex_UpdateMainScreen`'s `.a` returns
+  unless the mon has been seen -- which is backwards on the screen you open to
+  find out where something *lives*. It opens now, and AREA off it shows every
+  nest blinking exactly as it would for a POKeMON you had already met. Red has
+  had this since 0.20 as **AREA ON UNSEEN**; that row is now on Gold's OPTION
+  screen too, and off is the cartridge's dead press back.
+
+  Gold gives more than Red did here, because on Gold AREA is an action *on*
+  the entry rather than a screen of its own -- so the page opens as well as
+  the map.
+
+  Everything that would name it is withheld:
+
+  | | |
+  |---|---|
+  | the pic | already the question mark, and left alone -- as asked |
+  | the name | the cart's own five dashes, the same token its list prints |
+  | the kind | likewise; "SEED POKeMON" is half a name |
+  | the footprint | not drawn -- a silhouette is a portrait |
+  | the cry | silent, both on opening and on CRY |
+  | PRNT | stood down |
+  | HT / WT / text | already masked -- the cart stops at CAUGHT |
+  | STATS, EVOLVES, MOVES | not offered; PAGE goes back to the cart's toggle |
+
+  What is left is the number, an empty frame, and the nest map -- which is what
+  the entry was opened for.
+
+  PRNT is stood down rather than masked because it reads the name straight off
+  the species table rather than through `monName`, so masking the screen would
+  not have masked the printout. Our own three extra pages are gated in
+  `gen2.lua` rather than hidden here: base stats, what it evolves into and its
+  whole movelist would have put the POKeMON back on the screen built to keep it
+  off.
+
+  The mask works by shadowing four of the screen's own methods on the instance
+  for the duration of one call, so there is no second copy of a screen that is
+  not ours to drift from the one the cart ships.
+
+  It **fails closed**, which is not the shape the rest of this suite uses.
+  Everywhere else a broken feature falls back to the cartridge's own screen --
+  but here that screen *is* the name, the kind, the footprint and the cry, on a
+  page the cartridge would not have opened. So a mask that breaks stops
+  opening, draws nothing, and sends the entry the player is standing in back to
+  the listing on the same frame.
+
 ## [0.32.68] - 2026-09-06
 
 ### Added

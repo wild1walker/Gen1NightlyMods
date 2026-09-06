@@ -277,6 +277,13 @@ return {
       -- POKeMON opens a page with an empty map, and that line is the only
       -- thing on the screen that can tell the player why.  AREA HINTS turns it
       -- off.  See modules/Gen1Dex/gen2area.lua.
+      --
+      -- And A on an undiscovered row opens that entry, where the cartridge
+      -- refuses -- which is the same AREA ON UNSEEN row Red has, with more
+      -- behind it, because on Gold AREA is an action ON the entry.  The name,
+      -- the kind, the footprint and the cry are all withheld and the pic stays
+      -- the question mark, so what opens is the number, an empty frame and the
+      -- nest map.  See modules/Gen1Dex/gen2unseen.lua.
     },
 
     {

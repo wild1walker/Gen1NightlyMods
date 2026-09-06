@@ -168,6 +168,12 @@ return function(mod)
     -- bottom of the map.  So the row means here exactly what it means on Red:
     -- off is the cartridge's AREA page and nothing else.
     area_hints = true,
+    -- And the press that reaches it.  Gold refuses A on an undiscovered row
+    -- exactly the way Red does, so the row means the same thing on both --
+    -- with more behind it here, because on Gold AREA is an action ON the
+    -- entry rather than a screen of its own, so the entry opens too.  Masked;
+    -- see gen2unseen.lua.
+    area_unseen = true,
   }
 
   -- The LIST's own rows: SELECT's three views, the cursor wrap and the
@@ -321,6 +327,32 @@ return function(mod)
         }
       else
         mod.log:error("the Gold AREA caption did not build: %s", tostring(Area))
+      end
+    end
+
+    -- ------- and the press that reaches it
+    --
+    -- Last of the three, and deliberately: its wraps have to sit OUTSIDE the
+    -- other two.  The mask works by shadowing four of the screen's own methods
+    -- for the duration of one call, so it has to be the outermost wrap for the
+    -- extra pages and the AREA caption to draw underneath it already masked --
+    -- an inner wrap would run before the shadows were in place and name the
+    -- POKeMON in the middle of a screen built to hide it.
+    --
+    -- Its failure is survivable and fails CLOSED: without it Gold's own dead
+    -- press on an undiscovered row is back, which is the cartridge.
+    local makeUnseen = loadSibling(mod, "gen2unseen.lua")
+    if type(makeUnseen) == "function" then
+      local unseenOk, Unseen = pcall(makeUnseen, mod, DexData)
+      if unseenOk and type(Unseen) == "table" then
+        local installed, why = pcall(Unseen.install)
+        if not installed then
+          mod.log:error("AREA ON UNSEEN was not wrapped on Gold: %s",
+                        tostring(why))
+        end
+      else
+        mod.log:error("AREA ON UNSEEN did not build on Gold: %s",
+                      tostring(Unseen))
       end
     end
 

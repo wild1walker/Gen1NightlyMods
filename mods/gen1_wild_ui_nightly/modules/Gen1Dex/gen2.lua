@@ -325,14 +325,34 @@ function Gen2Dex.new(mod, DexData)
 
     -- One place that knows what page a screen is on and what is on it, so
     -- the update arm and the draw arm cannot disagree.
+    -- An entry the dex has never met is opened by gen2unseen.lua with its
+    -- name, its kind, its footprint and its cry all taken away.  Base stats,
+    -- what it evolves into and every move it learns would put the whole
+    -- POKeMON back on the screen the mask exists to keep it off -- so our
+    -- three pages are simply not there for it, and PAGE goes back to being
+    -- the cart's own toggle between two blank description pages.
+    --
+    -- Asked here rather than at the two call sites so the update arm and the
+    -- draw arm cannot disagree about it, which is what `pageKind` is for.
+    local function seenHere(screen)
+      local row = type(screen.current) == "function" and screen:current() or nil
+      return row ~= nil and row.seen == true
+    end
+
     local function pageKind(screen)
       local page = screen.page or 1
       if page < FIRST_OURS then return nil end
+      if not seenHere(screen) then return nil end
       return PAGES[page]
     end
 
     PokedexMenu.update = function(screen, dt)
-      if not enabled() or screen.view ~= "entry" or screen.newEntry then
+      -- `seenHere` belongs in this bail as well as in `pageKind`: without it
+      -- the page counter below would still step PAGE round all five, and an
+      -- unseen entry would answer three presses with nothing visible before
+      -- coming back to a page it draws.
+      if not enabled() or screen.view ~= "entry" or screen.newEntry
+          or not seenHere(screen) then
         screen.gen1dexScroll = 0
         return baseUpdate(screen, dt)
       end
