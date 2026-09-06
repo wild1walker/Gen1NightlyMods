@@ -275,5 +275,58 @@ do -- the DPI trap: a canvas that came back bigger is measured off what came
      .. "read as a magnified corner")
 end
 
+-- ---- the readback must see the SHADES, not the colour
+--
+-- `love.graphics.push("all")` SAVES the graphics state; it does not clear it.
+-- So whatever shader was last bound is still bound during a readback -- and on
+-- Gold that is a GbcPalette remap.  The picture then reads back already
+-- coloured instead of as the four shades it is stored in, `field` picks the
+-- lightest by red out of the wrong palette, and the border flood finds nothing
+-- to cut.
+--
+-- That is exactly what kept the question mark's green background through four
+-- releases: the plate was being dropped correctly, and the ? image's own field
+-- was never cut because the readback that decides what to cut was looking at
+-- the green rather than the shades underneath it.
+ok(src:find("love.graphics.setShader()", 1, true) ~= nil,
+   "the readback clears the shader before it draws")
+do
+  local reads = 0
+  for _ in src:gmatch("love%.graphics%.setShader%(%)") do reads = reads + 1 end
+  eq(reads, 2, "both of them -- the single image and the replayed block")
+end
+
+do
+  -- The failure itself: a question mark whose field is a DARK green and whose
+  -- glyph is lighter, which is what a shaded readback of it looks like.  The
+  -- lightest by red is then the glyph, the border can see none of it, and the
+  -- cut is refused -- the ? keeps its square.
+  local green, glyph = 24 / 255, 120 / 255
+  local shaded = { getDimensions = function() return 8, 8 end,
+    getPixel = function(_, x, y)
+      local on = x >= 2 and x <= 5 and y >= 1 and y <= 6
+      local v = on and glyph or green
+      return v, v, v, 1
+    end }
+  eq(Cutout2.cut(shaded, 8, 8), nil,
+     "a readback taken through the palette is refused -- the field is not the "
+     .. "lightest colour any more, so there is nothing at the border to flood")
+
+  -- The same picture read back as SHADES, which is what clearing the shader
+  -- gives: field 1.0, glyph 0.0.  Now it cuts.
+  local shades = { getDimensions = function() return 8, 8 end,
+    getPixel = function(_, x, y)
+      local on = x >= 2 and x <= 5 and y >= 1 and y <= 6
+      local v = on and 0 or 1
+      return v, v, v, 1
+    end }
+  local out = Cutout2.cut(shades, 8, 8)
+  ok(out ~= nil, "and the same picture read as shades is cut")
+  if out then
+    eq(out:alphaAt(0, 0), 0, "its field goes")
+    eq(out:alphaAt(3, 3), 1, "and the glyph stays")
+  end
+end
+
 io.write(("cutout2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

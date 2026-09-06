@@ -752,8 +752,17 @@ do
   ok(armSrc:find('local quad = first ~= nil and type(first) ~= "number"',
                  1, true) ~= nil,
      "the shim tells a quad draw from a plain one")
-  ok(armSrc:find("local cut = trainerPic and (not quad)", 1, true) ~= nil,
-     "and never cuts the image behind a quad")
+  -- A quad draw is left ENTIRELY alone -- no cut and no paper.  Cutting one
+  -- stopped the animation; the PAPER arm was still reading the sheet back
+  -- through a scratch canvas MID-DRAW the first time it saw one, which is the
+  -- same bind that flipped and crashed the pics in 0.32.62, done to the very
+  -- texture the animation is drawn out of on the frame it starts.
+  ok(armSrc:find("if quad then\n          love.graphics.draw = shim\n"
+                 .. "          return realDraw(image, first, ...)", 1, true) ~= nil,
+     "a quad draw returns before either arm touches it")
+  ok(armSrc:find("local cut = trainerPic and mod.options:get(\"pic_cutout\")",
+                 1, true) ~= nil,
+     "so the cut is reached only by a plain blit of a trainer")
   -- TRAINERS ONLY.  A mon's pic is animated on Crystal -- frames out of a
   -- sheet, the doll and the faint crop through quads of their own -- and every
   -- one is the same texture through a different window.  Cutting any of it

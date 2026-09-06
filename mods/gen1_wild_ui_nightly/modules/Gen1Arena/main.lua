@@ -2417,9 +2417,26 @@ local function installGen2()
         -- So a quad draw is handed straight through, and the paper arm keeps
         -- the case it always had.  The cut is for the plain blit, which is the
         -- one that was ever a square.
+        -- A QUAD DRAW IS LEFT ENTIRELY ALONE -- no cut, and no paper either.
+        --
+        -- Cutting one stopped the animation (0.32.76 answered that half), but
+        -- the PAPER arm was still reading the sheet back through a scratch
+        -- canvas, mid-draw, the first time it saw one -- the same bind that
+        -- flipped and crashed the pics in 0.32.62, done to the very texture
+        -- the animation is being drawn out of, on the frame it starts.  "They
+        -- still aren't playing their animation every time" is what that costs,
+        -- and "every time" is the tell: it is the FIRST sight of a sheet that
+        -- pays for the readback, not the later ones.
+        --
+        -- Nothing is owed here anyway.  A frame out of a sheet, the substitute
+        -- doll and the faint slide's crop are all windows onto a texture whose
+        -- box already had its paper laid by the plain blit.
         local quad = first ~= nil and type(first) ~= "number"
-        local cut = trainerPic and (not quad)
-          and mod.options:get("pic_cutout") ~= false
+        if quad then
+          love.graphics.draw = shim
+          return realDraw(image, first, ...)
+        end
+        local cut = trainerPic and mod.options:get("pic_cutout") ~= false
           and cutoutFor(image) or nil
         local paper = (not cut) and picPaperImage(image) or nil
         love.graphics.draw = shim

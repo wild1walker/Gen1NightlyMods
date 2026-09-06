@@ -232,6 +232,19 @@ function Cutout2.new(context)
     -- place would put the picture somewhere other than 0,0 and the read would
     -- be of an empty canvas.
     love.graphics.origin()
+    -- AND NO SHADER.  `push("all")` SAVES the state, it does not clear it, so
+    -- whatever was last bound is still bound here -- and on Gold what was last
+    -- bound is a GbcPalette remap.  The picture then reads back ALREADY
+    -- COLOURED instead of as the four shades it is stored in, `field` picks
+    -- the lightest by red out of the wrong palette, and the border flood finds
+    -- nothing to cut.
+    --
+    -- That is the whole of "the ? still has its green background": the plate
+    -- was being dropped correctly and the question mark's own field was never
+    -- cut, because the readback that decides what to cut was looking at the
+    -- green rather than at the shades underneath it.
+    love.graphics.setShader()
+    love.graphics.setBlendMode("alpha")
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(1, 1, 1, 1)
@@ -325,6 +338,10 @@ function Cutout2.new(context)
     local previous = love.graphics.getCanvas()
     love.graphics.push("all")
     love.graphics.origin()
+    -- Cleared for the same reason, and it costs nothing here: the replay is
+    -- the ENGINE'S own draw, which binds whatever shader each tile wants.
+    love.graphics.setShader()
+    love.graphics.setBlendMode("alpha")
     -- The engine draws at the block's place on the SCREEN; the canvas holds
     -- only the block, so the screen is slid under it.
     love.graphics.translate(-job.ox, -job.oy)

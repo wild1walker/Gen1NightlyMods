@@ -6,6 +6,44 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.78] - 2026-09-06
+
+### Fixed
+
+- **The question mark's green background — the actual cause, found at last.**
+  `love.graphics.push("all")` *saves* the graphics state; it does not clear it.
+  So whatever shader was last bound is still bound during the cut-out's
+  readback — and on Gold that is a `GbcPalette` remap. The picture read back
+  **already coloured** instead of as the four shades it is stored in, `field`
+  (the lightest by red) picked a colour out of the wrong palette, the border
+  flood found nothing to cut, and the cut was refused.
+
+  So the plate was being dropped correctly all along, and the question mark's
+  *own* field was never cut — because the readback that decides what to cut was
+  looking at the green rather than at the shades underneath it. Both readbacks
+  now clear the shader and blend mode first.
+
+  The test reproduces the failure rather than just the fix: the same 8x8
+  question mark is refused when its readback is taken through the palette and
+  cut when it is taken as shades.
+
+- **Battle animations: quad draws are now left entirely alone.** 0.32.76
+  stopped *cutting* them, but the `MON PAPER` arm was still reading the sheet
+  back through a scratch canvas **mid-draw** the first time it saw one — the
+  same bind that flipped and crashed the pics in 0.32.62, done to the very
+  texture the animation is drawn out of, on the frame it starts. "Not every
+  time" was the tell: it is the *first* sight of a sheet that pays for the
+  readback, not the later ones.
+
+  A frame out of a sheet, the substitute doll and the faint slide's crop are
+  all windows onto a texture whose box already had its paper laid by the plain
+  blit, so nothing was owed there anyway.
+
+- Verified by running the **whole bundle headlessly** on a Gen 2 boot, which is
+  the check that should have come first: `cutout2` does install, on both
+  `PokedexMenu` and `TrainerCard`. That ruled out four releases' worth of
+  guesses about whether the arm was running at all.
+
 ## [0.32.77] - 2026-09-06
 
 ### Fixed
