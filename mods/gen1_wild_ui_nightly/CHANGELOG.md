@@ -6,6 +6,13 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.71] - 2026-09-06
+
+### Changed
+
+- Version bump only. The rematch fix is a QOL change; see the Gen1WildQoL
+  nightly changelog for 0.32.71.
+
 ## [0.32.70] - 2026-09-06
 
 ### Fixed

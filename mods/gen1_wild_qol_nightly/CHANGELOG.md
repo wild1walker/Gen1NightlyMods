@@ -7,6 +7,32 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.71] - 2026-09-06
+
+### Fixed
+
+- **TRAINER REMATCH never installed on Gold at all.** The Gen 2 arm hung its
+  per-frame half on `World.update` — and Gold's World has no `update`. Its
+  frame method is `step()`, called once a frame from `src/core/Game2.lua`. So
+  the arm's own guard took its early exit on every Gold boot and the feature
+  was simply not there: no offer after a beaten trainer's line, ever.
+
+  Measured both ways round against the real engine class rather than argued:
+  the shipped arm returns `false, "no Gen 2 World to hang a rematch on"` on
+  Gold's actual World, and the fixed one installs and rewraps both seams.
+
+  The headless suite passed the whole time because its stand-in World
+  **declared a `World:update` of its own** — the stub agreed with the mistake
+  instead of checking it. It now reads the seam names off the engine before it
+  stands anything up: every method the arm patches or calls is checked against
+  `src/world/gen2/World.lua`, `step()` is asserted present and `update()`
+  asserted absent, and the two fields the price is read out of (`roster`,
+  `baseMoney`) are checked against `Trainers.lookup`.
+
+- The stand-down message named the wrong thing. "No Gen 2 World to hang a
+  rematch on" was both wrong — the World was right there — and unactionable
+  for eight different causes. It now names the missing method.
+
 ## [0.32.70] - 2026-09-06
 
 ### Changed

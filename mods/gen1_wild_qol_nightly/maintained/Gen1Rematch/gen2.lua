@@ -11,6 +11,9 @@
 --   Red                                  Gold
 --   `world.talk` hook                    no such hook -- World:interactBody
 --                                        dispatches inline
+--   the stack's own update               World:STEP -- Gold's World has no
+--                                        `update` at all (Game2 calls
+--                                        `world:step()`)
 --   one TextBox, watched by identity     an extracted SCRIPT run on the VM
 --   BattleState.newTrainer + pushBattle  World:startScriptedBattle
 --   data.trainers[class].parties[i]      World:trainerParty -> Trainers.lookup
@@ -203,11 +206,28 @@ end
 --
 -- Both idempotent and both live: the toggles are read on the press and on the
 -- frame, not at install, so every row here works without a relaunch.
+-- Every seam this file hangs on, named once.  A missing method here is the
+-- whole feature, silently -- which is exactly what happened: this asked for
+-- `World.update`, Gold's World has no such method (Game2 calls `world:step()`
+-- sixty times a second), the guard below took the early exit, and TRAINER
+-- REMATCH never installed on Gold at all.  The headless suite did not catch it
+-- because its stand-in World declared an `update` of its own, so the stub
+-- agreed with the mistake rather than checking it.  tests/rematch_gen2_test.lua
+-- now reads these names off the engine instead.
+Gen2.SEAMS = { "interactBody", "step", "facingObject", "trainerBeaten",
+               "trainerParty", "startScriptedBattle", "showText", "askYesNo" }
+
 function Gen2.install(ctx)
   local World = engine("src.world.gen2.World")
-  if not (World and type(World.interactBody) == "function"
-          and type(World.update) == "function") then
-    return false, "no Gen 2 World to hang a rematch on"
+  if not World then return false, "no Gen 2 World to hang a rematch on" end
+  for _, name in ipairs(Gen2.SEAMS) do
+    if type(World[name]) ~= "function" then
+      -- Named, rather than one message for eight causes: the last time this
+      -- failed the log said only "no Gen 2 World", which is both wrong and
+      -- unactionable -- the World was right there.
+      return false, ("the Gen 2 World has no %s(); TRAINER REMATCH stands down")
+        :format(name)
+    end
   end
   if World.gen1wildRematchHook then return true end
 
@@ -230,9 +250,12 @@ function Gen2.install(ctx)
   end
 
   -- 2. and make the offer on the frame that talk finishes
-  local innerUpdate = World.update
-  function World:update(...)
-    local result = innerUpdate(self, ...)
+  --
+  -- `step` is Gold's per-frame method -- src/core/Game2.lua calls
+  -- `self.world:step()` -- and there is no `update` on this class to wrap.
+  local innerStep = World.step
+  function World:step(...)
+    local result = innerStep(self, ...)
     local armed = pending
     if not armed or armed.world ~= self then return result end
     -- The World is the one thing that certainly knows its own game.

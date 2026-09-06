@@ -446,7 +446,7 @@ return function(mod)
       done = function() end,
     }
     -- ctx.game is refreshed from the World itself on every frame the arm
-    -- looks at (gen2.lua's update patch), because the World is the one thing
+    -- looks at (gen2.lua's step patch), because the World is the one thing
     -- that certainly knows its own game -- `mod.world` is not up yet at
     -- install time, and an event to wait for it would be a second thing to
     -- keep right.
