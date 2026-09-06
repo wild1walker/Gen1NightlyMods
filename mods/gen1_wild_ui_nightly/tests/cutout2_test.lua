@@ -142,18 +142,31 @@ ok(src:find("if not on() or not ownColors then", 1, true) ~= nil,
 -- And on the entry the plate goes even when there is no picture to look up.
 -- That gate is why the question mark kept its green box: the one case with
 -- nothing to find was the one case that returned early.
-ok(src:find("local cut = image and self.imageFor(image) or nil", 1, true) ~= nil,
-   "a missing picture is optional, not a reason to keep the plate")
 ok(src:find("if not image then return basePic", 1, true) == nil,
-   "and there is no early return left that would keep it")
+   "there is no early return left that would keep the plate")
+ok(src:find("local cut = image and self.imageFor", 1, true) == nil,
+   "and the #DEX asks for no cut at all now -- only the plate is its business")
 -- The plate and the picture's own field are two independent halves, and
 -- treating them as one is what left the #DEX looking untouched: the arm bailed
 -- unless a cut was ready, so a cut that was refused, slow, or simply on its
 -- first frame left the 56x56 plate standing.
 ok(src:find("if not cut then\n        return basePic", 1, true) == nil,
    "and drops it whether or not a cut picture is ready")
-ok(src:find("if cut and what == image then", 1, true) ~= nil,
-   "substituting the cut picture only when there IS one")
+-- NO SUBSTITUTION ON THE #DEX AT ALL.  Its pic ANIMATES, and a cut is a still
+-- by construction -- so caching one and drawing it forever is "the animation
+-- only plays once before having to restart the game", exactly: the first frame
+-- is the cart's live handle, the update takes a still of it, and every frame
+-- after is that still until the cache is emptied by a restart.
+ok(src:find("if cut and what == image then", 1, true) == nil,
+   "the #DEX pic is never swapped for a cut -- a cut cannot animate")
+ok(src:find("local realDraw = love.graphics.draw", 1, true) == nil
+   or src:find("PokedexMenu.drawPic", 1, true) == nil,
+   "and the draw is not shimmed there at all")
+-- The plate is matched by SHAPE rather than one exact size: Gold pads 5x5, 6x6
+-- and 7x7 mons into the same block, and the arm has to survive an engine whose
+-- plate is not the 56 pixels this checkout happens to read.
+ok(src:find("and w >= 5 * 8 and w <= 7 * 8 and x == px and y == py", 1, true) ~= nil,
+   "the plate is the first square fill at the pic's own corner, any tile size")
 ok(src:find("local function refused(", 1, true) ~= nil,
    "and a refused cut says so once, rather than looking like nothing ran")
 

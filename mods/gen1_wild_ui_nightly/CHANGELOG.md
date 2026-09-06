@@ -6,6 +6,41 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.79] - 2026-09-06
+
+### Fixed
+
+- **The #DEX pic animates, and the cut-out was freezing it.** "Only plays once
+  before having to restart the game" is the signature of a cache, exactly: the
+  first frame draws the cart's own live image handle and it animates, the
+  update takes a *still* of whatever frame was showing, and every frame after
+  gets that still — until a restart empties the cache and it plays once more.
+
+  A cut is a still by construction, so there is no version of it that can stand
+  in for a picture that moves. The #DEX pic is now left completely alone; only
+  the plate is this arm's business there, which is all that was ever asked for
+  — the square *is* the plate.
+
+- **The plate is matched by shape rather than one exact size.** It was matched
+  as a 56x56 fill, which is a 7x7 mon; Gold pads 5x5 and 6x6 mons into the same
+  block. It is now the first opaque square fill at the pic's own corner at any
+  of those sizes — and written that way deliberately, so the arm survives an
+  engine whose plate is not the 56 pixels this checkout happens to read.
+
+### Known
+
+- The question mark's green square is **not reproducible here**, and this
+  release does not claim to fix it. Measured off the screenshot it is a 56x56
+  fill at (8,8) — the plate — and driving `PokedexMenu:drawPic` through the
+  *fully installed bundle* headlessly drops that fill and draws only the
+  picture. So the arm installs, the row is on, `ownColors` is true, and the
+  suppression works against this engine checkout.
+
+  Which leaves the engine your cart actually runs. If its `drawPic` lays the
+  plate as tiles rather than one `love.graphics.rectangle`, nothing this arm
+  intercepts will ever match it, and every fix aimed at the rectangle is aimed
+  at the wrong call.
+
 ## [0.32.78] - 2026-09-06
 
 ### Fixed

@@ -495,24 +495,37 @@ function Cutout2.new(context)
         local okMark, mark = pcall(screen.questionMark, screen)
         image = okMark and mark or nil
       end
-      local cut = image and self.imageFor(image) or nil
+      -- NO SUBSTITUTION ON THE #DEX.  The pic ANIMATES -- "only plays once
+      -- before having to restart the game" is the signature of a cache: the
+      -- first frame the cart draws its own live handle and it animates, the
+      -- update takes a still of whatever frame was showing, and every frame
+      -- after gets that still forever.  Restarting empties the cache, which is
+      -- why it plays exactly once more.
+      --
+      -- A cut is a STILL by construction, so there is no version of it that
+      -- can stand in for a picture that moves.  The plate is dropped and the
+      -- cart's own picture is left completely alone -- which is the whole of
+      -- what was asked for anyway: the square was the plate.
 
+      -- The plate, matched by SHAPE rather than by one exact size.  It is the
+      -- square block the pic is padded into, and Gold pads 5x5, 6x6 and 7x7
+      -- mons into it -- so it is the first opaque square fill at the pic's own
+      -- corner, whatever its tile count.  Written this way because the arm has
+      -- to survive an engine whose plate is not the 56 pixels this checkout
+      -- happens to read.
+      local px, py = tx * 8, ty * 8
       local realRect = love.graphics.rectangle
-      local realDraw = love.graphics.draw
       local dropped = false
       love.graphics.rectangle = function(mode, x, y, w, h, ...)
-        if not dropped and mode == "fill" and w == 7 * 8 and h == 7 * 8 then
+        if not dropped and mode == "fill" and w == h
+            and w >= 5 * 8 and w <= 7 * 8 and x == px and y == py then
           dropped = true
           return
         end
         return realRect(mode, x, y, w, h, ...)
       end
-      love.graphics.draw = function(what, ...)
-        if cut and what == image then return realDraw(cut, ...) end
-        return realDraw(what, ...)
-      end
       local okDraw, err = pcall(basePic, screen, row, tx, ty, ownColors, ...)
-      love.graphics.rectangle, love.graphics.draw = realRect, realDraw
+      love.graphics.rectangle = realRect
       if not okDraw then error(err, 0) end
       return err
     end
