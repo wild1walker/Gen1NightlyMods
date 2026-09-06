@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "wild_green_nightly",
   "title": "Wild Green Nightly",
-  "version": "0.32.75",
+  "version": "0.32.76",
   "author": "wild1walker",
   "repo": "wild1walker/Gen1NightlyMods",
   "summary": "Wild Green with the changes that are not in a release yet. For testing, not for a playthrough you care about.",
@@ -16,8 +16,8 @@
       "id": "gen1_wild_qol_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.75",
-      "sha256": "6318367a643810b1c64972caba27773df1f496403ef2430418eb2d500606e491"
+      "version": "0.32.76",
+      "sha256": "3acf4f929d6bdcf3727e5f349bf06516122f2652b197b0c99c2bfa8dc2fb1f0b"
     },
     {
       "id": "crystal_animated_sprites_with_shiny_visuals",
@@ -30,15 +30,15 @@
       "id": "gen1_wild_ui_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.75",
-      "sha256": "80b1b388cee2d9df11f974d8221228b2e784833fb459ba4191c23553969dd255"
+      "version": "0.32.76",
+      "sha256": "554e9c718f832a459414560897966216bf2d67b5f5fcb1b552048f06c0679231"
     },
     {
       "id": "wild_green_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.75",
-      "sha256": "f7cbb366762cba186565aff6fa1177df1df5f12d1d41a28914cd3be4549e2dcd",
+      "version": "0.32.76",
+      "sha256": "b72f76ddf7e5c63a4806d60a3211e26f026ad6da9392bc26df1b230040080744",
       "options": {
         "ribbon": true
       }
@@ -47,8 +47,8 @@
       "id": "gen1_bench_nightly",
       "source": "github",
       "repo": "wild1walker/Gen1NightlyMods",
-      "version": "0.32.75",
-      "sha256": "42c7b1d4066c197c1bf268b0136781f7fcbc119629e45ff1e34bf438645531b0"
+      "version": "0.32.76",
+      "sha256": "cc5a1a17184ee982f8cc1c70ba492170bdba06822f851cbc695d007d9e5215fc"
     }
   ],
   "load_order": [

@@ -723,5 +723,51 @@ do
   restore()
 end
 
+-- ---- a QUAD is not a picture in a square
+--
+-- The engine draws through one for exactly three things: a Crystal animation
+-- frame out of a sheet, the substitute doll, and the faint slide's crop.
+-- Cutting the sheet those come out of stopped the animation playing -- a sheet
+-- is a strip of frames whose "field" runs between them, and the frame the quad
+-- picks is a window onto it, not a figure standing in a square.
+do
+  local armSrc = assert(io.open("modules/Gen1Arena/main.lua")):read("*a")
+  ok(armSrc:find('local quad = first ~= nil and type(first) ~= "number"',
+                 1, true) ~= nil,
+     "the shim tells a quad draw from a plain one")
+  ok(armSrc:find("local cut = (not quad) and mod.options:get(\"pic_cutout\")",
+                 1, true) ~= nil,
+     "and never cuts the image behind a quad")
+  -- The engine's own three quad sites, so a fourth appearing is noticed.
+  -- Resolved here rather than assumed: `ENGINE` was not a local in this file,
+  -- so the three reads below were skipping in silence -- an assertion that
+  -- never runs is the same as one that agrees with you.
+  local ENGINE
+  do
+    local candidates = { os.getenv("GEN1RECOMP") }
+    for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+      for _, name in ipairs({ "gen1recompog", "gen1recomp", "bryanthaboi/gen1recomp" }) do
+        candidates[#candidates + 1] = prefix .. "/" .. name
+      end
+    end
+    for _, dir in ipairs(candidates) do
+      local probe = io.open(dir .. "/src/ui/gen2/BattleState.lua")
+      if probe then probe:close(); ENGINE = dir; break end
+    end
+  end
+  ok(ENGINE ~= nil, "an engine tree is found, so the three reads below run")
+  local battle = ENGINE and io.open(ENGINE .. "/src/ui/gen2/BattleState.lua")
+  if battle then
+    local text = battle:read("*a") battle:close()
+    ok(text:find("G.draw(animSheet, animQuad, px, py, 0, scale, scale)",
+                 1, true) ~= nil,
+       "a Crystal animation frame is drawn through a quad")
+    ok(text:find("G.draw(doll, dollQuad, px, py)", 1, true) ~= nil,
+       "so is the substitute doll")
+    ok(text:find("G.draw(image, self:cropQuad(image, visible)", 1, true) ~= nil,
+       "and so is the faint slide's crop")
+  end
+end
+
 io.write(("arena gen2 paper: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -6,6 +6,29 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.76] - 2026-09-06
+
+### Fixed
+
+- **The battle animation stopped playing.** `PIC CUTOUT` substituted a cut
+  picture for *every* image the battle laid — including a Crystal animation
+  frame, which is drawn out of a sheet through a quad. A quad draw is not a
+  figure standing in a field: a sheet is a strip of frames whose "field" runs
+  between them, and the frame the quad picks is a window onto it. Cutting the
+  sheet broke the frames coming out of it.
+
+  A quad draw is now handed straight through. The cut is for the plain blit,
+  which is the only one that was ever a square. The engine draws through a quad
+  for exactly three things — an animation frame, the substitute doll, and the
+  faint slide's crop — and the test now reads all three off `BattleState` so a
+  fourth appearing is noticed.
+
+- The three assertions guarding that were **silently skipping**:
+  `tests/arenagen2paper_test.lua` used an `ENGINE` that was never a local in
+  that file, so it was nil and every read behind it was passed over without
+  comment. An assertion that never runs is the same as one that agrees with
+  you. It resolves an engine tree of its own now, and says so if it cannot.
+
 ## [0.32.75] - 2026-09-06
 
 ### Fixed

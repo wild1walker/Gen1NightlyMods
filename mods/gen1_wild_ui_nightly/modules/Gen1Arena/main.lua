@@ -2353,7 +2353,7 @@ local function installGen2()
       -- mod's wrapper off for good.
       local realDraw = love.graphics.draw
       local shim
-      shim = function(image, ...)
+      shim = function(image, first, ...)
         -- Shaping a pic READS it, and reading it draws it to a scratch canvas
         -- -- through this very function.  The shim stands down for the length
         -- of that so the readback is the engine's own draw and not a recursion.
@@ -2386,15 +2386,28 @@ local function installGen2()
         -- So the first frame a trainer appears on is the cart's own square
         -- and every frame after it is the cut-out -- and no texture is ever
         -- made inside a draw.
-        local cut = mod.options:get("pic_cutout") ~= false
+        -- A QUAD IS NOT A PICTURE IN A SQUARE.
+        --
+        -- The engine draws through one for exactly three things -- a Crystal
+        -- animation frame out of a sheet, the substitute doll, and the faint
+        -- slide's crop -- and cutting the sheet those come out of stopped the
+        -- animation playing.  None of them is a lone figure standing in a
+        -- field: a sheet is a strip of frames whose "field" runs between them,
+        -- and the frame the quad picks is a window onto it.
+        --
+        -- So a quad draw is handed straight through, and the paper arm keeps
+        -- the case it always had.  The cut is for the plain blit, which is the
+        -- one that was ever a square.
+        local quad = first ~= nil and type(first) ~= "number"
+        local cut = (not quad) and mod.options:get("pic_cutout") ~= false
           and cutoutFor(image) or nil
         local paper = (not cut) and picPaperImage(image) or nil
         love.graphics.draw = shim
         -- Through whatever the engine has bound for this pic, so the paper is
         -- the mon's own colour 0 -- deliberately NOT the page's paper, which
         -- in a dark game would print black patches through a white mon.
-        if paper then realDraw(paper, ...) end
-        return realDraw(cut or image, ...)
+        if paper then realDraw(paper, first, ...) end
+        return realDraw(cut or image, first, ...)
       end
       love.graphics.draw = shim
       local ok, err = pcall(basePic, self, mon, back, ...)
