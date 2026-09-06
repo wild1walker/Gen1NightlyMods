@@ -145,10 +145,17 @@ ok(dexSrc:find("self:drawPic(row, 1, 1, true)", 1, true) ~= nil,
 --
 -- Gating the whole arm on `ownColors` made that third case unreachable on the
 -- listing, which is the screen the report that finally named it was taken on.
-ok(src:find("if not (ownColors or isPlaceholder) then", 1, true) ~= nil,
-   "the listing is left alone for a POKeMON but not for the question mark")
-ok(src:find("if not on() or not ownColors then", 1, true) == nil,
-   "and the old screen-shaped gate is gone")
+-- ...and it decides it for EVERY picture, the question mark included: "in the
+-- list it needs background, on the page no background, just like our Pokemon".
+--
+-- 0.32.83 made the ? an exception so it could be reached on the listing, which
+-- was a workaround for a cut that could not succeed (see the field note
+-- below).  With the cut fixed the exception is exactly what takes the
+-- listing's green away, so the rule is one line again.
+ok(src:find("if not ownColors then", 1, true) ~= nil,
+   "the listing is left alone -- for a POKeMON and for the question mark alike")
+ok(src:find("ownColors or isPlaceholder", 1, true) == nil,
+   "with no exception carved out for the placeholder")
 
 -- And on the entry the plate goes even when there is no picture to look up.
 -- That gate is why the question mark kept its green box: the one case with

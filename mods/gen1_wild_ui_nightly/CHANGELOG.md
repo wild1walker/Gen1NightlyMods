@@ -6,6 +6,28 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.85] - 2026-09-06
+
+### Fixed
+
+- **The listing keeps its background behind the question mark too.** The `?`
+  now behaves exactly like a POKeMON, which is what was asked for: background
+  in the list, none on the page.
+
+  `ownColors` is the cart's own name for those two screens, and it decides this
+  for every picture. 0.32.83 carved the question mark out as an exception so it
+  could be reached on the listing — but that was a workaround for a cut that
+  could not succeed at all (the field bug fixed in 0.32.84). With the cut
+  working, the exception is exactly what takes the listing's green away, so it
+  is gone and the rule is one line again.
+
+  ```
+  LIST  + POKeMON        PLATE + draw MON
+  LIST  + question mark  PLATE + draw QM
+  ENTRY + POKeMON        draw MON
+  ENTRY + question mark  draw QM, then the cut from the next frame
+  ```
+
 ## [0.32.84] - 2026-09-06
 
 ### Fixed

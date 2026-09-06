@@ -542,28 +542,21 @@ function Cutout2.new(context)
         isPlaceholder = image ~= nil
       end
 
-      -- ------- and WHICH SCREEN this is only matters for a real POKeMON
+      -- ------- and the listing keeps its background, for EVERY picture
       --
-      -- The rule was "the listing is not the entry", and that was still the
-      -- wrong axis.  It is WHICH PICTURE IS IN THE BOX:
+      -- `ownColors` is the cart's own name for the two screens, and it decides
+      -- this for a POKeMON and for the question mark alike -- "in the list it
+      -- needs background, on the page no background, just like our Pokemon".
       --
-      --   a POKeMON on the LISTING   keeps the cart's green.  Asked for
-      --                              directly -- "Pokemon don't have a green
-      --                              background when they should" -- and it is
-      --                              Gold: the listing draws every row through
-      --                              the question-mark palette.
-      --   a POKeMON on the ENTRY     loses its plate.  That is the white box.
-      --   the QUESTION MARK, EITHER  loses its background.  "The background
-      --                              doesn't disappear behind the question
-      --                              marks like it should" is the same
-      --                              complaint on both screens.
-      --
-      -- Gating the whole arm on `ownColors` made that third case unreachable
-      -- on the listing -- which is the screen the report that finally named it
-      -- was taken on.
-      if not (ownColors or isPlaceholder) then
+      -- 0.32.83 made the question mark an exception to that, to reach it on
+      -- the listing.  That was a workaround for a cut that could not succeed
+      -- (see the field note in `Cutout2.cut`): with the cut fixed the
+      -- exception is exactly the thing that takes the listing's green away, so
+      -- it is gone and the rule is one line again.
+      if not ownColors then
         return basePic(screen, row, tx, ty, ownColors, ...)
       end
+
       -- ------- the question mark IS cut, now that the cut can find its field
       --
       -- 0.32.82 keyed it instead, because the cut kept being refused.  Keying
