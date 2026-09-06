@@ -75,6 +75,15 @@ function Bundle.install(mod, spec, features)
   -- everything else -- so there is no white box to repair and nothing for a
   -- matte to do.
   local Matte = not isGen2 and loadRuntime("matte") or nil
+  -- The Gen 2 counterpart, and the note above it was wrong to say there was
+  -- none.  Gold has no re-blit past a shade pass to repair -- but it does have
+  -- full-colour cart art with a white field BAKED INTO THE PIXELS, drawn raw
+  -- because there is no palette to remap it through, and a shade substitution
+  -- has nothing to substitute.  So the trainer card's portrait, its eight gym
+  -- leaders and the #DEX's pic all stand in a white square on a black page.
+  -- Red paints a page under its box; Gold takes the box away.  See
+  -- runtime/cutout2.lua.
+  local Cutout2 = isGen2 and loadRuntime("cutout2") or nil
   -- Optional, and deliberately so: a bundle installed outside a sealed cart
   -- needs none of it, and a tree built before this file existed should lose
   -- the remembering rather than the boot.
@@ -303,6 +312,23 @@ function Bundle.install(mod, spec, features)
         -- because a themed build with no mattes is a build with white boxes
         -- on four screens and a themed build with no theme is a build with
         -- no themes at all.
+        -- Gold's own white boxes, taken away rather than painted under.
+        -- Guarded on its own for the reason the mattes are: a themed build
+        -- with no cut-outs is a build with white squares on three screens; a
+        -- build with no theme is a build with no themes at all.
+        if type(Cutout2) == "table" and type(Cutout2.new) == "function" then
+          local cutOk, cutouts = pcall(Cutout2.new, context)
+          if cutOk and type(cutouts) == "table" then
+            local installedOk, problem = pcall(cutouts.install)
+            if not installedOk then
+              mod.log:warn("Gold's picture cut-outs not installed: %s",
+                           tostring(problem))
+            end
+          else
+            mod.log:warn("Gold's picture cut-outs did not build: %s",
+                         tostring(cutouts))
+          end
+        end
         if type(Matte) == "table" and type(Matte.new) == "function" then
           local madeOk, mattes = pcall(Matte.new, context)
           if madeOk and type(mattes) == "table" then

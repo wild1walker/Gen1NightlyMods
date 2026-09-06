@@ -6,6 +6,54 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.73] - 2026-09-06
+
+### Added
+
+- **`runtime/cutout2.lua` — the white squares come off Gold's other pictures.**
+  The trainer card's portrait, the eight gym leaders on its BADGES page, and
+  the #DEX's pic all stood in a white square on a black page.
+
+  `runtime/matte.lua` carries a note saying Gold needs no counterpart — "its art
+  is drawn in the picture like everything else, so there is no white box to
+  repair and nothing for a matte to do". That was right about the mechanism and
+  wrong about the conclusion. Red re-blits a true-colour rectangle past the
+  shade pass and the white page comes back with it; Gold instead ships
+  full-colour art with the white field **baked into the pixels** and draws it
+  raw, because there is no palette to remap it through — `TileSheet:draw` takes
+  the un-remapped `body()` whenever `colors` is nil. A shade substitution has
+  nothing to substitute. So Red paints a page under its box, and Gold takes the
+  box away — which is what was asked for: *"can you just cut them out of that
+  square, not replace the color"*.
+
+  The field is found by flooding inward from the border, not by keying a
+  colour: white the edge can reach is the square, white the figure encloses —
+  the player's shorts, a leader's collar — is part of the picture and stays.
+
+  Two shapes, because the screens differ:
+
+  - **the #DEX** draws one image with a plate filled behind it in the palette's
+    colour 0. Both halves are the square, so the plate is dropped for exactly
+    as long as a cut picture goes in its place, and kept otherwise.
+  - **the trainer card** blits its portrait and each leader's face tile by tile
+    out of a sheet, and the figure is not contiguous in that sheet — its tiles
+    are laid out in rows of sixteen — so cutting the sheet is meaningless.
+    A block is cut by *recording* the blits the engine makes (image, quad,
+    position: no GL call, safe inside a draw), replaying them into a canvas on
+    the update, and cutting that. The geometry stays the engine's own.
+
+  Nothing is ever built inside a draw — the rule the battle pics learned the
+  hard way in 0.32.62. Reading a picture back binds a canvas and the result is
+  a texture; both happen on `core.update`, one picture per frame, so the first
+  frame a screen appears on is exactly the cartridge and every frame after it
+  is cut.
+
+  `drawLeaderFace` returns the next tile id and the badge page walks its eight
+  faces with it, so the cached path answers **what the recorded call answered**
+  rather than a count derived here. Deriving it was wrong by three on the first
+  attempt, which would have scrambled the page; the test pins that it is read
+  off the engine and never computed.
+
 ## [0.32.72] - 2026-09-06
 
 ### Fixed
