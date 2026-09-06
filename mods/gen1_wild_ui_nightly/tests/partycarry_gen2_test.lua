@@ -12,7 +12,7 @@
 -- an assertion about "the cart swaps" written against a stub that swaps
 -- proves nothing at all.
 --
--- The rest is the contract of modules/Gen1Party/gen2carry.lua: that a step is
+-- The rest is the contract of ./gen2carry.lua: that a step is
 -- an adjacent exchange, that a run of them is an insertion, that the cursor
 -- and the held marker ride the POKeMON rather than staying on a row, that the
 -- mail pairs with every step and only when the list IS the save's party, that
@@ -43,7 +43,12 @@ end
 
 local ENGINE do
   local candidates = { os.getenv("GEN1RECOMP") }
-  for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+  -- Two layouts: this mod standing on its own beside a checkout, and the same
+  -- file inside a bundle several directories down.  Both are listed rather
+  -- than guessed, because a locator that finds nothing SKIPS the file, and a
+  -- silently skipped suite reports a pass it never earned.
+  for _, prefix in ipairs({ "..", "../../..", "../../../..", "../..",
+                            "../../../../.." }) do
     for _, name in ipairs({ "gen1recompog", "gen1recomp", "bryanthaboi/gen1recomp" }) do
       candidates[#candidates + 1] = prefix .. "/" .. name
     end
@@ -128,7 +133,13 @@ function PartyMenu:drawIcon(mon, px, py)
   drawn[#drawn + 1] = { mon = mon, px = px, py = py }
 end
 function PartyMenu:playSfxTwice(name) self.sfx = name end
+-- The cart's own iconX, copied from the line asserted above: it answers "is
+-- this the selected row" and, being an argument to the drawIcon call, runs
+-- immediately before the draw it belongs to.  Present here because the mod
+-- wraps it, and a stub without it would let a wrap that never installed pass.
+function PartyMenu:iconX(index) return index == self.index and 8 or 0 end
 local BASE_UPDATE, BASE_DRAW = PartyMenu.updateSwitch, PartyMenu.drawIcon
+local BASE_ICONX = PartyMenu.iconX
 
 local mailPairs = {}
 local Mail = {
@@ -148,6 +159,8 @@ ok(type(carry.step) == "function", "...and exposes step(), the whole rule")
 eq(carry.install(), true, "it installs over Gold's PartyMenu")
 ok(PartyMenu.updateSwitch ~= BASE_UPDATE, "updateSwitch is wrapped")
 ok(PartyMenu.drawIcon ~= BASE_DRAW, "drawIcon is wrapped")
+ok(PartyMenu.iconX ~= BASE_ICONX,
+   "and so is iconX -- the seam that says which row is being drawn")
 eq(carry.install(), true, "installing twice is not an error")
 local wrapped = PartyMenu.updateSwitch
 eq(carry.install() and PartyMenu.updateSwitch, wrapped,
@@ -282,7 +295,7 @@ do
   local function frames(row)
     local lit, dark = 0, 0
     for clock = 0, 47 do
-      screen.clock, screen.gen1wildIconRow = clock, row
+      screen.clock, screen.gen1wildCarryRow = clock, row
       drawn = {}
       screen:drawIcon(screen.party[row], 0, 0)
       if #drawn == 1 then lit = lit + 1 else dark = dark + 1 end
@@ -311,12 +324,33 @@ end
 
 -- ---- the row that records which icon is being drawn
 
+--
+-- Owned by this file rather than borrowed.  It used to read the field the
+-- Gen1Wild bundle's runtime/icons2.lua sets at this same seam -- so installed
+-- on its own, with no bundle, nothing set it and the carried POKeMON never
+-- flashed: the one visible half of MOVE, missing, on exactly the installs with
+-- no bundle to fall back on.  So the assertion is behavioural: what matters is
+-- that the row arrives and the icon blinks, not that a line of code exists.
 do
-  local icons = assert(slurp("runtime/icons2.lua"))
-  ok(icons:find("menu.gen1wildIconRow = index", 1, true) ~= nil,
-     "runtime/icons2.lua records the drawn row off the cart's own iconX")
   ok(partySrc:find("self:drawIcon(mon, self:iconX(i)", 1, true) ~= nil,
-     "...and the cart calls iconX(i) in the drawIcon line, so it is that row")
+     "the cart calls iconX(i) in the drawIcon line, so that index IS the row "
+     .. "the next draw paints")
+
+  local screen = screenOf({ "A", "B", "C" })
+  screen:iconX(2)
+  eq(screen.gen1wildCarryRow, 2,
+     "and this mod records it there itself, with no bundle to help")
+
+  screen.switchFrom = 2
+  screen.clock = 20               -- the dark half of the cycle
+  drawn = {}
+  screen:iconX(2)
+  screen:drawIcon(screen.party[2], 0, 0)
+  eq(#drawn, 0, "so a carried POKeMON goes dark with nothing else installed")
+  screen.clock = 0
+  screen:iconX(2)
+  screen:drawIcon(screen.party[2], 0, 0)
+  eq(#drawn, 1, "...and lights again")
 end
 
 -- ---- and it is wired into the Gold arm

@@ -170,12 +170,37 @@ return function(mod)
       end
     end
 
-    -- The POKeMON in your hand flashes.  `gen1wildIconRow` is the row the
-    -- engine is drawing, recorded by runtime/icons2.lua off the cart's own
-    -- `iconX(i)` call -- the same seam, so this needs no copy of the loop.
+    -- ------- which row is being drawn
+    --
+    -- `drawIcon(mon, px, py)` is not told, and the row is the whole of what
+    -- the flash needs to know.  The cart answers it one call earlier:
+    --
+    --     self:drawIcon(mon, self:iconX(i), 4 + (i - 1) * 16 + self:iconBob(i))
+    --
+    -- `iconX(index)` runs immediately before the draw it is an argument to, so
+    -- recording the index there is the row `drawIcon` is about to paint -- no
+    -- second copy of the list loop, and no arithmetic on `py`.
+    --
+    -- Recorded HERE rather than read off somebody else's bookkeeping.  This
+    -- used to read `gen1wildIconRow`, which the Gen1Wild bundle's
+    -- runtime/icons2.lua sets at the same seam -- and that is a field this mod
+    -- does not own and does not always have.  Installed on its own, outside
+    -- the bundle, nothing set it, so the carried POKeMON never flashed: the
+    -- one visible half of MOVE, missing, on exactly the installs that have no
+    -- bundle to fall back on.  Both wraps can sit on `iconX` at once; each
+    -- writes its own field and neither reads the other's.
+    local baseIconX = PartyMenu.iconX
+    if type(baseIconX) == "function" then
+      PartyMenu.iconX = function(menu, index, ...)
+        menu.gen1wildCarryRow = index
+        return baseIconX(menu, index, ...)
+      end
+    end
+
+    -- The POKeMON in your hand flashes.
     PartyMenu.drawIcon = function(screen, mon, px, py, ...)
       if enabled() and screen.switchFrom
-          and screen.switchFrom == screen.gen1wildIconRow
+          and screen.switchFrom == screen.gen1wildCarryRow
           and ((screen.clock or 0) % FLASH_PERIOD) >= FLASH_ON then
         return
       end
