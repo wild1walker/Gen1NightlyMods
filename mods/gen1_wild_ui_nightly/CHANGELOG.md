@@ -6,6 +6,39 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.66] - 2026-09-06
+
+### Fixed
+
+- **Gold's Pokédex is white on black, not white bars with black dashes.**
+  Every row of the cart's dex came out as a solid white bar with the letters
+  knocked out of it, on a page that was otherwise correctly dark.
+
+  `invert` is not a decoration on Gold's dex — it is the whole of how that
+  screen is white on black. `Pokedex_LoadInvertedFont` xors both bitplanes of
+  the font, so a glyph pixel of shade *s* arrives as shade *3 − s*, and Chrome
+  answers it by reading the palette backwards:
+
+  ```lua
+  if invert then pal = { pal[4], pal[3], pal[2], pal[1] } end
+  ```
+
+  So on an inverted print `pal[1]` — the cell `printThrough` fills behind the
+  string — is the palette's colour **three**, and the glyphs take colour
+  **zero**. The theme substituted its paper into 0 and its ink into 3 without
+  knowing that, so the reversal put the ink in the cell and the paper in the
+  letters: the exact white-box bug this substitution exists to fix, arriving
+  through the one screen that reads its palette the other way up.
+
+  It isn't a special case — the same substitution is handed over
+  pre-reversed, so the cart's own reversal lands it where it was going. All
+  three wraps (`printThrough`, `printRightThrough`, `cursorThrough`) pass the
+  flag on now; every one of them took it as an argument and dropped it.
+
+  `tests/dexinvert_test.lua` reads the reversal off the **engine** rather than
+  restating it — restating it is the mistake being fixed — and pins the bug
+  itself: reshading without the flag gives an ink cell with paper letters.
+
 ## [0.32.65] - 2026-09-06
 
 ### Fixed

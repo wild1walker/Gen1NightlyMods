@@ -7,6 +7,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.66] - 2026-09-06
+
+### Changed
+
+- Version moved with the nightly channel; nothing in this bundle changed.
+
 ## [0.32.65] - 2026-09-06
 
 ### Changed

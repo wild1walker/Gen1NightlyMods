@@ -611,7 +611,27 @@ function Theme2.new(context)
     -- `live` equal to `vanilla`, and a palette is then handed straight back.
     do
       local marked = "gen1wildUnthemed"
-      local function reshade(palette)
+      -- ------- and the one page that prints BACKWARDS
+      --
+      -- `invert` is not a decoration on these calls, it is the whole of how
+      -- Gold's POKeDEX is white on black.  Pokedex_LoadInvertedFont xors both
+      -- bitplanes of the font, so a glyph pixel of shade s arrives as shade
+      -- 3 - s -- and Chrome answers it by reading the palette backwards:
+      --
+      --     if invert then pal = { pal[4], pal[3], pal[2], pal[1] } end
+      --
+      -- So on an inverted print `pal[1]` -- the cell `printThrough` fills
+      -- behind the string -- is the palette's colour THREE, and the glyphs
+      -- take colour ZERO.  Substituting paper into 0 and ink into 3 without
+      -- knowing that put the ink in the cell and the paper in the letters:
+      -- every row of the dex came out as a WHITE BAR with black dashes in it,
+      -- which is the same white-box bug this substitution exists to fix,
+      -- arriving through the one screen that reads its palette the other way
+      -- up.
+      --
+      -- The answer is not a special case, it is the same substitution handed
+      -- over pre-reversed, so the reversal lands it where it was going.
+      local function reshade(palette, invert)
         if same(live, vanilla) then return palette end
         if type(palette) ~= "table" then return palette end
         -- the default is already the themed one, and a caller that has opted
@@ -620,6 +640,9 @@ function Theme2.new(context)
         if palette == live or palette[marked] then return palette end
         local paper, ink = live[1], live[4]
         if type(paper) ~= "table" or type(ink) ~= "table" then return palette end
+        if invert then
+          return { ink, palette[3] or ink, palette[2] or paper, paper }
+        end
         return { paper, palette[2] or paper, palette[3] or ink, ink }
       end
 
@@ -919,20 +942,20 @@ function Theme2.new(context)
         Chrome.__gen1wildPagePalettes = true
         local basePrint = Chrome.printThrough
         if type(basePrint) == "function" then
-          Chrome.printThrough = function(text, tx, ty, palette, ...)
-            return basePrint(text, tx, ty, reshade(palette), ...)
+          Chrome.printThrough = function(text, tx, ty, palette, invert, ...)
+            return basePrint(text, tx, ty, reshade(palette, invert), invert, ...)
           end
         end
         local baseRight = Chrome.printRightThrough
         if type(baseRight) == "function" then
-          Chrome.printRightThrough = function(text, txEnd, ty, palette, ...)
-            return baseRight(text, txEnd, ty, reshade(palette), ...)
+          Chrome.printRightThrough = function(text, txEnd, ty, palette, invert, ...)
+            return baseRight(text, txEnd, ty, reshade(palette, invert), invert, ...)
           end
         end
         local baseCursor = Chrome.cursorThrough
         if type(baseCursor) == "function" then
-          Chrome.cursorThrough = function(tx, ty, palette, ...)
-            return baseCursor(tx, ty, reshade(palette), ...)
+          Chrome.cursorThrough = function(tx, ty, palette, invert, ...)
+            return baseCursor(tx, ty, reshade(palette, invert), invert, ...)
           end
         end
       end
