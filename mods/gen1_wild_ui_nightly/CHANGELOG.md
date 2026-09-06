@@ -6,6 +6,48 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.91] - 2026-09-06
+
+### Fixed
+
+- **The words on the SUMMARY's coloured pages are black ink on the page**, not
+  white ink in a black box. Reported twice; 0.32.86 marked the wrong table and
+  changed nothing.
+
+  On the cartridge every label and number on the lower half of a stats page is
+  printed through the page's own palette — `{ tint, tint, tint, black }`, the
+  page's pink, green or blue as paper and black as ink. `Chrome.printThrough`
+  fills a cell of colour 0 behind each string before its first glyph, and on the
+  cart that cell is the page colour, invisible against the page behind it.
+
+  The theme substitutes its own paper into colour 0 and its own ink into colour
+  3 of any palette handed to `printThrough`. That is right for a box and wrong
+  for a coloured page: under DARK the cell went black and the letters went
+  white, so every label sat in a black box on a pink page.
+
+  **Why 0.32.86 did not fix it.** The theme already carries the opt-out this
+  needs — the one written for the battle HUD, "ink on a photograph rather than
+  ink in a box". That release stamped it on `SummaryMenu.PAGE_PALETTES`, which
+  is read in exactly one place in the whole file: `drawPageSquare`, the three
+  little swatches over the page arrows. Every word on the page travels in a
+  table `lowerColors` **builds fresh on each call**. A constant marked once
+  cannot reach a table that does not exist yet, so the mark never applied to a
+  single label.
+
+  The mark now goes on that table as it is handed back, which is the seam the
+  words genuinely use. It carries the page's vertical divider and the exp bar's
+  two end caps with it — same table, same reason, line art on a coloured page.
+
+  Nothing above the divider changes: the name, the number and the level are an
+  ordinary themed page and stay white on black.
+
+  Driven end to end through the real `SummaryMenu`, the real theme wrap and the
+  real print seam, asking what colour a label actually comes out rather than
+  whether a line of code is present — with a control that proves the
+  substitution is live, so the page assertions cannot pass by nothing happening.
+  The assertions this replaces were the string-matching kind, and they passed
+  through six releases while every label on the page was still a box.
+
 ## [0.32.90] - 2026-09-06
 
 ### Fixed

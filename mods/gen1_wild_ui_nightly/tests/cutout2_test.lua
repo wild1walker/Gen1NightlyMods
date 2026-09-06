@@ -498,12 +498,15 @@ if ENGINE then
   ok(src:find("palette.gen1wildUnthemed = true", 1, true) ~= nil,
      "so they carry the theme's own opt-out -- ink on a coloured page is the "
      .. "battle HUD's case, not a box's")
-  local themeSrc = assert(slurp("runtime/theme2.lua"))
-  ok(themeSrc:find('local marked = "gen1wildUnthemed"', 1, true) ~= nil,
-     "which is the mark the theme actually reads")
-  ok(themeSrc:find("if palette == live or palette[marked] then return palette end",
-                   1, true) ~= nil,
-     "and a marked palette is handed back untouched")
+  -- ...and that mark on PAGE_PALETTES reaches the three SWATCHES only.  Every
+  -- word on the page travels in a table `lowerColors` builds fresh, which is
+  -- marked separately and is what 0.32.86 missed.  The assertions that used to
+  -- stand here checked that these lines were present and passed while every
+  -- label was still a white-on-black box, so the question "what colour does a
+  -- label actually come out" is asked where it can be answered: end to end,
+  -- through the real theme wrap, in tests/summarywords_test.lua.
+  ok(src:find("SummaryMenu.lowerColors = function", 1, true) ~= nil,
+     "and the table the WORDS travel in is marked on its way out")
 end
 
 io.write(("cutout2: %d passed, %d failed\n"):format(passed, failed))

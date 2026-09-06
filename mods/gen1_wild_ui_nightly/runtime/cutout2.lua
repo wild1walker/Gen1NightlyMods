@@ -693,10 +693,37 @@ function Cutout2.new(context)
     --    "ink on a PHOTOGRAPH rather than ink in a box".  A coloured page is
     --    the same case, so the page palettes carry the same mark.
     --
-    --    Marked once, on the table itself, rather than per draw: these three
-    --    palettes are the cart's own constants and are never anything else.
+    --    THE MARK HAS TO GO ON THE TABLE THE WORDS ACTUALLY TRAVEL IN, and
+    --    0.32.86 put it on the wrong one.  `PAGE_PALETTES` is the cart's three
+    --    constants, and the only thing that reads them is `drawPageSquare` --
+    --    the three little swatches over the page arrows.  Every label and
+    --    number on the page below goes through `lowerColors()`, which BUILDS A
+    --    FRESH TABLE on each call out of PAGE_TINTS:
+    --
+    --        return { tint, tint, tint, { 0, 0, 0 } }
+    --
+    --    A constant marked once cannot reach a table that did not exist yet, so
+    --    the mark never applied to a single word: paper went black, ink went
+    --    white, and the labels stayed white-on-black boxes on a pink page.
+    --    Reported twice -- "the words on the color should just be black font
+    --    instead of in a black box with white words".
+    --
+    --    So the mark is stamped on the RESULT, which is the same one line the
+    --    constants get and reaches the same three pages by the seam their words
+    --    genuinely use.  It also carries the page's vertical divider and the
+    --    exp bar's two caps, which take the same table through `pageTile` and
+    --    are line art on the page for exactly the same reason.
     for _, palette in ipairs(SummaryMenu.PAGE_PALETTES or {}) do
       if type(palette) == "table" then palette.gen1wildUnthemed = true end
+    end
+
+    local baseLower = SummaryMenu.lowerColors
+    if type(baseLower) == "function" then
+      SummaryMenu.lowerColors = function(screen, ...)
+        local colors = baseLower(screen, ...)
+        if type(colors) == "table" then colors.gen1wildUnthemed = true end
+        return colors
+      end
     end
 
     SummaryMenu[MARK] = true
