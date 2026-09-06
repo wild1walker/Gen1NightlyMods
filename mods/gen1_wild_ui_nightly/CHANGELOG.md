@@ -6,6 +6,39 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.86] - 2026-09-06
+
+### Fixed
+
+Three white boxes on the SUMMARY page, and three different reasons.
+
+- **The POKeMON's white box.** `drawPicBlock` fills a 7x7 plate in the
+  palette's colour 0 before the picture lands — the same shape the #DEX entry
+  has, so it is dropped the same way. The picture itself is left alone: this
+  one **animates** (`picAnimFrame`), and a cut is a still by construction.
+
+- **The words on the coloured pages.** Every label and number prints through
+  `Chrome.printThrough` with the **page's** palette, which fills the cell
+  behind each string with that palette's colour 0. On the cart that colour is
+  the page's own pink, green or blue, so the words sit on the page in black.
+
+  The theme substitutes its paper and ink into any palette it is handed —
+  right for a box, and wrong here: it turned every label into white-on-black on
+  a pink page. `runtime/theme2.lua` already has the opt-out this needs, built
+  for the battle HUD, which it describes as *"ink on a PHOTOGRAPH rather than
+  ink in a box"*. A coloured page is the same case, so the three page palettes
+  now carry the same mark.
+
+- **The white box behind the coloured swatches.** The three page indicators are
+  2x2 tiles drawn through their own colour, and the tile's own background is
+  shade 0 — white — so each coloured square sat on a white one. They are keyed,
+  so that background drops out.
+
+  Keying is right for these and wrong for the #DEX's question mark: a swatch is
+  a block of colour whose field genuinely **is** the lightest shade, which is
+  the assumption the ? broke in 0.32.84. Nothing inside a swatch is shade 0, so
+  there is no hole to punch.
+
 ## [0.32.85] - 2026-09-06
 
 ### Fixed

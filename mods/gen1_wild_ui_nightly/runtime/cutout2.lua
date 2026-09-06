@@ -622,9 +622,90 @@ function Cutout2.new(context)
     PokedexMenu[MARK] = true
   end
 
+  -- ------- the SUMMARY page
+  --
+  -- Three white boxes on one screen, and three different reasons.
+  local function installSummary()
+    local okSum, SummaryMenu = pcall(require, "src.ui.gen2.SummaryMenu")
+    if not (okSum and type(SummaryMenu) == "table") then return end
+    if rawget(SummaryMenu, MARK) then return end
+    local okGbc, GbcPalette = pcall(require, "src.render.GbcPalette")
+
+    -- 1. THE PIC'S PLATE.  `drawPicBlock` fills a 7x7 block in the palette's
+    --    colour 0 before the picture lands, exactly as the #DEX does -- so it
+    --    is dropped exactly as the #DEX's is.  The picture itself is left
+    --    alone: this one animates (`picAnimFrame`), and a cut is a still.
+    local basePic = SummaryMenu.drawPicBlock
+    if type(basePic) == "function" then
+      SummaryMenu.drawPicBlock = function(screen, image, colors, quad, size)
+        if not on() then return basePic(screen, image, colors, quad, size) end
+        local realRect = love.graphics.rectangle
+        local dropped = false
+        love.graphics.rectangle = function(mode, x, y, w, h, ...)
+          if not dropped and mode == "fill" and w == h
+              and w >= 5 * 8 and w <= 7 * 8 and x == 0 and y == 0 then
+            dropped = true
+            return
+          end
+          return realRect(mode, x, y, w, h, ...)
+        end
+        local okDraw, err = pcall(basePic, screen, image, colors, quad, size)
+        love.graphics.rectangle = realRect
+        if not okDraw then error(err, 0) end
+        return err
+      end
+    end
+
+    -- 2. THE PAGE INDICATORS.  Three 2x2 swatches drawn from the stats sheet
+    --    through their own colour, and the tile's own background is shade 0 --
+    --    white -- so each coloured square sits on a white one.
+    --
+    --    KEYED here, and that is safe for these and not for the #DEX's
+    --    question mark: a swatch is a block of colour whose field IS the
+    --    lightest shade, which is the assumption the ? broke.  Nothing inside
+    --    a swatch is shade 0, so there is no hole to punch.
+    local baseSquare = SummaryMenu.drawPageSquare
+    if type(baseSquare) == "function" and okGbc and type(GbcPalette) == "table"
+        and type(GbcPalette.keyedWith) == "function" then
+      SummaryMenu.drawPageSquare = function(screen, tx, ty, large, colors, ...)
+        if not on() then
+          return baseSquare(screen, tx, ty, large, colors, ...)
+        end
+        local realWith = GbcPalette.with
+        GbcPalette.with = GbcPalette.keyedWith
+        local okDraw, err = pcall(baseSquare, screen, tx, ty, large, colors, ...)
+        GbcPalette.with = realWith
+        if not okDraw then error(err, 0) end
+        return err
+      end
+    end
+
+    -- 3. THE WORDS ON THE COLOURED PAGES.  `drawPlacements` prints every label
+    --    and number through `Chrome.printThrough` with the PAGE's palette, and
+    --    that fills the cell behind each string with the palette's colour 0.
+    --    On the cart that colour is the page's own pink, green or blue, so the
+    --    words sit on the page in black.
+    --
+    --    The theme substitutes its paper and ink into any palette it is handed
+    --    -- which is right for a box and wrong here: it turns every label into
+    --    white-on-black on a pink page.  runtime/theme2.lua already has the
+    --    opt-out this needs, built for the battle HUD, which it describes as
+    --    "ink on a PHOTOGRAPH rather than ink in a box".  A coloured page is
+    --    the same case, so the page palettes carry the same mark.
+    --
+    --    Marked once, on the table itself, rather than per draw: these three
+    --    palettes are the cart's own constants and are never anything else.
+    for _, palette in ipairs(SummaryMenu.PAGE_PALETTES or {}) do
+      if type(palette) == "table" then palette.gen1wildUnthemed = true end
+    end
+
+    SummaryMenu[MARK] = true
+  end
+
   function self.install()
     installTrainerCard()
     installDex()
+    installSummary()
     mod.hooks:wrap("core.update", function(nextLink, game, dt)
       if on() then
         local okBuild, problem = pcall(self.buildOne)

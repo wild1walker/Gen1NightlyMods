@@ -458,5 +458,53 @@ do
      "it is taken from the border ring by majority")
 end
 
+-- ---- the SUMMARY page: three white boxes, three different reasons
+if ENGINE then
+  local sumSrc = assert(slurp(ENGINE .. "/src/ui/gen2/SummaryMenu.lua"))
+
+  -- 1. the pic's plate, the same shape the #DEX has
+  ok(sumSrc:find('G.rectangle("fill", 0, 0, 7 * 8, 7 * 8)', 1, true) ~= nil,
+     "drawPicBlock fills a 7x7 plate before the picture lands")
+  ok(sumSrc:find("local blank = colors and GbcPalette.color(colors, 1)", 1, true) ~= nil,
+     "in the palette's colour 0, exactly as the #DEX does")
+  ok(src:find("SummaryMenu.drawPicBlock = function", 1, true) ~= nil,
+     "so it is dropped the same way")
+  -- and the picture itself is left alone, because this one animates
+  ok(sumSrc:find("function SummaryMenu:picAnimFrame()", 1, true) ~= nil,
+     "the summary's pic ANIMATES")
+  do
+    local wrap = src:match("SummaryMenu%.drawPicBlock = function.-\n      end\n")
+    ok(wrap and wrap:find("imageFor", 1, true) == nil,
+       "so no cut is ever put in its place")
+  end
+
+  -- 2. the page indicators: a coloured swatch on the tile's own shade 0
+  ok(sumSrc:find("function SummaryMenu:drawPageSquare(tx, ty, large, colors)",
+                 1, true) ~= nil,
+     "the page squares are drawn through their own colour")
+  ok(src:find("GbcPalette.with = GbcPalette.keyedWith", 1, true) ~= nil,
+     "and are KEYED, so the tile's white background drops out")
+  -- Keying is right here and wrong on the ?: a swatch's field IS the lightest
+  -- shade, which is the assumption the question mark broke.
+  ok(src:find("SummaryMenu.drawPageSquare = function", 1, true) ~= nil,
+     "on the page squares specifically")
+
+  -- 3. the words on the coloured pages
+  ok(sumSrc:find("Chrome.printThrough(entry.text, entry.x, entry.y, palette)",
+                 1, true) ~= nil,
+     "every label prints through the PAGE's palette, which fills its own cell")
+  ok(sumSrc:find("SummaryMenu.PAGE_PALETTES = PAGE_PALETTES", 1, true) ~= nil,
+     "and those palettes are published on the class")
+  ok(src:find("palette.gen1wildUnthemed = true", 1, true) ~= nil,
+     "so they carry the theme's own opt-out -- ink on a coloured page is the "
+     .. "battle HUD's case, not a box's")
+  local themeSrc = assert(slurp("runtime/theme2.lua"))
+  ok(themeSrc:find('local marked = "gen1wildUnthemed"', 1, true) ~= nil,
+     "which is the mark the theme actually reads")
+  ok(themeSrc:find("if palette == live or palette[marked] then return palette end",
+                   1, true) ~= nil,
+     "and a marked palette is handed back untouched")
+end
+
 io.write(("cutout2: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
