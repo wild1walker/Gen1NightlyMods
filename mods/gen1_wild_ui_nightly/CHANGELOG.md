@@ -6,6 +6,39 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.82] - 2026-09-06
+
+### Fixed
+
+- **The question mark is now KEYED, not cut.** A cut has to read the picture
+  back, build a texture, and be ready on the frame it is wanted — and it can be
+  refused for half a dozen reasons that all look identical on screen: a green
+  square and no explanation. Five releases went that way.
+
+  The ? needs none of it. It is drawn through `GbcPalette.with(colors, body)`
+  with the question-mark palette, and `GbcPalette.keyedWith` is the *same draw*
+  with shade 0 at alpha 0 — and the green field **is** shade 0. So the field
+  simply stops being drawn: no readback, no canvas, no texture, no cache, no
+  timing, and nothing that can be refused. It is right on the first frame.
+
+  Safe for this picture specifically: the ? is a solid glyph with no shade 0
+  inside it, so there is no enclosed white to punch a hole through — the one
+  thing keying cannot tell from a field, and the reason a mon's pic gets a
+  flood fill instead. `runtime/theme2.lua` does the same swap for the intro's
+  portraits.
+
+  The #DEX now asks for no cut at all, so there is also nothing left there that
+  could stand still in front of an animation.
+
+### Verified
+
+- The engine your cart runs is **identical to the checkout these fixes are read
+  against** — `src/ui/gen2/PokedexMenu.lua` is byte-for-byte the same as
+  `upstream/dev`, its plate is the `love.graphics.rectangle` this arm targets,
+  and it contains **no animation code at all**. So whatever plays once in the
+  #DEX and then stops is not the dex pic being animated by the engine, and it
+  is not this mod caching one — the mod no longer substitutes anything there.
+
 ## [0.32.81] - 2026-09-06
 
 ### Fixed

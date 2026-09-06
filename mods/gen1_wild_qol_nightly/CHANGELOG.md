@@ -7,6 +7,12 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.82] - 2026-09-06
+
+### Changed
+
+- Version bump only; see the Gen1WildUI nightly changelog for 0.32.82.
+
 ## [0.32.81] - 2026-09-06
 
 ### Changed

@@ -451,6 +451,7 @@ function Cutout2.new(context)
   end
 
   local function installDex()
+    local okGbc, GbcPalette = pcall(require, "src.render.GbcPalette")
     local ok, PokedexMenu = pcall(require, "src.ui.gen2.PokedexMenu")
     if not (ok and type(PokedexMenu) == "table") then return end
     if rawget(PokedexMenu, MARK) then return end
@@ -517,9 +518,32 @@ function Cutout2.new(context)
         image = okMark and mark or nil
         isPlaceholder = image ~= nil
       end
-      -- Asked for only on the placeholder, so a mon's pic is never cached and
-      -- never stands still.
-      local cut = isPlaceholder and self.imageFor(image) or nil
+      -- ------- the question mark, keyed rather than cut
+      --
+      -- A cut has to read the picture back, build a texture, and be there on
+      -- the frame it is wanted; it can be refused for half a dozen reasons and
+      -- every one of them looks identical on screen -- a green square and no
+      -- explanation.  Four releases went that way.
+      --
+      -- The ? does not need any of it.  It is drawn through
+      -- `GbcPalette.with(colors, body)` with the question-mark palette, and
+      -- `GbcPalette.keyedWith` is the SAME draw with shade 0 at alpha 0.  The
+      -- green field IS shade 0.  So the field simply stops being drawn: no
+      -- readback, no canvas, no texture, no cache, no timing, and nothing that
+      -- can be refused.  It is right on the first frame.
+      --
+      -- Safe for this picture specifically: the ? is a solid glyph with no
+      -- shade 0 inside it, so there is no enclosed white to punch a hole
+      -- through -- which is the one thing keying cannot tell from a field, and
+      -- the reason a mon's pic gets a flood fill instead of this.
+      --
+      -- runtime/theme2.lua does the same swap for the intro's portraits.
+      local keyed
+      if isPlaceholder and okGbc and type(GbcPalette) == "table"
+          and type(GbcPalette.with) == "function"
+          and type(GbcPalette.keyedWith) == "function" then
+        keyed = true
+      end
       -- NO SUBSTITUTION ON THE #DEX.  The pic ANIMATES -- "only plays once
       -- before having to restart the game" is the signature of a cache: the
       -- first frame the cart draws its own live handle and it animates, the
@@ -553,15 +577,11 @@ function Cutout2.new(context)
         end
         return realRect(mode, x, y, w, h, ...)
       end
-      local realDraw = love.graphics.draw
-      if cut then
-        love.graphics.draw = function(what, ...)
-          if what == image then return realDraw(cut, ...) end
-          return realDraw(what, ...)
-        end
-      end
+      local realWith = keyed and GbcPalette.with or nil
+      if keyed then GbcPalette.with = GbcPalette.keyedWith end
       local okDraw, err = pcall(basePic, screen, row, tx, ty, ownColors, ...)
-      love.graphics.rectangle, love.graphics.draw = realRect, realDraw
+      if keyed then GbcPalette.with = realWith end
+      love.graphics.rectangle = realRect
 
       -- ------- said once, because four releases of reasoning have not settled
       -- this and one line from a real cartridge would have

@@ -144,8 +144,7 @@ ok(src:find("if not on() or not ownColors then", 1, true) ~= nil,
 -- nothing to find was the one case that returned early.
 ok(src:find("if not image then return basePic", 1, true) == nil,
    "there is no early return left that would keep the plate")
-ok(src:find("local cut = image and self.imageFor", 1, true) == nil,
-   "and a cut is never asked for on anything but the placeholder")
+
 -- The plate and the picture's own field are two independent halves, and
 -- treating them as one is what left the #DEX looking untouched: the arm bailed
 -- unless a cut was ready, so a cut that was refused, slow, or simply on its
@@ -172,9 +171,37 @@ ok(src:find("local image, isPlaceholder", 1, true) ~= nil,
    "the arm tells the placeholder from a real pic")
 ok(src:find("isPlaceholder = image ~= nil", 1, true) ~= nil,
    "and only the question mark is marked as one")
-ok(src:find("local cut = isPlaceholder and self.imageFor(image) or nil",
-            1, true) ~= nil,
-   "so only the question mark is ever cut -- a mon's pic is never even cached")
+-- THE ? IS KEYED, NOT CUT.  A cut has to read the picture back, build a
+-- texture and be ready on the frame it is wanted, and it can be refused for
+-- half a dozen reasons that all look identical on screen: a green square and
+-- no explanation.  The ? needs none of it -- it is drawn through
+-- `GbcPalette.with` and `keyedWith` is the same draw with shade 0 at alpha 0,
+-- which is exactly the green field.  Right on the first frame, nothing to
+-- refuse.
+ok(src:find("GbcPalette.with = GbcPalette.keyedWith", 1, true) ~= nil,
+   "the placeholder is drawn through the KEYED remap")
+ok(src:find("if keyed then GbcPalette.with = realWith end", 1, true) ~= nil,
+   "and the plain one is put straight back")
+do
+  local wrap = src:match("PokedexMenu%.drawPic = function.-\n    end\n")
+  ok(wrap ~= nil, "the #DEX wrap is findable")
+  ok(wrap and wrap:find("imageFor", 1, true) == nil,
+     "and asks for no cut at all -- nothing to time, nothing to cache, and "
+     .. "nothing that can stand still in front of an animation")
+  ok(wrap and wrap:find("keyedWith", 1, true) ~= nil,
+     "it keys instead")
+end
+-- Keying is safe for THIS picture and not for a mon's: the ? is a solid glyph
+-- with no shade 0 inside it, so there is no enclosed white to punch through --
+-- which is the one thing keying cannot tell from a field.
+local keyedSrc = ENGINE and slurp(ENGINE .. "/src/render/GbcPalette.lua")
+if keyedSrc then
+  ok(keyedSrc:find("float alpha = shade < 0.5 ? 0.0 : px.a;", 1, true) ~= nil,
+     "the keyed shader drops shade 0 and keeps every other shade")
+  ok(keyedSrc:find("function GbcPalette.keyedWith", 1, true) ~= nil
+     or keyedSrc:find("GbcPalette.keyedWith", 1, true) ~= nil,
+     "and keyedWith is the entry point for it")
+end
 -- The plate is matched by SHAPE rather than one exact size: Gold pads 5x5, 6x6
 -- and 7x7 mons into the same block, and the arm has to survive an engine whose
 -- plate is not the 56 pixels this checkout happens to read.

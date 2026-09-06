@@ -5,6 +5,12 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.82] - 2026-09-06
+
+### Changed
+
+- Version bump only; no bench changes in 0.32.82.
+
 ## [0.32.81] - 2026-09-06
 
 ### Changed
