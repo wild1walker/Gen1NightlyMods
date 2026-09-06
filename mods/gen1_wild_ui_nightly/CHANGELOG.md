@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.74] - 2026-09-06
+
+### Fixed
+
+- **The trainer card's portrait came out greyscale.** The block was cut by
+  *recording* the engine's blits — image, quad, position — and replaying them
+  raw. But `TileSheet:draw` lays its tiles inside `GbcPalette.with(colors,
+  body)` whenever the sheet has a palette, so the source pixels genuinely are
+  the 2bpp shades and the **colour is the shader**. Replaying the blits without
+  it draws exactly what is in the file.
+
+  A block is now replayed by calling the **engine's own draw** into the canvas
+  instead. Shaders, palettes, colour, flips and geometry are all its own, and
+  nothing here knows or restates any of them.
+
+- **Nothing happened to the eight gym leaders.** `TrainerCard:drawLeaderFace`
+  lays row 0 across four columns and rows 1 and 2 across only **three** — a
+  leader's face is an L, not a rectangle — so the column the engine never draws
+  comes back transparent in the replay. `cut` refuses any art carrying alpha,
+  which is right for a source image (that alpha is somebody else's cut, or
+  replacement art whose colour 0 "is not a hole, it is a colour") and wrong for
+  a replay, where a gap is simply where nothing was drawn. All eight were
+  refused and the badges page was untouched.
+
+  `cut` now takes what the transparency *means* from its caller: a gap seeds
+  the flood fill for a replayed block, and still refuses a source image.
+
+- **Nothing happened to the #DEX entry.** The arm only cut a picture when the
+  species' own pic resolved — and on this cart none of them do, which is the
+  outstanding bug 0.32.70 shipped a diagnostic for. So the square the #DEX
+  actually shows is the plate behind the **question mark**, and the arm was
+  declining to cut exactly the picture that was on screen. It now cuts
+  whichever picture the cart is about to lay, placeholder included.
+
 ## [0.32.73] - 2026-09-06
 
 ### Added

@@ -68,6 +68,10 @@
 
 local Cutout2 = {}
 
+-- LuaJIT keeps `unpack` global; 5.2 moved it.  Both are answered here so the
+-- replay works on either.
+local unpack = table.unpack or unpack
+
 -- Big enough for a 7x7 pic and a 5x7 portrait, small enough that a sheet
 -- handed here by mistake is refused rather than read back a megapixel at a
 -- time.
@@ -80,7 +84,21 @@ local MAX_COLORS = 64
 --
 -- Pure, and exposed, because it is the whole of the risk: getting it wrong
 -- cuts a hole in a picture.
-function Cutout2.cut(data, w, h)
+-- `gaps` says what a TRANSPARENT pixel means, and the two callers mean
+-- opposite things by it.
+--
+--   a source image   alpha is somebody else's cut, or replacement art whose
+--                    colour 0 "is not a hole, it is a colour".  Refuse it.
+--   a replayed block  alpha is where the engine DREW NOTHING, and that is
+--                    outside the figure by definition -- so it seeds the
+--                    flood fill instead of stopping it.
+--
+-- That distinction is not academic: `TrainerCard:drawLeaderFace` lays row 0
+-- across four columns and rows 1 and 2 across only THREE, so a leader's face
+-- is an L, not a rectangle, and the column it never draws is transparent in
+-- the replay.  Refusing on alpha meant every one of the eight was refused and
+-- the badges page was untouched.
+function Cutout2.cut(data, w, h, gaps)
   local dw, dh = w, h
   if type(data.getDimensions) == "function" then
     local ok, gw, gh = pcall(data.getDimensions, data)
@@ -101,7 +119,11 @@ function Cutout2.cut(data, w, h)
     local row = y * w
     for x = 0, w - 1 do
       local r, g, b, a = data:getPixel(x * ratio + half, y * ratio + half)
-      if a <= 0.5 then return nil end
+      if a <= 0.5 then
+        if not gaps then return nil end
+        px[row + x] = -1          -- nothing was drawn here; outside, always
+        goto continue
+      end
       local key = math.floor(r * 255 + 0.5) * 65536
                 + math.floor(g * 255 + 0.5) * 256
                 + math.floor(b * 255 + 0.5)
@@ -114,13 +136,16 @@ function Cutout2.cut(data, w, h)
       -- The lightest by RED, which is the shade the hardware would call 0 --
       -- the same channel GbcPalette's own shader keys off.
       if r > fieldRed then field, fieldRed = key, r end
+      ::continue::
     end
   end
   if nColors < 2 or not field then return nil end
 
   local figure = {}
   for i = 0, w * h - 1 do
-    if px[i] ~= field then figure[i] = true end
+    -- -1 is a gap: never part of the figure, so the fill runs straight
+    -- through it and out the other side.
+    if px[i] ~= field and px[i] ~= -1 then figure[i] = true end
   end
 
   local outside, qx, qy, head = {}, {}, {}, 1
@@ -151,7 +176,8 @@ function Cutout2.cut(data, w, h)
       local r, g, b = data:getPixel(x * ratio + half, y * ratio + half)
       -- Colour is kept even where it is cut, so a host that ignores alpha
       -- shows the picture it always did rather than a black hole.
-      out:setPixel(x, y, r, g, b, outside[row + x] and 0 or 1)
+      out:setPixel(x, y, r, g, b,
+        (outside[row + x] or px[row + x] == -1) and 0 or 1)
     end
   end
   return out
@@ -233,12 +259,20 @@ function Cutout2.new(context)
     if cutData then built[image] = toImage(cutData) end
   end
 
-  -- ------- a block of blits
+  -- ------- a block, replayed
   --
-  -- The recording is (image, quad, x, y) tuples and nothing else: appending to
-  -- a table inside a draw creates no GL object and cannot fail the way making
-  -- a texture there can.
-  local recording = nil
+  -- The first attempt RECORDED the blits -- image, quad, position -- and
+  -- replayed them raw.  That came out GREYSCALE, and the reason is the whole
+  -- shape of this problem: `TileSheet:draw` lays its tiles inside
+  -- `GbcPalette.with(colors, body)` when the sheet has a palette, so the
+  -- source pixels really are the 2bpp shades and the COLOUR is the shader.
+  -- Replaying the blits without it draws exactly what is in the file.
+  --
+  -- So the block is replayed by calling the ENGINE'S OWN DRAW into a canvas
+  -- instead: shaders, palettes, colour, flips and geometry are all its own,
+  -- and nothing here knows or restates any of them.  It runs on the update,
+  -- where binding a canvas is safe, and the wrap calls the base function
+  -- directly so there is no recursion back through it.
 
   function self.blockFor(key)
     local hit = blocks[key]
@@ -246,32 +280,16 @@ function Cutout2.new(context)
     return nil
   end
 
-  -- Called around the engine's own draw.  Returns a function to close the
-  -- recording, so the caller cannot forget which half it is in.
-  function self.record(key, ox, oy, w, h)
-    if blocks[key] ~= nil or blockWanted[key] then return function() end end
-    local realDraw = love.graphics.draw
-    local list = {}
-    recording = list
-    love.graphics.draw = function(image, a, b, c, ...)
-      -- `draw(image, quad, x, y)` and `draw(image, x, y)` are both shapes the
-      -- engine uses; the quad is only ever the second argument.
-      if type(a) == "table" or type(a) == "userdata" then
-        list[#list + 1] = { image = image, quad = a, x = b or 0, y = c or 0 }
-      else
-        list[#list + 1] = { image = image, x = a or 0, y = b or 0 }
-      end
-      return realDraw(image, a, b, c, ...)
-    end
-    return function(returned)
-      love.graphics.draw = realDraw
-      recording = nil
-      if returned ~= nil then blockReturn[key] = returned end
-      if #list == 0 then return end
-      blockWanted[key] = true
-      blockQueue[#blockQueue + 1] =
-        { key = key, list = list, ox = ox, oy = oy, w = w, h = h }
-    end
+  -- Remember a block to replay later.  Takes the engine's own function and
+  -- the arguments it was called with, so the update can make the very same
+  -- call.  Returns whether it was taken, which is only false when the block
+  -- is already known or already waiting.
+  function self.want(key, base, screen, args, ox, oy, w, h)
+    if blocks[key] ~= nil or blockWanted[key] then return false end
+    blockWanted[key] = true
+    blockQueue[#blockQueue + 1] = { key = key, base = base, screen = screen,
+      args = args, ox = ox, oy = oy, w = w, h = h }
+    return true
   end
 
   local function buildBlock(job)
@@ -284,21 +302,23 @@ function Cutout2.new(context)
     local previous = love.graphics.getCanvas()
     love.graphics.push("all")
     love.graphics.origin()
+    -- The engine draws at the block's place on the SCREEN; the canvas holds
+    -- only the block, so the screen is slid under it.
+    love.graphics.translate(-job.ox, -job.oy)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(1, 1, 1, 1)
-    for _, blit in ipairs(job.list) do
-      -- Replayed at the block's own origin, so the canvas holds the picture
-      -- and not the corner of a screen.
-      if blit.quad then
-        love.graphics.draw(blit.image, blit.quad, blit.x - job.ox, blit.y - job.oy)
-      else
-        love.graphics.draw(blit.image, blit.x - job.ox, blit.y - job.oy)
-      end
-    end
+    -- What the engine returned is what the cached path has to answer: the
+    -- leader faces chain a tile id through eight calls.  Read off the call,
+    -- never counted here.
+    local drewOk, returned = pcall(job.base, job.screen, unpack(job.args))
     love.graphics.setCanvas(previous)
     love.graphics.pop()
-    local cutData = Cutout2.cut(canvas:newImageData(), w, h)
+    if not drewOk then return end
+    if returned ~= nil then blockReturn[job.key] = returned end
+    -- `true`: a gap in the replay is where the engine drew nothing, which is
+    -- outside the figure rather than a reason to refuse.
+    local cutData = Cutout2.cut(canvas:newImageData(), w, h, true)
     if cutData then blocks[job.key] = toImage(cutData) end
   end
 
@@ -333,13 +353,10 @@ function Cutout2.new(context)
         if cut then
           love.graphics.setColor(1, 1, 1, 1)
           love.graphics.draw(cut, ox, oy)
-          return
+          return blockReturn[key]
         end
-        local close = self.record(key, ox, oy, w, h)
-        local okDraw, err = pcall(base, screen, ...)
-        close(okDraw and err or nil)
-        if not okDraw then error(err, 0) end
-        return err
+        self.want(key, base, screen, { ... }, ox, oy, w, h)
+        return base(screen, ...)
       end
     end
 
@@ -366,19 +383,22 @@ function Cutout2.new(context)
         if not on() then return baseFace(screen, first, tx, ty, ...) end
         local key = "leader:" .. tostring(first)
         local cut = self.blockFor(key)
-        if cut then
+        -- The engine's own return is the NEXT tile id and the page chains its
+        -- eight faces through it, so a cached draw must answer what the
+        -- replayed call answered.  Never counted here: the loop lays four
+        -- tiles then two rows of three, and deriving that was wrong by three
+        -- on the first attempt.
+        if cut and blockReturn[key] ~= nil then
           love.graphics.setColor(1, 1, 1, 1)
           love.graphics.draw(cut, tx * 8, ty * 8)
-          -- The engine's own return is the NEXT tile id and the page walks its
-          -- eight faces with it, so the cached path answers what the recorded
-          -- call answered rather than a count made up here.
           return blockReturn[key]
         end
-        local close = self.record(key, tx * 8, ty * 8, 4 * 8, 3 * 8)
-        local okDraw, err = pcall(baseFace, screen, first, tx, ty, ...)
-        close(okDraw and err or nil)
-        if not okDraw then error(err, 0) end
-        return err
+        -- A face is an L: row 0 is four columns wide and rows 1 and 2 are
+        -- three, so the block is four by three and the column the engine never
+        -- draws comes back transparent.
+        self.want(key, baseFace, screen, { first, tx, ty, ... },
+                  tx * 8, ty * 8, 4 * 8, 3 * 8)
+        return baseFace(screen, first, tx, ty, ...)
       end
     end
 
@@ -399,10 +419,20 @@ function Cutout2.new(context)
     -- its place, and kept otherwise.
     PokedexMenu.drawPic = function(screen, row, tx, ty, ownColors, ...)
       if not on() then return basePic(screen, row, tx, ty, ownColors, ...) end
+      -- Whichever picture the cart is about to lay, asked its way round:
+      -- a SEEN row's own pic, and the question mark for anything else --
+      -- including a seen row whose pic does not resolve, which on this cart
+      -- is every one of them (see modules/Gen1Dex/gen2pic.lua).  The square
+      -- is there either way and the ? sits in it just as a POKeMON would, so
+      -- refusing to cut the placeholder left the #DEX exactly as it was.
       local image
       if row and row.seen and row.species then
         local okPic, got = pcall(screen.picFor, screen, row.species)
         image = okPic and got or nil
+      end
+      if not image and type(screen.questionMark) == "function" then
+        local okMark, mark = pcall(screen.questionMark, screen)
+        image = okMark and mark or nil
       end
       if not image then return basePic(screen, row, tx, ty, ownColors, ...) end
       local cut = self.imageFor(image)

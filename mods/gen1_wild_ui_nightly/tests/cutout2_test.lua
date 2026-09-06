@@ -90,8 +90,30 @@ ok(face and face:find("self:tile(self.leaders", 1, true) ~= nil,
 ok(face and face:find("return id", 1, true) ~= nil,
    "drawLeaderFace returns the next tile id, which the page depends on")
 ok(src:find("return blockReturn[key]", 1, true) ~= nil,
-   "so the cached path answers what the RECORDED call answered, not a count")
+   "so the cached path answers what the REPLAYED call answered, not a count")
 ok(src:find("first + 4 + 9", 1, true) == nil, "and derives nothing itself")
+
+-- A face is an L, not a rectangle: row 0 is four columns wide, rows 1 and 2
+-- are three.  The column the engine never draws comes back transparent in the
+-- replay, and refusing on alpha meant all eight leaders were refused and the
+-- badges page was untouched.
+ok(face and face:find("for col = 0, 3 do", 1, true) ~= nil,
+   "a leader's top row is four tiles")
+ok(face and face:find("for col = 1, 3 do", 1, true) ~= nil,
+   "and its lower rows are three -- so the block has a hole in its corner")
+ok(src:find("Cutout2.cut(canvas:newImageData(), w, h, true)", 1, true) ~= nil,
+   "so a replayed block is cut with gaps allowed")
+
+-- And the replay is the ENGINE's own draw, not a recording of its blits.
+-- `TileSheet:draw` lays its tiles inside GbcPalette.with when the sheet has a
+-- palette, so the source pixels are 2bpp shades and the COLOUR is the shader:
+-- replaying the blits raw came out greyscale.
+ok(sheetSrc:find("GbcPalette.with(colors, body)", 1, true) ~= nil,
+   "a sheet with a palette draws through a shader, so its file is greyscale")
+ok(src:find("pcall(job.base, job.screen, unpack(job.args))", 1, true) ~= nil,
+   "so the block is replayed by calling the engine's own draw")
+ok(src:find("love.graphics.draw = function(image", 1, true) == nil,
+   "and nothing records blits behind its back")
 
 -- The dex's other shape: one image, with a plate filled behind it.
 local dexSrc = assert(slurp(ENGINE .. "/src/ui/gen2/PokedexMenu.lua"))
@@ -112,7 +134,7 @@ ok(src:find("mod.hooks:wrap(\"core.update\"", 1, true) ~= nil,
 for _, call in ipairs({ "newCanvas", "newImageData", "newImage" }) do
   local inDraw = false
   for _, fn in ipairs({ "function self.imageFor", "function self.blockFor",
-                        "function self.record" }) do
+                        "function self.want" }) do
     local body = src:match(fn:gsub("%.", "%%.") .. ".-\n  end\n")
     if body and body:find(call, 1, true) then inDraw = true end
   end
@@ -161,6 +183,30 @@ do
     eq(out:alphaAt(2, 2), 1, "the body stays")
     eq(out:alphaAt(3, 3), 1, "and so does the WHITE SHIRT inside it")
     eq(out:alphaAt(4, 4), 1, "all of it")
+  end
+end
+
+do
+  -- The same figure with a GAP in the corner, which is what a replayed L
+  -- looks like: the gap is where the engine drew nothing, so it seeds the
+  -- fill rather than stopping it.
+  local function plot(x, y)
+    return (x >= 2 and x <= 5 and y >= 2 and y <= 5) and 0 or 1
+  end
+  local data = { getDimensions = function() return 8, 8 end,
+                 getPixel = function(_, x, y)
+                   if x == 0 and y >= 4 then return 0, 0, 0, 0 end
+                   local v = plot(x, y)
+                   return v, v, v, 1
+                 end }
+  eq(Cutout2.cut(data, 8, 8), nil,
+     "a gap refuses a SOURCE image -- that alpha is somebody else's cut")
+  local out = Cutout2.cut(data, 8, 8, true)
+  ok(out ~= nil, "but a replayed BLOCK is cut through it")
+  if out then
+    eq(out:alphaAt(0, 5), 0, "the gap itself stays clear")
+    eq(out:alphaAt(0, 0), 0, "the square goes")
+    eq(out:alphaAt(3, 3), 1, "and the figure stays")
   end
 end
 
