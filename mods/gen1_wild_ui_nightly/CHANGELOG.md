@@ -6,6 +6,50 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.72] - 2026-09-06
+
+### Fixed
+
+- **Trainers no longer stand on a white square over a backdrop.** A trainer's
+  class pic is `trueColor` — full-colour art that deliberately skips the GBC
+  four-shade remap (`BattleState:drawPic`: `if colors and not (trueColor and
+  GbcPalette.mode == "gbc")`) — so no palette keying can reach it. Its white
+  field is baked into the PNG, and the only thing that removes it is cutting it
+  out of the image.
+
+  That machinery has been in the mod since 0.32.62 and switched off since
+  0.32.65. It is on again, as **PIC CUTOUT** — trainers as well as mons, since
+  a class pic goes through the very same `drawPic`.
+
+- **And the crash it caused in 0.32.62 is fixed properly, not avoided.** The
+  cut-out was never the problem; *where it was built* was. A readback binds a
+  scratch canvas and `newImage` makes a whole new texture, and both ran inside
+  `drawPic` with the battle's canvas bound and the frame half-painted. A
+  mid-pass render-target switch is what a GLES driver refuses — "on android it
+  just crashes" — and a readback that disagrees about orientation is the whole
+  sprite upside down rather than a misplaced hole — "on iOS, the image gets
+  flipped". It only ever showed over a backdrop because that is the only time
+  this arm runs at all, which is why exactly one mod appeared to be at fault.
+
+  `picPaperImage` did the same readback but bailed before `newImage` for any
+  pic with no holes — which is every cart pic — so it almost never reached the
+  texture and the difference never showed.
+
+  The two halves are now separated in time, which is what the note left at the
+  draw site in 0.32.65 said the right build was:
+
+  - **in the draw** — `cutoutFor` is a cache read. A pic it has not seen is
+    remembered as wanted and the original is drawn, so the first frame a
+    trainer appears on is the cart's own square and nothing else changes.
+  - **between frames** — `core.update`, where no canvas is bound and no
+    transform is in effect, builds one pic per frame. From the next frame the
+    cut-out is there.
+
+  No texture is ever made inside a draw now. The test pins that split rather
+  than the output: it takes `newCanvas` and `newImage` away for the length of
+  the ask and asserts it survives, then puts them back and asserts the update
+  is the only thing that builds.
+
 ## [0.32.71] - 2026-09-06
 
 ### Changed

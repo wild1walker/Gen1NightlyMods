@@ -637,17 +637,20 @@ do
   eq(cut, nil, "a pic that already has alpha is left to the paper arm")
 end
 
--- ---- and the cut-out ships OFF
+-- ---- the cut-out is asked for in the draw and BUILT between frames
 --
 -- 0.32.62 shipped it on and it broke a battle over a backdrop: flipped on
--- iOS, a crash on Android.  The cause is that building one makes a whole new
--- TEXTURE inside the draw, with a canvas bound -- something picPaperImage
--- almost never reached, because it bailed before `newImage` for any pic with
--- no holes, which is every cart pic.
+-- iOS, a crash on Android.  0.32.65 switched it off.  The cause was never the
+-- cut-out itself -- it was building one INSIDE the draw: a readback binds a
+-- scratch canvas and `newImage` makes a whole new texture, both with the
+-- battle's canvas bound.  picPaperImage did the same readback but bailed
+-- before `newImage` for any pic with no holes, which is every cart pic, so it
+-- almost never reached the texture and the difference never showed.
 --
--- The switch is what this pins.  The builder itself is still correct and
--- still tested above; what must not happen by default is calling it from
--- inside a frame.
+-- What this pins is the SPLIT that fixes it, because the split is the whole
+-- of the fix and it is invisible in the output: the draw's `cutoutFor` must
+-- never build, and `buildQueuedCutouts` -- called from `core.update`, where
+-- nothing is bound -- must be the only thing that does.
 do
   local rows = mod.rows or {}
   local cutout, paper
@@ -655,9 +658,69 @@ do
     if row.key == "pic_cutout" then cutout = row end
     if row.key == "pic_paper" then paper = row end
   end
-  ok(cutout ~= nil, "MON CUTOUT is offered as a switch")
-  eq(cutout and cutout.default, false, "and it ships OFF")
+  ok(cutout ~= nil, "PIC CUTOUT is offered as a switch")
+  eq(cutout and cutout.label, "PIC CUTOUT",
+     "named for what it cuts -- trainers as well as mons")
+  eq(cutout and cutout.default, true,
+     "and it ships ON, now that the build is out of the draw")
   eq(paper and paper.default, true, "while MON PAPER, which is safe, stays on")
+end
+
+do
+  -- The same 8x8 "trainer" the builder is tested on above: a body of ink in a
+  -- white field, which is what a cart pic is.
+  local function plot(x, y)
+    return (x >= 2 and x <= 5 and y >= 2 and y <= 5) and 0 or 1
+  end
+  local img, restore = shadePic(8, 8, plot)
+  local readCanvas = love.graphics.newCanvas   -- the readback shadePic installed
+  local realImage = love.graphics.newImage
+
+  local cutoutFor = mod.exports.cutoutFor
+  local build = mod.exports.buildQueuedCutouts
+  local queued = mod.exports.cutoutQueued
+  ok(type(cutoutFor) == "function" and type(build) == "function",
+     "the two halves are separate functions")
+
+  -- The blocks above drive the shipped drawPic wrap, which asks for cut-outs
+  -- of its own; drained here so the counts below are this block's.
+  while build() do end
+  eq(queued(), 0, "starting from an empty queue")
+
+  -- THE DRAW.  Making a texture here is the crash, so both makers are taken
+  -- away for the length of the call: asking has to survive with neither.
+  local function noBuilding(why)
+    love.graphics.newCanvas = function() error(why, 0) end
+    love.graphics.newImage = function() error(why, 0) end
+  end
+  local function buildingAgain()
+    love.graphics.newCanvas, love.graphics.newImage = readCanvas, realImage
+  end
+
+  noBuilding("a texture was made inside the draw -- this is the crash")
+  local askOk, first = pcall(cutoutFor, img)
+  buildingAgain()
+  ok(askOk, "asking for a cut-out in the draw builds nothing at all")
+  eq(first, nil, "so the first frame draws the cart's own square")
+  eq(queued(), 1, "and the pic is remembered as wanted")
+
+  noBuilding("a texture was made inside the draw -- this is the crash")
+  pcall(cutoutFor, img)
+  buildingAgain()
+  eq(queued(), 1, "asking twice queues it once")
+
+  -- THE UPDATE.  Nothing is bound here, so this is where it may build.
+  eq(build(), img, "the update builds what was asked for")
+  eq(queued(), 0, "and the queue empties")
+  eq(build(), nil, "an update with nothing waiting builds nothing")
+
+  -- And from the next frame the draw has it, still without building.
+  noBuilding("the draw built a second time")
+  local hitOk, cut = pcall(cutoutFor, img)
+  buildingAgain()
+  ok(hitOk, "the draw reads the cache without building again")
+  ok(cut ~= nil, "and gets the cut-out from the frame after it asked")
+  restore()
 end
 
 io.write(("arena gen2 paper: %d passed, %d failed\n"):format(passed, failed))

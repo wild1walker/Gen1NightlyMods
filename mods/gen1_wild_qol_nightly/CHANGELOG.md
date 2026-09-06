@@ -7,6 +7,13 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.72] - 2026-09-06
+
+### Changed
+
+- Version bump only. The trainer cut-out is a UI change; see the Gen1WildUI
+  nightly changelog for 0.32.72.
+
 ## [0.32.71] - 2026-09-06
 
 ### Fixed

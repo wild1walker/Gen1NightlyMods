@@ -1757,9 +1757,48 @@ local function buildCutout(img)
   return image
 end
 
+-- ------- asked in the draw, built between frames
+--
+-- Building a cut-out READS the pic (a scratch canvas, bound and drawn into)
+-- and then makes a WHOLE NEW TEXTURE.  Both of those inside `drawPic` -- with
+-- the battle's canvas bound and the frame half-painted -- is what 0.32.62
+-- shipped, and it is what a GLES driver refuses: "on iOS, the image gets
+-- flipped, on android it just crashes".  A readback that disagrees about
+-- orientation stops being a misplaced hole and becomes the whole sprite upside
+-- down; a mid-pass render-target switch is a crash outright.
+--
+-- So the two halves are separated in time, which is what the note at the draw
+-- site said the right build was:
+--
+--   in the draw   `cutoutFor` is a CACHE READ.  A pic it has not seen is
+--                 remembered as wanted and the original is drawn, so the very
+--                 first frame a trainer appears on is the cart's own square
+--                 and nothing else changes.
+--   between       `Arena.buildQueuedCutouts` runs on `core.update`, where no
+--   frames        canvas is bound and no transform is in effect, and builds
+--                 what was asked for.  From the next frame the cut-out is
+--                 there.
+--
+-- One pic per update, deliberately.  A battle asks for at most two and a
+-- readback is not free; draining a whole queue on one frame is a stutter at
+-- the exact moment the intro is sliding.
+local cutoutWanted, cutoutQueue = setmetatable({}, { __mode = "k" }), {}
+
+local function cutoutFor(img)
+  local hit = cutoutImage[img]
+  if hit ~= nil then return hit or nil end
+  if not cutoutWanted[img] then
+    cutoutWanted[img] = true
+    cutoutQueue[#cutoutQueue + 1] = img
+  end
+  return nil
+end
+
 -- Exposed for the headless suite for the same reason picPaperImage is: it is a
 -- pure question about one image -- which of its pixels are the square around
--- the figure -- and getting it wrong cuts a hole in a picture.
+-- the figure -- and getting it wrong cuts a hole in a picture.  This is the
+-- BUILD, and calling it is what the update below does; the draw calls
+-- `cutoutFor` instead and never reaches here.
 local function picCutoutImage(img)
   if cutoutImage[img] == nil then
     local ok, built = pcall(buildCutout, img)
@@ -1771,7 +1810,23 @@ local function picCutoutImage(img)
   return cutoutImage[img] or nil
 end
 
+-- Called from `core.update`.  Returns the image it built, or nil when there
+-- was nothing waiting -- which is what the test drives.
+local function buildQueuedCutouts()
+  local img = table.remove(cutoutQueue, 1)
+  if not img then return nil end
+  cutoutWanted[img] = nil
+  picCutoutImage(img)
+  return img
+end
+
 mod.exports.picCutoutImage = picCutoutImage
+-- The two halves, published for the headless suite: the test drives them in
+-- the order the game does -- ask in a draw, build on an update -- and asserts
+-- that the draw itself never builds.
+mod.exports.cutoutFor = cutoutFor
+mod.exports.buildQueuedCutouts = buildQueuedCutouts
+mod.exports.cutoutQueued = function() return #cutoutQueue end
 
 -- Exposed for the headless suite the same way picPaperBox is: it is a pure
 -- question about one image -- which pixels of it are a hole through the mon
@@ -2309,30 +2364,30 @@ local function installGen2()
         -- around the figure taken to alpha 0, so it goes through the engine's
         -- own remap exactly as the original did.
         --
-        -- OFF BY DEFAULT, and this is a retreat rather than a preference.
-        -- 0.32.62 shipped it on, and it broke the one thing it needed to work
-        -- with: a battle over a BACKDROP -- "on iOS, the image gets flipped,
-        -- on android it just crashes".  Only over a backdrop, because that is
-        -- the only time this arm runs at all, which is why exactly one mod
-        -- appeared to be at fault.
+        -- 0.32.62 shipped this on and it broke the one thing it needed to
+        -- work with -- a battle over a BACKDROP: "on iOS, the image gets
+        -- flipped, on android it just crashes".  Only over a backdrop,
+        -- because that is the only time this arm runs at all, which is why
+        -- exactly one mod appeared to be at fault.  0.32.65 switched it off.
         --
-        -- The cause is that building a cut-out makes a WHOLE NEW TEXTURE, and
-        -- makes it here -- inside the draw, with a canvas bound and a frame
-        -- half-painted.  `picPaperImage` did the same readback but produced a
-        -- sparse mask of holes, and bailed before `newImage` for any pic that
-        -- had none, which is every cart pic -- so it almost never reached the
-        -- texture at all and the difference never showed.  Reaching it for
-        -- every trainer and every mon is what turned a rare path into a
-        -- per-pic one, and mid-frame texture creation is what a GLES driver
-        -- refuses.  A readback that disagrees about orientation stops being a
-        -- misplaced hole and becomes the entire sprite upside down.
+        -- The cause was never the cut-out.  It was building one HERE: a
+        -- readback binds a scratch canvas and `newImage` makes a whole new
+        -- texture, both inside the draw with the battle's canvas bound and
+        -- the frame half-painted.  A mid-pass render-target switch is what a
+        -- GLES driver refuses, and a readback that disagrees about
+        -- orientation is the sprite upside down rather than a misplaced hole.
+        -- `picPaperImage` did the same readback but bailed before `newImage`
+        -- for any pic with no holes, which is every cart pic, so it almost
+        -- never reached the texture and the difference never showed.
         --
-        -- The right build is out of the draw entirely -- ask on one frame,
-        -- draw the original, use the cut-out from the next -- and that is
-        -- worth doing.  It is not worth doing between a crash report and a
-        -- fix, so the switch ships off and the machinery and its tests stay.
-        local cut = mod.options:get("pic_cutout") == true
-          and picCutoutImage(image) or nil
+        -- `cutoutFor` is now a CACHE READ.  A pic it has not seen is
+        -- remembered as wanted and the original is drawn this frame; the
+        -- build happens on `core.update`, between frames, with nothing bound.
+        -- So the first frame a trainer appears on is the cart's own square
+        -- and every frame after it is the cut-out -- and no texture is ever
+        -- made inside a draw.
+        local cut = mod.options:get("pic_cutout") ~= false
+          and cutoutFor(image) or nil
         local paper = (not cut) and picPaperImage(image) or nil
         love.graphics.draw = shim
         -- Through whatever the engine has bound for this pic, so the paper is
@@ -2497,7 +2552,11 @@ local optionRows = {
   -- the draw: see the note in the pic shim.  On a host where it works it is
   -- the better picture; on one where it does not it is a crash, and a crash
   -- is not a trade.
-  { key = "pic_cutout", type = "toggle", label = "MON CUTOUT", default = false },
+  -- Trainers as well as mons -- the report that brought it back was
+  -- "trainers still have white squares behind them", and a trainer's class
+  -- pic goes through the very same `drawPic`.  On, now that the build is out
+  -- of the draw and the crash it caused is gone with it.
+  { key = "pic_cutout", type = "toggle", label = "PIC CUTOUT", default = true },
   -- The bars around the battle.  On, the backdrop's own edge is stretched
   -- into them so the picture runs off the screen; off, they are the paper
   -- white the engine gives a battle, which with a backdrop up reads as a
@@ -2662,6 +2721,29 @@ end
 
 -- The bars, every frame, after the void is cleared and before the playfield
 -- is drawn over the middle of it.
+-- ------- where a cut-out is actually built
+--
+-- `core.update` runs before anything is drawn: no canvas is bound, no
+-- transform is in effect, and a texture made here is made the way any other
+-- asset is.  That is the whole of the fix for the crash 0.32.62 caused --
+-- the readback and the `newImage` are the same code, in a different place.
+--
+-- One per frame, and only while the feature is on: a battle asks for at most
+-- two pics and a readback is not free, so draining a queue in one go would be
+-- a stutter at exactly the moment the intro is sliding.  Its failure costs a
+-- cut-out and nothing else -- the pic that could not be cut is drawn as the
+-- cart drew it, square and all.
+mod.hooks:wrap("core.update", function(nextLink, game, dt)
+  if mod.options:get("pic_cutout") ~= false then
+    local ok, problem = pcall(buildQueuedCutouts)
+    if not ok then
+      mod.log:warn("a pic could not be cut from its square: %s",
+                   tostring(problem))
+    end
+  end
+  return nextLink(game, dt)
+end)
+
 mod.hooks:wrap("render.letterbox", function(nextLink, view)
   local ok, err = pcall(bleedInto, view)
   if not ok then
