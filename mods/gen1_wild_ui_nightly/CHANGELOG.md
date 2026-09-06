@@ -6,6 +6,60 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.68] - 2026-09-06
+
+### Added
+
+- **A line under Gold's AREA map.** Red's AREA screen has carried a caption
+  since 0.20 -- how you catch it, roughly what level, and how often -- and
+  Gold's had nothing. It has one now, read straight out of Gold's own wild
+  tables, so it is right by construction and costs no data of its own.
+
+  It says the method, the level band, and where the tables can say so the
+  time of day and how often: `GRASS Lv2-4 COMMON`, `SURF Lv20-25 COMMON`,
+  `GRASS Lv12-14 NITE`, `HEADBUTT Lv10-15`, `OLD ROD Lv10`, `ROAMING Lv40`.
+  A POKeMON that is not wild anywhere is answered out of the evolution table
+  instead, and one nobody can answer for says `NO RECORD REMAINS` rather than
+  showing an empty bar.
+
+  The case it exists for is the blank map. `Nests.find` reads grass, water and
+  the three roamers and nothing else -- that is the cartridge's own answer, not
+  a gap -- so HERACROSS, PINECO, EXEGGCUTE and every other headbutt-only
+  POKeMON opens an AREA page with no nests blinking on it at all, and until now
+  there was nothing on that screen able to say why.
+
+  One row, at the very bottom, and that is measured rather than chosen: the
+  lowest landmark on either region sits at y 132, so the lowest nest icon ends
+  exactly where row 17 begins. A two-row strip would have covered the
+  southernmost nests on both maps, which are the answer the player opened the
+  page for.
+
+  It is painted the way the cart paints the line at the *top* of the same
+  screen -- a full-width bar in the map palette's colour 3, then an inverted
+  print over it -- so both ends of the screen match and the theme colours them
+  in one place.
+
+  **AREA HINTS** now appears on Gold's OPTION screen, because it now governs
+  something there. Off is the cartridge's AREA page and nothing else.
+
+  A mod can supply its own words through `exports.area.provide`, with the same
+  contract as Red's screen -- two lines, or `false` to seal a species, or `nil`
+  for no opinion -- so a provider written for the Gen 1 screen works here
+  unchanged. The two lines are joined into one while they fit, which is the
+  strip's business rather than the provider's.
+
+### Fixed
+
+- Gold's wild and evolution tables are a different shape from Red's, and the
+  new reader reads Gold's: grass split three ways by time of day, water flat,
+  fishing by rod group, headbutt and rock smash through the tree sets, and
+  evolution rows that name their target `into` rather than `species` with
+  methods spelled `EVOLVE_LEVEL` rather than `LEVEL`. Reading Red's keys
+  against Gold's tables returns nil rather than an error, which is a caption
+  that never draws and never says why -- the failure mode behind most of this
+  thread's Gen 2 bugs. The test reads every one of those shapes off the engine
+  and the disassembly rather than restating them.
+
 ## [0.32.67] - 2026-09-06
 
 ### Fixed

@@ -269,6 +269,14 @@ return {
       -- Everything above the entry's divider stays the cart's on every page,
       -- so they read as more of the same entry rather than a second screen
       -- wearing its frame.  See modules/Gen1Dex/gen2.lua.
+      --
+      -- The AREA page is the cart's too, with one row added at the very bottom
+      -- of the map: how you catch it, roughly what level, and -- where Gold's
+      -- tables can say so -- at what hour and how often.  The blinking nests
+      -- read grass, water and the roamers and nothing else, so a HEADBUTT-only
+      -- POKeMON opens a page with an empty map, and that line is the only
+      -- thing on the screen that can tell the player why.  AREA HINTS turns it
+      -- off.  See modules/Gen1Dex/gen2area.lua.
     },
 
     {

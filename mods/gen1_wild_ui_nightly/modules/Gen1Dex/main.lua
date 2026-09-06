@@ -162,6 +162,12 @@ return function(mod)
     -- The START menu is on both cartridges, so this row always meant
     -- something here -- it was simply never installed (see installDexLabel).
     dex_label = true,
+    -- The line under the AREA map.  Gold's AREA page is the cart's, but the
+    -- caption under it is this mod's on both cartridges -- see gen2area.lua,
+    -- which reads Gold's own encounter tables and draws one row at the very
+    -- bottom of the map.  So the row means here exactly what it means on Red:
+    -- off is the cartridge's AREA page and nothing else.
+    area_hints = true,
   }
 
   -- The LIST's own rows: SELECT's three views, the cursor wrap and the
@@ -284,6 +290,38 @@ return function(mod)
     local ok, problem = pcall(arm.install)
     if not ok then
       mod.log:error("the Gold dex pages did not install: %s", tostring(problem))
+    end
+
+    -- ------- and the line under the AREA map
+    --
+    -- Built and published whether or not the wrap took, for the reason the
+    -- Gen 1 arm gives at the same place: `provide` is how another mod hands
+    -- this screen its words, and a caller that finds nothing to register with
+    -- has no way to tell "absent" from "broken".  Its failure is survivable --
+    -- an AREA page with blinking nests and no caption is the cartridge's own
+    -- AREA page -- so this logs and carries on.
+    local makeGen2Area = loadSibling(mod, "gen2area.lua")
+    if type(makeGen2Area) == "function" then
+      local areaOk, Area = pcall(makeGen2Area, mod, DexData)
+      if areaOk and type(Area) == "table" then
+        local installed, why = pcall(Area.install)
+        if not installed then
+          mod.log:error("the Gold AREA caption was not wrapped: %s",
+                        tostring(why))
+        end
+        -- The same four names Red publishes, so a mod that captions a species
+        -- registers once and gets both cartridges.  `cols` is one number here
+        -- rather than the second line's budget, because the strip is one line.
+        mod.exports.area = {
+          provide = Area.provide,
+          caption = Area.caption,
+          probe = Area.probe,
+          cols = Area.COLS,
+          unknown = Area.UNKNOWN,
+        }
+      else
+        mod.log:error("the Gold AREA caption did not build: %s", tostring(Area))
+      end
     end
 
     -- ------- and the list, in this suite's own shape

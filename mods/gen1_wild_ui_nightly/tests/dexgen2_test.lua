@@ -375,12 +375,17 @@ do
   ok(keys.dex_label, "and START SAYS DEX, which the START menu can honour")
   ok(mod.hooks.wrapped["ui.start_menu.items"] ~= nil,
      "and the hook that renames the row is actually installed on Gold")
-  ok(not keys.area_hints,
-     "AREA HINTS is not: that screen is the cart's here, and a row that "
-     .. "cannot do anything is worse than a missing one")
+  -- AREA HINTS was held back here for as long as Gold's AREA page was the
+  -- cart's and nothing else.  gen2area.lua puts a caption under it, so the row
+  -- governs something now and the same rule that kept it off puts it on: a row
+  -- that cannot do anything is worse than a missing one, and so is a feature
+  -- with no way to turn it off.
+  ok(keys.area_hints,
+     "AREA HINTS is offered on Gold now that the caption under the map is ours")
   -- SELECT VIEWS and LIST WRAPS are the LIST's own rows, and by default the
-  -- list is the cart's -- so they are held back by the same rule AREA HINTS
-  -- is: a row that cannot do anything is worse than a missing one.
+  -- list is the cart's -- so they are held back by the rule that used to hold
+  -- AREA HINTS back: a row that cannot do anything is worse than a missing
+  -- one.
   ok(not keys.view_cycle,
      "SELECT VIEWS is not offered while the dex is the cart's own")
   ok(not keys.wrap, "and neither is LIST WRAPS")

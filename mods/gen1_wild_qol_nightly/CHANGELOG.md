@@ -7,6 +7,13 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.68] - 2026-09-06
+
+### Changed
+
+- Version bump only. The AREA caption on Gold is a UI change; see the
+  Gen1WildUI nightly changelog for 0.32.68.
+
 ## [0.32.67] - 2026-09-06
 
 ### Changed
