@@ -6,6 +6,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.77] - 2026-09-06
+
+### Fixed
+
+Three reports, and all three were my rule being wrong rather than the machinery.
+
+- **The listing's green background is back.** `ownColors` is the cart's own
+  name for the difference between the two screens: `Pokedex_InitMainScreen`
+  sets `wCurPartySpecies` to -1, so the **listing** draws every row through
+  `PokedexQuestionMarkPalette` — the green mon on green is Gold, not a box to
+  be removed — while `Pokedex_InitDexEntryScreen` sets the real species and the
+  **entry** gets the mon's own colours, whose colour 0 is the white slab. I cut
+  both, which took the green off the listing and left the entry's square where
+  it was: precisely backwards. The listing is handed straight through now.
+
+- **The question mark loses its green box on the entry.** The plate was dropped
+  only after a picture had been found to cut — so the one case with nothing to
+  look up was the one case that returned early and kept its box. The plate is
+  the square; finding a picture is a separate question and no longer gates it.
+  (Worse: `imageFor(nil)` would have thrown on a weak-keyed `t[nil] = true`.)
+
+- **Battle animations play again — the cut-out is trainers only.** The report
+  that brought this feature back was "trainers still have white squares behind
+  them", and a trainer's class pic is the one battle picture that is a figure
+  in a white field and nothing else. A **mon's** pic is not: Crystal animates
+  it, and the frames, the substitute doll and the faint slide's crop are all
+  the same texture seen through different quads. Cutting any of it stops the
+  animation being the cart's. A mon over a backdrop is already answered by
+  `MON PAPER`, which paints and never replaces. The two flags are read off the
+  same ones `BattleState:drawPic` branches on for its trainer boxes.
+
+- A second batch of assertions was **silently skipping** for the same reason as
+  last release: `ENGINE` was resolved *below* the block that used it, so two
+  more engine reads were passed over. It is hoisted above every use, and the
+  file reports 83 where it reported 80.
+
 ## [0.32.76] - 2026-09-06
 
 ### Fixed

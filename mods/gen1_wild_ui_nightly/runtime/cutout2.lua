@@ -440,21 +440,37 @@ function Cutout2.new(context)
     local basePic = PokedexMenu.drawPic
     if type(basePic) ~= "function" then return end
 
-    -- The #DEX is the other shape: ONE image, with a plate filled behind it in
-    -- the palette's colour 0 before it lands.  Both halves are the square --
-    -- cutting the picture and leaving the plate would change nothing at all --
-    -- so the plate is dropped for exactly as long as a cut picture is going in
-    -- its place, and kept otherwise.
+    -- ------- the #DEX
+    --
+    -- THE LISTING IS NOT THE ENTRY, and `ownColors` is the cart's own name for
+    -- the difference.  `Pokedex_InitMainScreen` sets wCurPartySpecies to -1, so
+    -- the LISTING draws every row through PokedexQuestionMarkPalette -- the
+    -- cart really does show a green mon on green there, and that green is
+    -- Gold, not a box to be removed.  `Pokedex_InitDexEntryScreen` sets the
+    -- real species and the ENTRY gets the mon's own two colours, whose colour
+    -- 0 is the white slab this arm exists for.
+    --
+    -- Cutting both took the cart's green OFF the listing while leaving the
+    -- entry's square exactly where it was: precisely backwards.  The listing
+    -- is handed straight through now, and only the entry is cut.
+    --
+    -- On the entry the plate goes FIRST and unconditionally.  It is the
+    -- square -- 56x56, the plate's exact size -- and whether a picture can be
+    -- found and cut is a separate question that is no longer allowed to gate
+    -- it.  That gate is why the question mark kept its green box through three
+    -- releases: the one case with nothing to look up was the one case that
+    -- returned early.
     PokedexMenu.drawPic = function(screen, row, tx, ty, ownColors, ...)
-      if not on() then return basePic(screen, row, tx, ty, ownColors, ...) end
-      -- Whichever picture the cart is about to lay, asked its way round:
-      -- a SEEN row's own pic, and the question mark for anything else --
-      -- including a seen row whose pic does not resolve, which on this cart
-      -- is every one of them (see modules/Gen1Dex/gen2pic.lua).  The square
-      -- is there either way and the ? sits in it just as a POKeMON would, so
-      -- refusing to cut the placeholder left the #DEX exactly as it was.
+      if not on() or not ownColors then
+        return basePic(screen, row, tx, ty, ownColors, ...)
+      end
+
+      -- Whichever picture the cart is about to lay, asked its way round: a
+      -- SEEN row's own pic, and the question mark for anything else.  Entirely
+      -- optional -- nil here means the plate still goes and the cart draws
+      -- whatever it was going to draw on top of nothing.
       local image
-      if row and row.seen and row.species then
+      if row and row.seen and row.species and type(screen.picFor) == "function" then
         local okPic, got = pcall(screen.picFor, screen, row.species)
         image = okPic and got or nil
       end
@@ -462,20 +478,7 @@ function Cutout2.new(context)
         local okMark, mark = pcall(screen.questionMark, screen)
         image = okMark and mark or nil
       end
-      -- THE PLATE GOES EITHER WAY, and that is the fix this arm was missing.
-      --
-      -- It used to bail unless a cut picture was ready, which made the whole
-      -- thing depend on a readback succeeding -- and the square on the screen
-      -- is 56x56, the plate's exact size, whether or not the picture inside it
-      -- has a baked field of its own.  Two independent halves were treated as
-      -- one, so a cut that was slow, refused, or simply on its first frame
-      -- left the plate standing and nothing appeared to happen at all.
-      --
-      -- So the plate is dropped whenever this is on, and the cut picture goes
-      -- in when there is one.  The worst case is now the first frame after an
-      -- entry opens: no plate, and a picture still carrying its own white
-      -- field.  That is one frame, and it is strictly less square than before.
-      local cut = self.imageFor(image)
+      local cut = image and self.imageFor(image) or nil
 
       local realRect = love.graphics.rectangle
       local realDraw = love.graphics.draw

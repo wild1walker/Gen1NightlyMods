@@ -731,14 +731,6 @@ end
 -- is a strip of frames whose "field" runs between them, and the frame the quad
 -- picks is a window onto it, not a figure standing in a square.
 do
-  local armSrc = assert(io.open("modules/Gen1Arena/main.lua")):read("*a")
-  ok(armSrc:find('local quad = first ~= nil and type(first) ~= "number"',
-                 1, true) ~= nil,
-     "the shim tells a quad draw from a plain one")
-  ok(armSrc:find("local cut = (not quad) and mod.options:get(\"pic_cutout\")",
-                 1, true) ~= nil,
-     "and never cuts the image behind a quad")
-  -- The engine's own three quad sites, so a fourth appearing is noticed.
   -- Resolved here rather than assumed: `ENGINE` was not a local in this file,
   -- so the three reads below were skipping in silence -- an assertion that
   -- never runs is the same as one that agrees with you.
@@ -755,7 +747,30 @@ do
       if probe then probe:close(); ENGINE = dir; break end
     end
   end
-  ok(ENGINE ~= nil, "an engine tree is found, so the three reads below run")
+  ok(ENGINE ~= nil, "an engine tree is found, so every read below runs")
+  local armSrc = assert(io.open("modules/Gen1Arena/main.lua")):read("*a")
+  ok(armSrc:find('local quad = first ~= nil and type(first) ~= "number"',
+                 1, true) ~= nil,
+     "the shim tells a quad draw from a plain one")
+  ok(armSrc:find("local cut = trainerPic and (not quad)", 1, true) ~= nil,
+     "and never cuts the image behind a quad")
+  -- TRAINERS ONLY.  A mon's pic is animated on Crystal -- frames out of a
+  -- sheet, the doll and the faint crop through quads of their own -- and every
+  -- one is the same texture through a different window.  Cutting any of it
+  -- means the animation stops being the cart's.  A mon over a backdrop is
+  -- already answered by MON PAPER, which paints and never replaces.
+  ok(armSrc:find("local trainerPic = (back and self.showPlayerTrainer)",
+                 1, true) ~= nil,
+     "the arm asks whether this call is drawing a TRAINER")
+  if ENGINE then
+    local text = assert(io.open(ENGINE .. "/src/ui/gen2/BattleState.lua")):read("*a")
+    ok(text:find("local trainerBack = back and self.showPlayerTrainer", 1, true) ~= nil,
+       "off the same flag the engine branches on for the player's box")
+    ok(text:find("local enemyTrainer = (not back) and self.showEnemyTrainer",
+                 1, true) ~= nil,
+       "and the same one for the enemy's")
+  end
+  -- The engine's own three quad sites, so a fourth appearing is noticed.
   local battle = ENGINE and io.open(ENGINE .. "/src/ui/gen2/BattleState.lua")
   if battle then
     local text = battle:read("*a") battle:close()

@@ -122,6 +122,30 @@ ok(dexSrc:find('G.rectangle("fill", tx * 8, ty * 8, 7 * 8, 7 * 8)', 1, true) ~= 
 ok(dexSrc:find("local blank = colors and GbcPalette.color(colors, 1)", 1, true) ~= nil,
    "in the palette's colour 0 -- so the plate is half the square")
 ok(src:find("dropped = true", 1, true) ~= nil, "which the arm drops")
+
+-- THE LISTING IS NOT THE ENTRY.  `ownColors` is the cart's own name for it:
+-- the listing draws every row through the question-mark palette and the cart
+-- genuinely shows a green mon on green there, while the entry gets the mon's
+-- own colours whose colour 0 is the white slab.  Cutting both took the green
+-- OFF the listing and left the entry's square in place -- backwards.
+local drawPicSrc = dexSrc:match("function PokedexMenu:drawPic.-\nend\n")
+ok(drawPicSrc and drawPicSrc:find("colors = self.gfx and self.gfx.questionMarkPalette",
+                                  1, true) ~= nil,
+   "without ownColors the cart uses the question-mark palette -- the green")
+ok(dexSrc:find("self:drawPic(self:current(), 1, 1)\n", 1, true) ~= nil,
+   "and the LISTING calls drawPic without it")
+ok(dexSrc:find("self:drawPic(row, 1, 1, true)", 1, true) ~= nil,
+   "while the ENTRY passes it")
+ok(src:find("if not on() or not ownColors then", 1, true) ~= nil,
+   "so the arm leaves the listing entirely alone")
+
+-- And on the entry the plate goes even when there is no picture to look up.
+-- That gate is why the question mark kept its green box: the one case with
+-- nothing to find was the one case that returned early.
+ok(src:find("local cut = image and self.imageFor(image) or nil", 1, true) ~= nil,
+   "a missing picture is optional, not a reason to keep the plate")
+ok(src:find("if not image then return basePic", 1, true) == nil,
+   "and there is no early return left that would keep it")
 -- The plate and the picture's own field are two independent halves, and
 -- treating them as one is what left the #DEX looking untouched: the arm bailed
 -- unless a cut was ready, so a cut that was refused, slow, or simply on its

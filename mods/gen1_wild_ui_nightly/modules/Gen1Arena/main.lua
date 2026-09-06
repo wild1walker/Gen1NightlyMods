@@ -2348,6 +2348,25 @@ local function installGen2()
       if not (active and consumed and mod.options:get("pic_paper") ~= false) then
         return basePic(self, mon, back, ...)
       end
+      -- ------- who may be cut
+      --
+      -- TRAINERS ONLY.  The report this feature came back for was "trainers
+      -- still have white squares behind them", and a trainer's class pic is
+      -- the one battle picture that is a figure standing in a white field and
+      -- nothing else.
+      --
+      -- A MON's pic is not.  Crystal animates it -- the frames come out of a
+      -- sheet, the substitute doll and the faint slide's crop come through
+      -- quads of their own -- and every one of those is the same texture seen
+      -- through a different window.  Cutting any of it means the animation is
+      -- no longer the cart's, and "they don't play their animation every time
+      -- you click on them" is what that costs.  A mon over a backdrop is
+      -- already answered by MON PAPER, which paints and never replaces.
+      --
+      -- Read off the same two flags `BattleState:drawPic` itself branches on
+      -- for the trainer boxes, rather than guessed at from the image.
+      local trainerPic = (back and self.showPlayerTrainer)
+        or ((not back) and self.showEnemyTrainer)
       -- Captured per call, not at install: another mod may have wrapped the
       -- draw since, and restoring a snapshot taken before it would take that
       -- mod's wrapper off for good.
@@ -2399,7 +2418,8 @@ local function installGen2()
         -- the case it always had.  The cut is for the plain blit, which is the
         -- one that was ever a square.
         local quad = first ~= nil and type(first) ~= "number"
-        local cut = (not quad) and mod.options:get("pic_cutout") ~= false
+        local cut = trainerPic and (not quad)
+          and mod.options:get("pic_cutout") ~= false
           and cutoutFor(image) or nil
         local paper = (not cut) and picPaperImage(image) or nil
         love.graphics.draw = shim
