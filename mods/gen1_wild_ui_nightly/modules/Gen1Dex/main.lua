@@ -112,6 +112,12 @@ return function(mod)
     -- turned them off.
     { key = "area_hints", type = "toggle", label = "AREA HINTS",
       default = true },
+    -- Crystal animates a POKeMON's picture when its #DEX entry opens, the way
+    -- the SUMMARY page already does.  Off leaves the still picture the entry
+    -- drew before.  On Gold and Silver there are no frames to play and the row
+    -- changes nothing.
+    { key = "dex_anim", type = "toggle", label = "DEX ANIMATION",
+      default = true },
     -- A over a town you can FLY to, on the AREA map, IS a flight.  The
     -- screen is the town map; if the party can fly and the cursor is over
     -- somewhere flyable, making you close it and come back through the START
@@ -174,6 +180,12 @@ return function(mod)
     -- entry rather than a screen of its own, so the entry opens too.  Masked;
     -- see gen2unseen.lua.
     area_unseen = true,
+    -- Crystal's front pics carry an animation and the SUMMARY page already
+    -- plays it; the #DEX entry did not.  Gold and Silver caches have no
+    -- `anim` row at all, so on those two the row governs nothing -- it is
+    -- the CART that decides, not the generation, so a cache with animation
+    -- added by a mod gets it too.  See gen2anim.lua.
+    dex_anim = true,
   }
 
   -- The LIST's own rows: SELECT's three views, the cursor wrap and the
@@ -327,6 +339,24 @@ return function(mod)
         }
       else
         mod.log:error("the Gold AREA caption did not build: %s", tostring(Area))
+      end
+    end
+
+    -- ------- and the picture moves, where the cart has frames for it
+    --
+    -- Built before the pic placeholder and the mask so both wrap outside it: a
+    -- species with no picture never reaches an animation, and a masked entry's
+    -- question mark is not something to animate either.
+    local makeAnim = loadSibling(mod, "gen2anim.lua")
+    if type(makeAnim) == "function" then
+      local animOk, Anim = pcall(makeAnim, mod, DexData)
+      if animOk and type(Anim) == "table" then
+        local installed, why = pcall(Anim.install)
+        if not installed then
+          mod.log:error("the #DEX animation was not wrapped: %s", tostring(why))
+        end
+      else
+        mod.log:error("the #DEX animation did not build: %s", tostring(Anim))
       end
     end
 

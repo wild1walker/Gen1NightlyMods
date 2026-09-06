@@ -6,6 +6,42 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.88] - 2026-09-06
+
+### Added
+
+- **The #DEX entry's picture animates**, the way the SUMMARY page's already
+  does. New row: **DEX ANIMATION**.
+
+  The engine drives Crystal's animated front pics in exactly one place —
+  `SummaryMenu` starts a `MonAnimView`, steps it once per update, and draws the
+  frame it hands back. `MonAnimView` is a *general* runner (the egg hatch, the
+  evolution and the trade all start one), so the entry simply starts one too.
+  Nothing about the animation is re-implemented: this is those three calls, on
+  the entry screen, plus the rule for when to start.
+
+  **It is the cartridge's behaviour rather than an addition.** Crystal animates
+  the pic when an entry opens; Gold and Silver caches carry no `anim` row at
+  all, so `MonAnimView.start` gives back nil and every line is a no-op there.
+  The *cart* decides, not the generation — which is why there is no per-cart
+  branch, and why a Gold cache with animation added by a mod gets it too.
+
+  - Starts on the frame the entry opens, and again whenever the entry shows a
+    different POKeMON. The runner reports when the scene ends, so the picture
+    settles on the base frame and stays there — it does not restart under
+    someone reading the text.
+  - The **listing** is left alone: its pic changes on every cursor step, so an
+    animation there would be a picture that never finishes starting.
+  - The frame is put in the still's draw, so the padding, palette, plate and
+    block are all the cart's own arithmetic. The swap is refused unless the
+    frame is the **same size** as the still it replaces — a 6x6 frame dropped
+    into a 7x7 pic's placement would sit a tile off.
+
+  Driven against the real `PokedexMenu`: the entry draws the frame, the listing
+  draws the still, the animation is dropped when the scene ends and the entry
+  goes back to the base picture, and a species with no `anim` row starts
+  nothing and draws exactly what it drew before.
+
 ## [0.32.87] - 2026-09-06
 
 ### Fixed
