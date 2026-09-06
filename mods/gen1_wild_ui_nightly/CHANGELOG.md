@@ -6,6 +6,36 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.65] - 2026-09-06
+
+### Fixed
+
+- **Battles over a backdrop work again.** 0.32.62's pic cut-out is off by
+  default. Reported as "on iOS, the image gets flipped, on android it just
+  crashes" — and blamed on Kanto in Motion, which was reasonable but wrong:
+  the arm only runs *when a backdrop is up*, so the one mod that actually
+  supplies one was the only mod that could show it. This was my regression,
+  not a compatibility problem.
+
+  Building a cut-out makes a **whole new texture**, and 0.32.62 made it inside
+  the draw, with a canvas bound and the frame half-painted. `picPaperImage`
+  did the same readback but produced a sparse mask of holes and bailed before
+  `newImage` for any pic that had none — which is every cart pic — so it
+  almost never reached texture creation and the difference never showed.
+  Reaching it for every trainer and every mon turned a rare path into a
+  per-pic one: mid-frame texture creation is what a GLES driver refuses, and a
+  readback that disagrees about orientation stops being a misplaced hole and
+  becomes the entire sprite upside down.
+
+  `MON CUTOUT` is a switch now and ships **off**. The builder itself is
+  correct and still tested; what must not happen by default is calling it from
+  inside a frame. The right build asks on one frame, draws the original, and
+  uses the cut-out from the next — worth doing, and not worth doing between a
+  crash report and a fix. `MON PAPER` is untouched and stays on.
+
+  Trainers will show their white square again over a backdrop until that
+  lands. A box is a nuisance; a crash is not a trade.
+
 ## [0.32.64] - 2026-09-05
 
 ### Fixed

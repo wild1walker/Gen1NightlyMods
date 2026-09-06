@@ -2308,7 +2308,31 @@ local function installGen2()
         -- thing to deal with.  A cut-out is the SAME image with the space
         -- around the figure taken to alpha 0, so it goes through the engine's
         -- own remap exactly as the original did.
-        local cut = picCutoutImage(image)
+        --
+        -- OFF BY DEFAULT, and this is a retreat rather than a preference.
+        -- 0.32.62 shipped it on, and it broke the one thing it needed to work
+        -- with: a battle over a BACKDROP -- "on iOS, the image gets flipped,
+        -- on android it just crashes".  Only over a backdrop, because that is
+        -- the only time this arm runs at all, which is why exactly one mod
+        -- appeared to be at fault.
+        --
+        -- The cause is that building a cut-out makes a WHOLE NEW TEXTURE, and
+        -- makes it here -- inside the draw, with a canvas bound and a frame
+        -- half-painted.  `picPaperImage` did the same readback but produced a
+        -- sparse mask of holes, and bailed before `newImage` for any pic that
+        -- had none, which is every cart pic -- so it almost never reached the
+        -- texture at all and the difference never showed.  Reaching it for
+        -- every trainer and every mon is what turned a rare path into a
+        -- per-pic one, and mid-frame texture creation is what a GLES driver
+        -- refuses.  A readback that disagrees about orientation stops being a
+        -- misplaced hole and becomes the entire sprite upside down.
+        --
+        -- The right build is out of the draw entirely -- ask on one frame,
+        -- draw the original, use the cut-out from the next -- and that is
+        -- worth doing.  It is not worth doing between a crash report and a
+        -- fix, so the switch ships off and the machinery and its tests stay.
+        local cut = mod.options:get("pic_cutout") == true
+          and picCutoutImage(image) or nil
         local paper = (not cut) and picPaperImage(image) or nil
         love.graphics.draw = shim
         -- Through whatever the engine has bound for this pic, so the paper is
@@ -2468,6 +2492,12 @@ end
 local optionRows = {
   { key = "enabled", type = "toggle", label = "BACKDROPS", default = true },
   { key = "pic_paper", type = "toggle", label = "MON PAPER", default = true },
+  -- Cuts the cart's own pics out of their baked white square instead of
+  -- letting it show as a box over a backdrop.  OFF until it is built outside
+  -- the draw: see the note in the pic shim.  On a host where it works it is
+  -- the better picture; on one where it does not it is a crash, and a crash
+  -- is not a trade.
+  { key = "pic_cutout", type = "toggle", label = "MON CUTOUT", default = false },
   -- The bars around the battle.  On, the backdrop's own edge is stretched
   -- into them so the picture runs off the screen; off, they are the paper
   -- white the engine gives a battle, which with a backdrop up reads as a

@@ -637,5 +637,28 @@ do
   eq(cut, nil, "a pic that already has alpha is left to the paper arm")
 end
 
+-- ---- and the cut-out ships OFF
+--
+-- 0.32.62 shipped it on and it broke a battle over a backdrop: flipped on
+-- iOS, a crash on Android.  The cause is that building one makes a whole new
+-- TEXTURE inside the draw, with a canvas bound -- something picPaperImage
+-- almost never reached, because it bailed before `newImage` for any pic with
+-- no holes, which is every cart pic.
+--
+-- The switch is what this pins.  The builder itself is still correct and
+-- still tested above; what must not happen by default is calling it from
+-- inside a frame.
+do
+  local rows = mod.rows or {}
+  local cutout, paper
+  for _, row in ipairs(rows) do
+    if row.key == "pic_cutout" then cutout = row end
+    if row.key == "pic_paper" then paper = row end
+  end
+  ok(cutout ~= nil, "MON CUTOUT is offered as a switch")
+  eq(cutout and cutout.default, false, "and it ships OFF")
+  eq(paper and paper.default, true, "while MON PAPER, which is safe, stays on")
+end
+
 io.write(("arena gen2 paper: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
