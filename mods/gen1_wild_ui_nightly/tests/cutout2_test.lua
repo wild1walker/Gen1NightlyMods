@@ -145,7 +145,7 @@ ok(src:find("if not on() or not ownColors then", 1, true) ~= nil,
 ok(src:find("if not image then return basePic", 1, true) == nil,
    "there is no early return left that would keep the plate")
 ok(src:find("local cut = image and self.imageFor", 1, true) == nil,
-   "and the #DEX asks for no cut at all now -- only the plate is its business")
+   "and a cut is never asked for on anything but the placeholder")
 -- The plate and the picture's own field are two independent halves, and
 -- treating them as one is what left the #DEX looking untouched: the arm bailed
 -- unless a cut was ready, so a cut that was refused, slow, or simply on its
@@ -157,11 +157,24 @@ ok(src:find("if not cut then\n        return basePic", 1, true) == nil,
 -- only plays once before having to restart the game", exactly: the first frame
 -- is the cart's live handle, the update takes a still of it, and every frame
 -- after is that still until the cache is emptied by a restart.
-ok(src:find("if cut and what == image then", 1, true) == nil,
-   "the #DEX pic is never swapped for a cut -- a cut cannot animate")
-ok(src:find("local realDraw = love.graphics.draw", 1, true) == nil
-   or src:find("PokedexMenu.drawPic", 1, true) == nil,
-   "and the draw is not shimmed there at all")
+-- TWO PICTURES, OPPOSITE TREATMENT -- the distinction four releases missed.
+--
+-- A DISCOVERED mon's white box is the PLATE, and dropping the plate is enough.
+-- The UNDISCOVERED entry's green is not the plate at all: it is the QUESTION
+-- MARK IMAGE'S OWN FIELD, baked in and painted green by the question-mark
+-- palette, so dropping the plate underneath it changes nothing visible.
+--
+-- So the ? needs its picture cut and a mon's must never be: a mon's pic
+-- animates through a live handle and a cut is a still, which is what froze it
+-- after the first frame.  Taking the substitution away from BOTH fixed the mon
+-- and put the ? straight back.
+ok(src:find("local image, isPlaceholder", 1, true) ~= nil,
+   "the arm tells the placeholder from a real pic")
+ok(src:find("isPlaceholder = image ~= nil", 1, true) ~= nil,
+   "and only the question mark is marked as one")
+ok(src:find("local cut = isPlaceholder and self.imageFor(image) or nil",
+            1, true) ~= nil,
+   "so only the question mark is ever cut -- a mon's pic is never even cached")
 -- The plate is matched by SHAPE rather than one exact size: Gold pads 5x5, 6x6
 -- and 7x7 mons into the same block, and the arm has to survive an engine whose
 -- plate is not the 56 pixels this checkout happens to read.

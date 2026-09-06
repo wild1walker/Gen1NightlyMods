@@ -486,7 +486,28 @@ function Cutout2.new(context)
       -- SEEN row's own pic, and the question mark for anything else.  Entirely
       -- optional -- nil here means the plate still goes and the cart draws
       -- whatever it was going to draw on top of nothing.
-      local image
+      -- ------- two pictures, and they need OPPOSITE treatment
+      --
+      -- This is the distinction four releases went round in circles for, and
+      -- the report that named it was "you figured out how to remove the
+      -- backgrounds on the Pokemon, do it to the ? picture".
+      --
+      -- A DISCOVERED mon's white box did go, because the box there is the
+      -- PLATE and dropping the plate is enough.  The undiscovered entry's
+      -- green did not, because there the square is not the plate at all: it is
+      -- the QUESTION MARK IMAGE'S OWN FIELD, baked into the picture and
+      -- painted green by the question-mark palette.  Dropping the plate
+      -- underneath it changes nothing you can see.
+      --
+      -- So the ? needs its picture cut, and a mon's must never be -- a mon's
+      -- pic ANIMATES through a live handle, and a cut is a still, which is
+      -- what froze it after the first frame.  0.32.79 fixed the animation by
+      -- taking the substitution away from BOTH, which fixed the mon and put
+      -- the ? straight back.
+      --
+      -- The ? is a static placeholder.  Cutting it is safe and is the whole of
+      -- what is left to do here.
+      local image, isPlaceholder
       if row and row.seen and row.species and type(screen.picFor) == "function" then
         local okPic, got = pcall(screen.picFor, screen, row.species)
         image = okPic and got or nil
@@ -494,7 +515,11 @@ function Cutout2.new(context)
       if not image and type(screen.questionMark) == "function" then
         local okMark, mark = pcall(screen.questionMark, screen)
         image = okMark and mark or nil
+        isPlaceholder = image ~= nil
       end
+      -- Asked for only on the placeholder, so a mon's pic is never cached and
+      -- never stands still.
+      local cut = isPlaceholder and self.imageFor(image) or nil
       -- NO SUBSTITUTION ON THE #DEX.  The pic ANIMATES -- "only plays once
       -- before having to restart the game" is the signature of a cache: the
       -- first frame the cart draws its own live handle and it animates, the
@@ -528,8 +553,15 @@ function Cutout2.new(context)
         end
         return realRect(mode, x, y, w, h, ...)
       end
+      local realDraw = love.graphics.draw
+      if cut then
+        love.graphics.draw = function(what, ...)
+          if what == image then return realDraw(cut, ...) end
+          return realDraw(what, ...)
+        end
+      end
       local okDraw, err = pcall(basePic, screen, row, tx, ty, ownColors, ...)
-      love.graphics.rectangle = realRect
+      love.graphics.rectangle, love.graphics.draw = realRect, realDraw
 
       -- ------- said once, because four releases of reasoning have not settled
       -- this and one line from a real cartridge would have

@@ -6,6 +6,39 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.81] - 2026-09-06
+
+### Fixed
+
+- **The question mark loses its green background — the right mechanism this
+  time.** The clue was in the report: the white box *did* go on a discovered
+  POKeMON and the green did not, on the same screen through the same call. The
+  only difference is which picture is in it.
+
+  A discovered mon's white box is the **plate**, and dropping the plate is
+  enough. The undiscovered entry's green is not the plate at all — it is the
+  **question mark image's own field**, baked into the picture and painted green
+  by the question-mark palette. Dropping the plate underneath it changes
+  nothing you can see, which is why four releases of fixes aimed at the plate
+  did nothing.
+
+  The ? picture is cut now, the way the trainer card's portrait already was.
+
+- **And a mon's pic is never cut, so the animation keeps playing.** These two
+  need opposite treatment and I had been giving them the same: a mon's pic
+  animates through a live image handle, and a cut is a still by construction —
+  caching one and drawing it forever is "plays once until you restart the
+  game", exactly. 0.32.79 fixed that by taking the substitution away from
+  *both*, which fixed the mon and put the ? straight back.
+
+  Only the placeholder is cut now. A mon's pic is never even cached, so there
+  is nothing that can stand still.
+
+  Driven against the real `PokedexMenu`: an undiscovered entry draws the ? on
+  its first frame and the cut on every frame after; a discovered entry draws
+  the cart's own picture on every frame and queues nothing at all; and the
+  listing keeps its plate and its picture untouched.
+
 ## [0.32.80] - 2026-09-06
 
 ### Added
