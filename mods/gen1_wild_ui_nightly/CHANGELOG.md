@@ -6,6 +6,32 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.80] - 2026-09-06
+
+### Added
+
+- **The #DEX plate reports what it actually saw, once per session.** Everything
+  this arm depends on is provable here — it installs on a Gen 2 boot, the row
+  is on, `ownColors` is true on the entry, and the plate is suppressed when the
+  whole bundle is driven headlessly. On the cartridge the green square survives
+  anyway, so one of those is false there, and no amount of reading this end
+  will say which.
+
+  So it now writes one line the first time an entry is drawn:
+
+  ```
+  #DEX plate: wrap ran, ownColors=true, square fill seen=?, dropped=?, rects=N
+  ```
+
+  - **`seen=false`** means the plate is not a `love.graphics.rectangle` on that
+    engine at all — and every fix aimed at one, across four releases, has been
+    aimed at the wrong call.
+  - **`seen=true, dropped=true`** means it *was* suppressed, and the green is
+    something else drawing over it.
+
+  Either answer ends the guessing. Nothing else in this release changes
+  behaviour.
+
 ## [0.32.79] - 2026-09-06
 
 ### Fixed

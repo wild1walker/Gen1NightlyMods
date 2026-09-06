@@ -515,8 +515,12 @@ function Cutout2.new(context)
       -- happens to read.
       local px, py = tx * 8, ty * 8
       local realRect = love.graphics.rectangle
-      local dropped = false
+      local dropped, sawSquare, rects = false, false, 0
       love.graphics.rectangle = function(mode, x, y, w, h, ...)
+        rects = rects + 1
+        if mode == "fill" and w == h and w >= 5 * 8 and w <= 7 * 8 then
+          sawSquare = true
+        end
         if not dropped and mode == "fill" and w == h
             and w >= 5 * 8 and w <= 7 * 8 and x == px and y == py then
           dropped = true
@@ -526,6 +530,28 @@ function Cutout2.new(context)
       end
       local okDraw, err = pcall(basePic, screen, row, tx, ty, ownColors, ...)
       love.graphics.rectangle = realRect
+
+      -- ------- said once, because four releases of reasoning have not settled
+      -- this and one line from a real cartridge would have
+      --
+      -- Everything this arm depends on is provable HERE -- it installs on a
+      -- Gen 2 boot, the row is on, `ownColors` is true on the entry, and the
+      -- plate is suppressed when the whole bundle is driven headlessly.  On
+      -- the cartridge the square survives anyway, so one of those is false
+      -- there and no amount of reading this end will say which.
+      --
+      -- So it reports what it actually saw, once per session: whether any
+      -- square fill arrived at the pic's corner at all.  "seen=false" means
+      -- the plate is not a `love.graphics.rectangle` on that engine and every
+      -- fix aimed at one has been aimed at the wrong call; "seen=true,
+      -- dropped=true" means it was suppressed and the green is something else
+      -- drawing over it.
+      if not self.toldDex then
+        self.toldDex = true
+        mod.log:warn("#DEX plate: wrap ran, ownColors=%s, square fill seen=%s, "
+          .. "dropped=%s, rects=%d", tostring(ownColors and true or false),
+          tostring(sawSquare), tostring(dropped), rects)
+      end
       if not okDraw then error(err, 0) end
       return err
     end
