@@ -6,6 +6,56 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.89] - 2026-09-06
+
+### Fixed
+
+- **MOVE carries a POKeMON through the party on Gold**, instead of swapping two
+  of them. **MOVE NOT SWITCH** is now offered on both cartridges.
+
+  Reported as "moving the Pokemon through the party in party menu still doesn't
+  make them flash and see the list live update". Both halves were the same
+  missing thing: the POKeMON did not travel, so there was nothing to watch and
+  nothing to flash.
+
+  Gold's own move is an **exchange**. `beginSwitch` parks a `▷` on the held row,
+  `updateSwitch` walks the cursor, and A runs `_SwitchPartyMons` — one line,
+  `party[from], party[to] = party[to], party[from]`. The difference from Red's
+  carry only shows past one row: carrying the fourth member to the top should
+  leave the three it passed *in the order they were already in*, and a swap
+  trades the ends and leaves the middle alone.
+
+  - **UP and DOWN carry it a row at a time**, reordering the party as it goes.
+    The cursor and the `▷` ride the POKeMON, because it is the thing being
+    moved.
+  - **The list is the save, on every frame.** The array is reordered on each
+    step rather than once at the end — party order *is* battle order, so a list
+    drawn in one order over an array stored in another has a lead POKeMON
+    nobody on screen can see. It is also why A costs nothing to commit.
+  - **B walks it home**, exactly, however far it went — every step left the
+    others in their own order, so putting this one back in the row it started
+    in restores the party.
+  - **The letter rides with it.** `sPartyMail` is six structs keyed by *party
+    slot*, so a member that changes rows without its mail arrives holding
+    somebody else's. Each single-row step is exactly one `Mail.swapSlots`
+    pair — the other reason to move a row at a time rather than jump. A list
+    that is not the save's own party (a battle copy, a day-care pick) has no
+    mail to carry and none is touched.
+  - **The POKeMON in your hand flashes** — sixteen frames lit, eight dark, which
+    is Red's box and party to the frame.
+  - The popup row still says **SWITCH** on Gold. Red's renames it MOVE, which it
+    can because Red's popup has no other MOVE; Gold's does, and it is the move
+    manager. The setting is named for the behaviour, which is the part that
+    changes.
+
+  Off, the cart's own switch is back: two picks over a list that does not move,
+  and one exchange when the second lands.
+
+  Driven against the real `src/ui/gen2/PartyMenu`, with the cart's exchange read
+  off the cartridge source rather than assumed — the carry inserts where a swap
+  would trade the ends, the mail pairs on every step, B restores the party it
+  started as, and the held row blinks at 16-on/8-off.
+
 ## [0.32.88] - 2026-09-06
 
 ### Added

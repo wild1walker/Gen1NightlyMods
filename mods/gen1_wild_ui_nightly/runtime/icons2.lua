@@ -155,6 +155,11 @@ function Icons2.install(context)
   if type(baseIconX) == "function" then
     PartyMenu.iconX = function(menu, index)
       menu.gen1wildAnimate = (index == menu.index)
+      -- The row itself, for anyone who needs to know WHICH one is being drawn
+      -- rather than just whether it is the selected one -- the carry's flash
+      -- reads it (modules/Gen1Party/gen2carry.lua).  Recorded off the cart's
+      -- own call rather than from a second copy of its loop.
+      menu.gen1wildIconRow = index
       return baseIconX(menu, index)
     end
   end

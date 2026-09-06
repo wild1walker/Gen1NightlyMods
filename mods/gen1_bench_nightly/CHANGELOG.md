@@ -5,6 +5,10 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.32.89] - 2026-09-06
+
+No changes in this bundle. The version moves with the channel.
+
 ## [0.32.88] - 2026-09-06
 
 ### Changed

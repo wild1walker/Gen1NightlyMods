@@ -157,16 +157,22 @@ do
      "RULED ICONS is offered on Gold as of 0.32.28: the frame puts a rule "
      .. "between the icons and the names there too, and off puts the "
      .. "engine's own icon slide back")
-  ok(not keys.live_move,
-     "MOVE NOT SWITCH is NOT offered: moving a member on Gold is MOVE "
-     .. "POKéMON in the PC, not a row on this popup, so the switch this row "
-     .. "would change is not there to change")
+  -- This row used to be fenced off from Gold, on the reasoning that moving a
+  -- member there is MOVE POKéMON in the PC rather than a row on this popup.
+  -- That reading was wrong: `GetMonSubmenuItems` puts SWITCH on the popup on
+  -- Gold too (src/ui/gen2/PartyMenu.lua:252), and A on it runs `beginSwitch`.
+  -- So the row has a switch to change after all, and as of 0.32.89
+  -- gen2carry.lua changes it -- see tests/partycarry_gen2_test.lua.
+  ok(keys.live_move,
+     "MOVE NOT SWITCH is offered on Gold: its popup has a SWITCH row too")
 
   eq(next(mod.content.screens.registered), nil,
      "no screen is registered: the Gold arm replaces one METHOD on the "
      .. "cart's party list, not the screen")
   eq((mod.reads or {})["gen2panel.lua"], 1,
-     "the Gold frame is the one sibling read there")
+     "the Gold frame is read there")
+  eq((mod.reads or {})["gen2carry.lua"], 1,
+     "...and so is the carry, as of 0.32.89")
   eq((mod.reads or {})["screen.lua"], nil,
      "the Gen 1 screen is never even READ on Gold -- it reaches "
      .. "PartyMenu.drawIcon and .sgbPalettes, which are nil there")

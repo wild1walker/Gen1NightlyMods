@@ -259,16 +259,19 @@ return function(mod)
   -- The one row that is a setting for the Gen 1 screen, and so exists only
   -- where that screen does: on Gold, moving a member is MOVE POKéMON in the
   -- PC (_MovePKMNWithoutMail) rather than a row on this popup.
-  if not isGen2 then
-    -- The popup's SWITCH row, and what pressing it does.  On: the row says
-    -- MOVE, and A lifts that member -- it flashes, UP and DOWN carry it
-    -- through the list a row at a time, and the party is reordered under it
-    -- as it goes, which is how Gen1BillsBox moves one.  Off restores the
-    -- engine's own SWITCH: two picks over a list that does not move, and one
-    -- exchange when the second lands.
-    schema[#schema + 1] = { key = "live_move", type = "toggle",
-      label = "MOVE NOT SWITCH", default = true }
-  end
+  -- The popup's SWITCH row, and what pressing it does.  On: the row says
+  -- MOVE, and A lifts that member -- it flashes, UP and DOWN carry it through
+  -- the list a row at a time, and the party is reordered under it as it goes,
+  -- which is how Gen1BillsBox moves one.  Off restores the engine's own
+  -- SWITCH: two picks over a list that does not move, and one exchange when
+  -- the second lands.
+  --
+  -- Offered on BOTH cartridges now.  It was Gen 1 only for as long as Gold
+  -- kept its own swap, and gen2carry.lua is that same behaviour over Gold's
+  -- own move mode -- so the row means the same thing on both and reads the
+  -- same key.
+  schema[#schema + 1] = { key = "live_move", type = "toggle",
+    label = "MOVE NOT SWITCH", default = true }
 
   mod.options:define(schema)
 
@@ -299,6 +302,26 @@ return function(mod)
     else
       mod.log:warn("gen2panel.lua did not load; the party keeps the cart's "
         .. "frame: %s", tostring(panel))
+    end
+    -- ------- and MOVE carries rather than swaps
+    --
+    -- Its own arm, and its own failure: a party that keeps the cart's swap is
+    -- the party every build before this one had, so this is a warning rather
+    -- than a broken screen.  See gen2carry.lua.
+    local okCarry, carry = pcall(loadSibling, mod, "gen2carry.lua")
+    if okCarry and type(carry) == "function" then
+      local built = carry(mod)
+      if type(built) == "table" and type(built.install) == "function" then
+        local ranOk, problem = pcall(built.install)
+        if ranOk then
+          mod.exports.gen2carry = built
+        else
+          mod.log:warn("MOVE keeps the cart's swap: %s", tostring(problem))
+        end
+      end
+    else
+      mod.log:warn("gen2carry.lua did not load; MOVE keeps the cart's swap: %s",
+        tostring(carry))
     end
     installStartMenuRow(mod)
     return
