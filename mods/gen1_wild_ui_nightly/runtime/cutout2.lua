@@ -479,9 +479,7 @@ function Cutout2.new(context)
     -- releases: the one case with nothing to look up was the one case that
     -- returned early.
     PokedexMenu.drawPic = function(screen, row, tx, ty, ownColors, ...)
-      if not on() or not ownColors then
-        return basePic(screen, row, tx, ty, ownColors, ...)
-      end
+      if not on() then return basePic(screen, row, tx, ty, ownColors, ...) end
 
       -- Whichever picture the cart is about to lay, asked its way round: a
       -- SEEN row's own pic, and the question mark for anything else.  Entirely
@@ -517,6 +515,29 @@ function Cutout2.new(context)
         local okMark, mark = pcall(screen.questionMark, screen)
         image = okMark and mark or nil
         isPlaceholder = image ~= nil
+      end
+
+      -- ------- and WHICH SCREEN this is only matters for a real POKeMON
+      --
+      -- The rule was "the listing is not the entry", and that was still the
+      -- wrong axis.  It is WHICH PICTURE IS IN THE BOX:
+      --
+      --   a POKeMON on the LISTING   keeps the cart's green.  Asked for
+      --                              directly -- "Pokemon don't have a green
+      --                              background when they should" -- and it is
+      --                              Gold: the listing draws every row through
+      --                              the question-mark palette.
+      --   a POKeMON on the ENTRY     loses its plate.  That is the white box.
+      --   the QUESTION MARK, EITHER  loses its background.  "The background
+      --                              doesn't disappear behind the question
+      --                              marks like it should" is the same
+      --                              complaint on both screens.
+      --
+      -- Gating the whole arm on `ownColors` made that third case unreachable
+      -- on the listing -- which is the screen the report that finally named it
+      -- was taken on.
+      if not (ownColors or isPlaceholder) then
+        return basePic(screen, row, tx, ty, ownColors, ...)
       end
       -- ------- the question mark, keyed rather than cut
       --

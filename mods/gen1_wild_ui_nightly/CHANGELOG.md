@@ -6,6 +6,34 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.83] - 2026-09-06
+
+### Fixed
+
+- **The question mark loses its background on the listing too.** The rule I had
+  been applying was "the listing is not the entry", and that was still the
+  wrong axis. It is **which picture is in the box**:
+
+  | | |
+  |---|---|
+  | a POKeMON on the **listing** | keeps the cart's green — asked for directly, and it is Gold: the listing draws every row through the question-mark palette |
+  | a POKeMON on the **entry** | loses its plate. That is the white box |
+  | the **question mark**, either screen | loses its background |
+
+  Gating the whole arm on `ownColors` made that third case unreachable on the
+  listing — which is the screen the report that finally named it was taken on.
+  Every fix since 0.32.77 was being applied to a screen the report was not
+  about.
+
+  Driven against the real `PokedexMenu`, all four cases:
+
+  ```
+  LIST  + POKeMON        PLATE 56x56 + draw MON   keyed=false
+  LIST  + question mark  draw QM                  keyed=true
+  ENTRY + POKeMON        draw MON                 keyed=false
+  ENTRY + question mark  draw QM                  keyed=true
+  ```
+
 ## [0.32.82] - 2026-09-06
 
 ### Fixed

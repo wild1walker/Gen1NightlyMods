@@ -136,8 +136,19 @@ ok(dexSrc:find("self:drawPic(self:current(), 1, 1)\n", 1, true) ~= nil,
    "and the LISTING calls drawPic without it")
 ok(dexSrc:find("self:drawPic(row, 1, 1, true)", 1, true) ~= nil,
    "while the ENTRY passes it")
-ok(src:find("if not on() or not ownColors then", 1, true) ~= nil,
-   "so the arm leaves the listing entirely alone")
+-- ...but that is only the rule for a real POKeMON.  The axis is WHICH PICTURE
+-- IS IN THE BOX, not which screen it is:
+--
+--   a POKeMON on the LISTING   keeps the cart's green
+--   a POKeMON on the ENTRY     loses its plate -- the white box
+--   the QUESTION MARK, EITHER  loses its background
+--
+-- Gating the whole arm on `ownColors` made that third case unreachable on the
+-- listing, which is the screen the report that finally named it was taken on.
+ok(src:find("if not (ownColors or isPlaceholder) then", 1, true) ~= nil,
+   "the listing is left alone for a POKeMON but not for the question mark")
+ok(src:find("if not on() or not ownColors then", 1, true) == nil,
+   "and the old screen-shaped gate is gone")
 
 -- And on the entry the plate goes even when there is no picture to look up.
 -- That gate is why the question mark kept its green box: the one case with
