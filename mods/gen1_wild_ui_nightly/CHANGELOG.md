@@ -6,6 +6,29 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.67] - 2026-09-06
+
+### Fixed
+
+- **The white square under the POKeMON on the dex entry.** The last of the
+  dex's white boxes, and the only one that was never text. Gold pads a pic
+  into a 7x7 block and fills that block before it draws, in the palette's
+  colour 0 -- so the picture arrives sitting on a solid square of it. On the
+  entry screen that palette is the mon's own two colours, whose colour 0 is
+  white, which on a dark page is a slab. It is now filled in the page's own
+  paper, so the square stops being a shape and the POKeMON stands on the page.
+
+  The LISTING is deliberately untouched. It passes no palette of its own and
+  draws every row through the question-mark palette -- the cart really does
+  show a green mon on green there, and that is Gold, not a bug. An entry for a
+  POKeMON you have not SEEN keeps its plate too: the question mark is drawn in
+  that same green whatever the caller asked for, so repainting behind it would
+  only move the square rather than remove it.
+
+  The pic itself is still the cart's picture in the cart's colours. A sprite
+  that carries its own baked field will still carry it until the cut-out can
+  be built outside the draw; this is the half that is free and cannot crash.
+
 ## [0.32.66] - 2026-09-06
 
 ### Fixed

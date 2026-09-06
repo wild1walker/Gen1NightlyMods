@@ -938,6 +938,63 @@ function Theme2.new(context)
         end
       end
 
+      -- ------- and the dex ENTRY's plate under the pic
+      --
+      -- Pokedex_LoadSelectedMonTiles lays the pic into a 7x7 block and leaves
+      -- the rest of the block blank, which under the palette in force is its
+      -- colour 0.  `PokedexMenu:drawPic` paints that as a rectangle first.
+      --
+      -- On the LIST that colour is the question-mark palette's, and the cart
+      -- really does show "a green mon on green" (the engine says so in those
+      -- words) -- so the list is left exactly alone.  On the ENTRY the mon's
+      -- OWN palette is in force and its colour 0 is WHITE, which on a themed
+      -- page is a white slab with the POKeMON sitting in the middle of it.
+      --
+      -- Painted in the page's own paper instead, which is what "cut them out
+      -- of that square" means for a flat fill: the plate stops being a shape.
+      -- The pic itself is untouched -- it is a picture and keeps the cart's
+      -- colours -- so a 7x7 sprite still carries its own baked field until the
+      -- cut-out can be built outside the draw (see modules/Gen1Arena).  A
+      -- smaller square is not the whole answer, and it is the half that is
+      -- free and cannot crash.
+      local okDex, PokedexMenu = pcall(require, "src.ui.gen2.PokedexMenu")
+      if okDex and type(PokedexMenu) == "table"
+          and type(PokedexMenu.drawPic) == "function"
+          and not rawget(PokedexMenu, "__gen1wildDexPlate") then
+        PokedexMenu.__gen1wildDexPlate = true
+        local basePic = PokedexMenu.drawPic
+        PokedexMenu.drawPic = function(self, row, tx, ty, ownColors, ...)
+          -- `ownColors` is only half the question: a row that has not been
+          -- SEEN draws the question mark through the question-mark palette
+          -- whatever the caller asked for, and that plate is the cart's green
+          -- rather than a white slab.  Left alone -- it is not the bug, and a
+          -- paper plate under a green glyph would only move the square.
+          local mine = ownColors and row and row.seen
+          local paper = (not same(live, vanilla)) and mine and live[1] or nil
+          if type(paper) ~= "table" then
+            return basePic(self, row, tx, ty, ownColors, ...)
+          end
+          local G = love.graphics
+          local realRect = G.rectangle
+          local done = false
+          G.rectangle = function(mode, x, y, w, h, ...)
+            -- the one fill this arm is for: the 7x7 plate the pic is padded
+            -- into, at the block's own corner
+            if not done and mode == "fill" and w == 7 * 8 and h == 7 * 8 then
+              done = true
+              G.setColor(paper[1] / 255, paper[2] / 255, paper[3] / 255, 1)
+              realRect(mode, x, y, w, h)
+              return
+            end
+            return realRect(mode, x, y, w, h, ...)
+          end
+          local ok, err = pcall(basePic, self, row, tx, ty, ownColors, ...)
+          G.rectangle = realRect
+          if not ok then error(err, 0) end
+          return err
+        end
+      end
+
       if not rawget(Chrome, "__gen1wildPagePalettes") then
         Chrome.__gen1wildPagePalettes = true
         local basePrint = Chrome.printThrough
