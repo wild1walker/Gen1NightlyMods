@@ -6,6 +6,40 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.84] - 2026-09-06
+
+### Fixed
+
+- **The question mark's square finally comes off, and the cause was one line.**
+
+  The cut-out decided which colour was the "field" by taking **the lightest by
+  red**, on the reasoning that a cart picture stands in its own colour 0 and
+  colour 0 is the white one. That is true of every POKeMON pic — and false of
+  the question mark, whose **glyph is lighter than the square it sits in**.
+  Measured off the screen: field red 57, glyph red 72.
+
+  So "lightest" picked the *glyph* as the field. The border could not reach a
+  single glyph pixel, the flood found nothing to cut, and the cut was refused —
+  silently, every time, for six releases. Nothing on screen said so; the square
+  just stayed, and each release aimed a different mechanism at it while the one
+  line underneath kept looking at the wrong end of the palette.
+
+  The field is now taken from **the border ring, by majority**, which is the
+  honest definition — the field is what surrounds the figure, and what
+  surrounds the figure is what the edge of the block is made of. It assumes
+  nothing about which way round the shades run, so it is right for both:
+
+  ```
+  ?   (glyph LIGHTER than field)   CUT   corner alpha 0, glyph alpha 1
+  mon (figure DARKER than field)   CUT   corner alpha 0, body  alpha 1
+  ```
+
+- **The keying from 0.32.82 is reverted.** It dropped shade 0 — the lightest —
+  which on this picture is the glyph, not the square. It was aimed at the same
+  wrong end as the refusal, and did nothing visible for exactly the same
+  reason. The ? is cut now, like any other picture standing in a square, and
+  it is safe to cache because it is a static placeholder.
+
 ## [0.32.83] - 2026-09-06
 
 ### Fixed

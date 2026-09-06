@@ -189,18 +189,20 @@ ok(src:find("isPlaceholder = image ~= nil", 1, true) ~= nil,
 -- `GbcPalette.with` and `keyedWith` is the same draw with shade 0 at alpha 0,
 -- which is exactly the green field.  Right on the first frame, nothing to
 -- refuse.
-ok(src:find("GbcPalette.with = GbcPalette.keyedWith", 1, true) ~= nil,
-   "the placeholder is drawn through the KEYED remap")
-ok(src:find("if keyed then GbcPalette.with = realWith end", 1, true) ~= nil,
-   "and the plain one is put straight back")
+-- The ? is CUT, not keyed.  0.32.82 keyed it because the cut kept being
+-- refused -- and keying drops shade 0, the LIGHTEST, which on this picture is
+-- the glyph rather than the square.  It was aimed at the same wrong end as the
+-- refusal and did nothing visible for the same reason.
 do
   local wrap = src:match("PokedexMenu%.drawPic = function.-\n    end\n")
   ok(wrap ~= nil, "the #DEX wrap is findable")
-  ok(wrap and wrap:find("imageFor", 1, true) == nil,
-     "and asks for no cut at all -- nothing to time, nothing to cache, and "
-     .. "nothing that can stand still in front of an animation")
-  ok(wrap and wrap:find("keyedWith", 1, true) ~= nil,
-     "it keys instead")
+  ok(wrap and wrap:find("keyedWith", 1, true) == nil,
+     "the placeholder is not keyed -- keying targets the lightest shade, and "
+     .. "on the ? the lightest shade is the glyph")
+  ok(wrap and wrap:find("isPlaceholder and self.imageFor(image)", 1, true) ~= nil,
+     "it is cut, like any other picture standing in a square")
+  ok(wrap and wrap:find("if what == image then return realDraw(cut", 1, true) ~= nil,
+     "and the cut is put in its place")
 end
 -- Keying is safe for THIS picture and not for a mon's: the ? is a solid glyph
 -- with no shade 0 inside it, so there is no enclosed white to punch through --
@@ -372,9 +374,13 @@ do
       local v = on and glyph or green
       return v, v, v, 1
     end }
-  eq(Cutout2.cut(shaded, 8, 8), nil,
-     "a readback taken through the palette is refused -- the field is not the "
-     .. "lightest colour any more, so there is nothing at the border to flood")
+  -- Once the field comes from the BORDER this is no longer a refusal -- it is
+  -- simply cut in whatever colours it was read in, which is why clearing the
+  -- shader still matters: the cut would otherwise be of the green rather than
+  -- of the shades, and cached that way.
+  ok(Cutout2.cut(shaded, 8, 8) ~= nil,
+     "a readback taken through the palette now cuts, so the shader must be "
+     .. "cleared for the cut to be of the SHADES rather than of the colour")
 
   -- The same picture read back as SHADES, which is what clearing the shader
   -- gives: field 1.0, glyph 0.0.  Now it cuts.
@@ -390,6 +396,59 @@ do
     eq(out:alphaAt(0, 0), 0, "its field goes")
     eq(out:alphaAt(3, 3), 1, "and the glyph stays")
   end
+end
+
+-- ---- the FIELD is what is at the border, not what is lightest
+--
+-- This one line refused the question mark silently for six releases.
+--
+-- The field used to be "the lightest by red", on the reasoning that a cart
+-- picture stands in its own colour 0 and colour 0 is the white one.  True of
+-- every POKeMON pic.  FALSE of the question mark: its glyph is LIGHTER than
+-- the square it sits in -- measured off the screen at field red 57, glyph red
+-- 72 -- so "lightest" picked the GLYPH as the field, the border could not
+-- reach a single glyph pixel, the flood found nothing, and the cut was
+-- refused.  Nothing on screen said so; the square just stayed.
+--
+-- The border is the honest definition and assumes nothing about which way
+-- round the shades run.
+do
+  local function shades(w, h, plot)
+    return { getDimensions = function() return w, h end,
+             getPixel = function(_, x, y)
+               local v = plot(x, y)
+               return v, v, v, 1
+             end }
+  end
+
+  -- The question mark, as it really is: glyph LIGHTER than its field.
+  local FIELD, GLYPH = 57 / 255, 72 / 255
+  local out = Cutout2.cut(shades(8, 8, function(x, y)
+    local on = x >= 2 and x <= 5 and y >= 1 and y <= 6
+    return on and GLYPH or FIELD
+  end), 8, 8)
+  ok(out ~= nil, "a figure LIGHTER than its field is cut")
+  if out then
+    eq(out:alphaAt(0, 0), 0, "the darker square around it goes")
+    eq(out:alphaAt(3, 3), 1, "and the lighter glyph stays")
+  end
+
+  -- A POKeMON pic, the other way round: an ink figure in a WHITE field.  The
+  -- case that always worked, and must keep working.
+  local mon = Cutout2.cut(shades(8, 8, function(x, y)
+    local on = x >= 2 and x <= 5 and y >= 2 and y <= 5
+    return on and 0 or 1
+  end), 8, 8)
+  ok(mon ~= nil, "and a figure DARKER than its field still is")
+  if mon then
+    eq(mon:alphaAt(0, 0), 0, "its white square goes")
+    eq(mon:alphaAt(3, 3), 1, "and the body stays")
+  end
+
+  ok(src:find("fieldRed", 1, true) == nil,
+     "nothing decides the field by brightness any more")
+  ok(src:find("local edge = {}", 1, true) ~= nil,
+     "it is taken from the border ring by majority")
 end
 
 io.write(("cutout2: %d passed, %d failed\n"):format(passed, failed))

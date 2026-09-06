@@ -114,7 +114,6 @@ function Cutout2.cut(data, w, h, gaps)
   local half = math.floor(ratio / 2)
 
   local px, colors, nColors = {}, {}, 0
-  local field, fieldRed = nil, -1
   for y = 0, h - 1 do
     local row = y * w
     for x = 0, w - 1 do
@@ -133,13 +132,39 @@ function Cutout2.cut(data, w, h, gaps)
         nColors = nColors + 1
         if nColors > MAX_COLORS then return nil end
       end
-      -- The lightest by RED, which is the shade the hardware would call 0 --
-      -- the same channel GbcPalette's own shader keys off.
-      if r > fieldRed then field, fieldRed = key, r end
       ::continue::
     end
   end
-  if nColors < 2 or not field then return nil end
+  if nColors < 2 then return nil end
+
+  -- ------- which colour is the FIELD
+  --
+  -- Whatever is actually AT THE BORDER, by majority.  This used to be "the
+  -- lightest by red", on the reasoning that a cart picture stands in its own
+  -- colour 0 and colour 0 is the white one -- true of every POKeMON pic and
+  -- FALSE of the question mark, whose glyph is LIGHTER than the square it
+  -- sits in.  Measured off the screen: field red 57, glyph red 72.
+  --
+  -- So "lightest" picked the GLYPH as the field, the border could not reach a
+  -- single glyph pixel, the flood found nothing, and the cut was refused --
+  -- every time, silently, for six releases.  The ? kept its square because
+  -- this one line was looking at the wrong end of the palette.
+  --
+  -- The border is the honest definition and needs no assumption about which
+  -- way round the shades run: the field is what surrounds the figure, and what
+  -- surrounds the figure is what the edge of the block is made of.
+  local edge = {}
+  local function tally(i)
+    local key = px[i]
+    if key and key ~= -1 then edge[key] = (edge[key] or 0) + 1 end
+  end
+  for x = 0, w - 1 do tally(x); tally((h - 1) * w + x) end
+  for y = 0, h - 1 do tally(y * w); tally(y * w + w - 1) end
+  local field, fieldCount = nil, 0
+  for key, count in pairs(edge) do
+    if count > fieldCount then field, fieldCount = key, count end
+  end
+  if not field then return nil end
 
   local figure = {}
   for i = 0, w * h - 1 do
@@ -539,50 +564,18 @@ function Cutout2.new(context)
       if not (ownColors or isPlaceholder) then
         return basePic(screen, row, tx, ty, ownColors, ...)
       end
-      -- ------- the question mark, keyed rather than cut
+      -- ------- the question mark IS cut, now that the cut can find its field
       --
-      -- A cut has to read the picture back, build a texture, and be there on
-      -- the frame it is wanted; it can be refused for half a dozen reasons and
-      -- every one of them looks identical on screen -- a green square and no
-      -- explanation.  Four releases went that way.
+      -- 0.32.82 keyed it instead, because the cut kept being refused.  Keying
+      -- drops shade 0 -- the LIGHTEST -- and on this picture the lightest is
+      -- the glyph, not the square: it was aimed at the same wrong end as the
+      -- refusal, and did nothing visible for the same reason.
       --
-      -- The ? does not need any of it.  It is drawn through
-      -- `GbcPalette.with(colors, body)` with the question-mark palette, and
-      -- `GbcPalette.keyedWith` is the SAME draw with shade 0 at alpha 0.  The
-      -- green field IS shade 0.  So the field simply stops being drawn: no
-      -- readback, no canvas, no texture, no cache, no timing, and nothing that
-      -- can be refused.  It is right on the first frame.
-      --
-      -- Safe for this picture specifically: the ? is a solid glyph with no
-      -- shade 0 inside it, so there is no enclosed white to punch a hole
-      -- through -- which is the one thing keying cannot tell from a field, and
-      -- the reason a mon's pic gets a flood fill instead of this.
-      --
-      -- runtime/theme2.lua does the same swap for the intro's portraits.
-      local keyed
-      if isPlaceholder and okGbc and type(GbcPalette) == "table"
-          and type(GbcPalette.with) == "function"
-          and type(GbcPalette.keyedWith) == "function" then
-        keyed = true
-      end
-      -- NO SUBSTITUTION ON THE #DEX.  The pic ANIMATES -- "only plays once
-      -- before having to restart the game" is the signature of a cache: the
-      -- first frame the cart draws its own live handle and it animates, the
-      -- update takes a still of whatever frame was showing, and every frame
-      -- after gets that still forever.  Restarting empties the cache, which is
-      -- why it plays exactly once more.
-      --
-      -- A cut is a STILL by construction, so there is no version of it that
-      -- can stand in for a picture that moves.  The plate is dropped and the
-      -- cart's own picture is left completely alone -- which is the whole of
-      -- what was asked for anyway: the square was the plate.
+      -- With the field taken from the border the cut succeeds, so the ? is cut
+      -- like any other picture standing in a square.  Safe to cache: it is a
+      -- static placeholder, unlike a POKeMON's pic, which is never cut here.
+      local cut = isPlaceholder and self.imageFor(image) or nil
 
-      -- The plate, matched by SHAPE rather than by one exact size.  It is the
-      -- square block the pic is padded into, and Gold pads 5x5, 6x6 and 7x7
-      -- mons into it -- so it is the first opaque square fill at the pic's own
-      -- corner, whatever its tile count.  Written this way because the arm has
-      -- to survive an engine whose plate is not the 56 pixels this checkout
-      -- happens to read.
       local px, py = tx * 8, ty * 8
       local realRect = love.graphics.rectangle
       local dropped, sawSquare, rects = false, false, 0
@@ -598,11 +591,15 @@ function Cutout2.new(context)
         end
         return realRect(mode, x, y, w, h, ...)
       end
-      local realWith = keyed and GbcPalette.with or nil
-      if keyed then GbcPalette.with = GbcPalette.keyedWith end
+      local realDraw = love.graphics.draw
+      if cut then
+        love.graphics.draw = function(what, ...)
+          if what == image then return realDraw(cut, ...) end
+          return realDraw(what, ...)
+        end
+      end
       local okDraw, err = pcall(basePic, screen, row, tx, ty, ownColors, ...)
-      if keyed then GbcPalette.with = realWith end
-      love.graphics.rectangle = realRect
+      love.graphics.rectangle, love.graphics.draw = realRect, realDraw
 
       -- ------- said once, because four releases of reasoning have not settled
       -- this and one line from a real cartridge would have
