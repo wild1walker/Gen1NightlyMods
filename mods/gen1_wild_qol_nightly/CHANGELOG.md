@@ -7,6 +7,21 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.92] - 2026-09-07
+
+### Fixed
+
+- **AUTO SAVE: picking QUIT with nothing to save no longer crashes.** Load a
+  save, open START and choose QUIT before anything has happened, and the game
+  stopped with `attempt to call field 'unpack' (a nil value)` instead of
+  showing the prompt. Nothing had changed yet, so there was no save worth
+  offering, and the fallback that hands the row back to the game untouched was
+  the broken part -- it named `table.unpack`, which the Lua the game runs
+  (LuaJIT) does not have, and it truncated the row's arguments to the first
+  one besides. Fixed upstream in Gen1AutoSave 1.20.1 and applied here directly
+  rather than through a rebase, because this fork is four releases behind the
+  stable bundle and a crash fix should not wait on that.
+
 ## [0.32.91] - 2026-09-06
 
 No changes in this bundle. The version moves with the channel.

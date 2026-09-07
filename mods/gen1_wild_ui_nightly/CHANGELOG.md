@@ -6,6 +6,11 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.92] - 2026-09-07
+
+Nothing in this mod changed. The channel ships one version across every
+archive, so this build carries the number and AUTO SAVE carries the fix.
+
 ## [0.32.91] - 2026-09-06
 
 ### Fixed
