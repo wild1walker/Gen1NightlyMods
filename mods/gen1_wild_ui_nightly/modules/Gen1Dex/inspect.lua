@@ -233,6 +233,18 @@ return function(mod, C)
   local BALL_X, BALL_R = 140, 3.5
   local NAME_X = 16
 
+  -- ------- and the width, by the same arithmetic
+  --
+  -- The box is the full twenty tiles, so its interior is x 8..151 and the
+  -- right border owns 152 onward.  The empty-state line was drawn at NAME_X,
+  -- which is where a mon's NAME goes because a CURSOR sits at 8 in front of
+  -- it; "NOTHING LIVES HERE" is eighteen glyphs, and from 16 they end at 160
+  -- with the last one drawn through the border.  It is a message, not a row,
+  -- so it goes where the box's other text goes.
+  local TEXT_X = 8
+  local LIST_RIGHT = 20 * 8 - 8 - 1        -- last interior pixel: x 151
+  local EMPTY = "NOTHING LIVES HERE"
+
   -- ------- more below
   --
   -- Six rows fill this box's interior exactly, so unlike the item list and
@@ -333,7 +345,7 @@ return function(mod, C)
 
       Font.drawBox(0, LIST_TY, 20, LIST_TH)
       if #self.rows == 0 then
-        Font.draw("NOTHING LIVES HERE", NAME_X, ROW_Y0)
+        Font.draw(clip(EMPTY), TEXT_X, ROW_Y0)
         love.graphics.setColor(1, 1, 1, 1)
         return
       end
@@ -367,6 +379,10 @@ return function(mod, C)
   Inspect.LIST_BOTTOM = LIST_BOTTOM
   Inspect.MORE_X = MORE_X
   Inspect.MORE_Y = MORE_Y
+  Inspect.NAME_X = NAME_X
+  Inspect.TEXT_X = TEXT_X
+  Inspect.LIST_RIGHT = LIST_RIGHT
+  Inspect.EMPTY = EMPTY
 
   -- ------- the press
 

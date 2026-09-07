@@ -6,6 +6,18 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.95] - 2026-09-07
+
+### Fixed
+
+- **"NOTHING LIVES HERE" no longer runs through the box border.** On a POKéDEX
+  AREA place with no encounters the line was drawn at the x the mon *names*
+  use — one tile further in than the box's own text, because a cursor normally
+  sits in front of a name. Eighteen glyphs from there end at 160 while the
+  right border owns 152 onward, so the last letter was drawn on top of the
+  frame. It is a message, not a row, so it sits where the box's other text
+  sits.
+
 ## [0.32.94] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
