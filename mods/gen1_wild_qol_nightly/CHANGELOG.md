@@ -7,6 +7,18 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.99] - 2026-09-07
+
+### Fixed
+
+- **Under DARK the caught marker is a POKéBALL again, and the EXP bar comes
+  back with it.** The ball reported one true-colour mark per *pixel* — 37 of
+  them for a 7x7 icon. DARK paints a one-pixel skirt round every mark, which
+  filled the ball's transparent corners in and made it a dark blob; and 37
+  rects emptied the theme's 40-rect-per-frame budget, so the EXP bar's single
+  mark fell off the end and lost the zone that themes it. Two reported
+  symptoms, one cause. The ball reports one rect per contiguous row-run now.
+
 ## [0.32.98] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
