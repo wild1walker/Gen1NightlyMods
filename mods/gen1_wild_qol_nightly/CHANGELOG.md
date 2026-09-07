@@ -7,6 +7,17 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.94] - 2026-09-07
+
+### Changed
+
+- **A rematch you cannot afford now says what it costs.** "You don't have
+  enough money." on its own is the same sentence whether the price is out of
+  reach or the purse is being read from a field that is not there — and both
+  have happened to this feature. The refusal carries the quote on a second
+  page now, and the price, the purse and (on Gold) the field the purse came
+  from go to the log beside it.
+
 ## [0.32.93] - 2026-09-07
 
 ### Fixed

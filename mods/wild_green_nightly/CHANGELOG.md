@@ -6,6 +6,12 @@ This is the **nightly** fork of [Wild Green][stable]. Its versions are the
 nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
 taken from.
 
+## [0.32.94] - 2026-09-07
+
+Nothing in this mod changed. The channel ships one version across every
+archive, so this build carries the number and TRAINER REMATCH carries the
+change.
+
 ## [0.32.93] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
