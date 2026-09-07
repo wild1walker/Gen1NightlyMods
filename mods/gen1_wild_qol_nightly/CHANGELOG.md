@@ -7,6 +7,25 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.96] - 2026-09-07
+
+### Fixed
+
+- **TRAINER REMATCH: the stake is half the prize now, the way it is on Red.**
+  Gold pays a trainer's reward in four quarters where Red pays it once
+  (`Prize.QUARTERS`), and this arm had copied Red's halving — so a Gold rematch
+  staked an *eighth* of the purse it was about to pay. Gold rematches now cost
+  four times what they were quoting, which is the price the feature has always
+  described.
+
+- **MATCH LEVELS reaches the battle, not just the quote.** Red scales through
+  the `trainer.party` hook and gets a rebuild for free: it is handed the roster
+  rows and the engine makes mons from what comes back. Gold calls the same hook
+  after the party is already built, so writing `level` there moved the number
+  and left the moves at the original level and the HP short (`refreshStats`
+  only clamps downward). The roster is offset before the battle is built now,
+  so a matched Gold trainer is the same opponent a matched Red one is.
+
 ## [0.32.95] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
