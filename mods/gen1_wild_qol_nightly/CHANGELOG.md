@@ -7,6 +7,24 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
 
+## [0.32.93] - 2026-09-07
+
+### Fixed
+
+- **TRAINER REMATCH on Gold no longer says you cannot afford it.** Every
+  rematch was refused with "You don't have enough money", whatever the purse
+  held: the Gold arm read `save.money`, which is where *Red* keeps it, and
+  Gold keeps it at `save.player.money` (`src/core/gen2/Save.lua:496`). So the
+  gate saw 0 every time, and the two writes behind it staked and refunded a
+  field nothing else in the engine reads.
+
+- **The REMEMBER popup sits where it should on the party menu.** Its frame
+  opened at `tx = 4, tw = 12` — narrower than the party menu's own bottom
+  message for a short pool, so the message showed past both sides of it, and
+  wide enough for a long move name (POISONPOWDER L22) that `Menu` nudged the
+  frame left onto the party's sprite column. Full width and hard against the
+  bottom edge now, which is the cart's own shape for that part of the screen.
+
 ## [0.32.92] - 2026-09-07
 
 ### Fixed

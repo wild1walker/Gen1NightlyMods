@@ -176,7 +176,13 @@ return function(mod, Relearn)
     local menu = Menu.new(game, items, {
       -- hung off the bottom edge the way the party menu's own submenu is, so
       -- the POKéMON the popup is about stays visible above it
-      tx = 4, ty = math.max(0, 18 - th), tw = 12, th = th,
+    -- FULL WIDTH, hard against the bottom edge.  `tx = 4, tw = 12` was wrong
+    -- both ways: Menu grows tw to the widest label and nudges tx left to keep
+    -- the frame on screen, so POISONPOWDER put the frame on the party's
+    -- SPRITE COLUMN -- and short labels left it narrower than the party
+    -- menu's own bottom message, which is drawn underneath and showed past
+    -- both sides of it.  0..20 covers that message and cannot be nudged.
+      tx = 0, ty = math.max(0, 18 - th), tw = 20, th = th,
       maxVisible = VISIBLE,
       -- No title on the frame.  The row that opened this popup already said
       -- REMEMBER and the box comes up over it, so a heading repeats the word

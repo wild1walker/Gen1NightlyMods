@@ -6,6 +6,16 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.93] - 2026-09-07
+
+### Fixed
+
+- **BILL'S BOX now reaches Gold's PC menu.** Gold has two PC menus where Red
+  has one, and only the inner one runs the `ui.pc.items` hook the rename goes
+  through — so the row a player presses first still said BILL'S PC while every
+  other surface said BOX. The row and the page it opens with are renamed now;
+  `<PLAYER>'s PC` and `PROF.OAK's PC` keep their names.
+
 ## [0.32.92] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
