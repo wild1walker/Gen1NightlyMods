@@ -6,6 +6,18 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.98] - 2026-09-07
+
+### Fixed
+
+- **The box walks its POKéMON at the party list's speed.** 0.32.97 fixed *which*
+  two frames the walk uses; this is how fast it plays them. The box drove the
+  icon clock at double rate to match the Gen 1 box's `ANIM_STEPS = 8` — but
+  Red's box animates by *mirroring* one frame, where Gold's icons are a two-pose
+  *walk*, so eight steps of Gold's is the walk at double speed. The box draws a
+  party column of its own, so the same POKéMON was walking at one speed there
+  and another in PARTY MENU.
+
 ## [0.32.97] - 2026-09-07
 
 ### Fixed
