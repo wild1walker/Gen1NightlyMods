@@ -6,6 +6,17 @@ was taken from.
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
 
+## [0.32.97] - 2026-09-07
+
+### Fixed
+
+- **POKéMON in the box and the party walk south again** instead of turning to
+  face you and away on the spot. Gold's icon path draws a sheet's first two
+  16x16 cells and alternates them — right for a 16x32 cart icon, wrong for the
+  16x96 follower sheets, whose first two cells are *stand south* and *stand
+  north*. The south walk is cells 0 and 3. Red has had the rule all along
+  (`frameFor`'s `ih >= 64 and 3 or 1`); Gold's icon path never got it.
+
 ## [0.32.96] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
