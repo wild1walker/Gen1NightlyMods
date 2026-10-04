@@ -105,7 +105,7 @@ local pen = { 1, 1, 1, 1 }
 love.graphics = {
   rectangle = function(mode, x, y, w, h)
     fills[#fills + 1] = { kind = "rect", x = x, y = y, w = w, h = h,
-                          color = { pen[1], pen[2], pen[3] } }
+                          color = { pen[1], pen[2], pen[3] }, alpha = pen[4] }
   end,
   setColor = function(r, g, b, a) pen = { r or 0, g or 0, b or 0, a or 1 } end,
   getColor = function() return pen[1], pen[2], pen[3], pen[4] end,
@@ -183,6 +183,23 @@ Chrome = {
 Chrome.clear = function()
   Chrome.paletteFill(0, 0, Chrome.SCREEN_W * 8, Chrome.SCREEN_H * 8)
 end
+-- A box is Font.drawBox through the palette: its paper is one fill the size of
+-- the box, then the border tiles.  Recorded as kind "box" so the cases below
+-- can tell a box's paper from a string's.
+Chrome.paletteBox = function(tx, ty, tw, th)
+  love.graphics.setColor(1, 1, 1, 1)
+  local before = #fills
+  love.graphics.rectangle("fill", tx * 8, ty * 8, tw * 8, th * 8)
+  if fills[before + 1] then fills[before + 1].kind = "box" end
+  borders = (borders or 0) + 1
+end
+Chrome.box = function(tx, ty, tw, th) Chrome.paletteBox(tx, ty, tw, th) end
+Chrome.cursorThrough = function(tx, ty)
+  love.graphics.setColor(1, 1, 1, 1)
+  local before = #fills
+  love.graphics.rectangle("fill", tx * 8, ty * 8, 8, 8)
+  if fills[before + 1] then fills[before + 1].kind = "cursor" end
+end
 Chrome.printRightThrough = function(text, txEnd, ty, palette)
   return Chrome.printThrough(text, txEnd, ty, palette)
 end
@@ -235,7 +252,9 @@ BattleState.drawPanel = function(self)
   end
   self:drawPlayerHud()
   -- The bottom strip, which is NOT the HUD: its box really does have paper.
+  Chrome.box(0, 12, 20, 6)
   Chrome.printThrough("HELLO", 1, 14, Chrome.DEFAULT_BOX_PALETTE)
+  Chrome.cursorThrough(0, 14, Chrome.DEFAULT_BOX_PALETTE)
   -- A piece of chrome that fills part of the screen -- the START menu's own
   -- block is one -- which must not be mistaken for the field.
   if self.partialFill then Chrome.paletteFill(0, 104, 80, 40) end
@@ -1230,6 +1249,65 @@ do
   mod.stored.bleed = nil
 end
 
+do
+  io.write("CLEAR BOXES: the boxes' paper at the strength picked\n")
+  -- "Full white can be a bit aggressive on the colored battle background, a
+  -- transparent option will combine best of both ... 0-100% transparency
+  -- with steps of 10%."
+  local row
+  for _, r in ipairs(mod.rows or {}) do
+    if r.key == "box_clear" then row = r end
+  end
+  ok(row, "CLEAR BOXES is a row on Gold")
+  eq(row and row.default, 0, "and it ships OFF: the cart's own solid boxes")
+  eq(row and #row.choices, 11, "OFF and ten steps of ten")
+  eq(row and row.choices[11][1], "100%", "up to 100%")
+
+  local function boxFill()
+    for _, f in ipairs(fills) do if f.kind == "box" then return f end end
+    return nil
+  end
+
+  frame(screen({ drawsPics = false }))
+  eq(boxFill() and boxFill().alpha, 1, "OFF: the strip's box is solid paper")
+  eq(#kinds("rect"), 1, "and its string keeps its own paper cell")
+  eq(#kinds("cursor"), 1, "and so does the cursor")
+
+  mod.stored.box_clear = 30
+  frame(screen({ drawsPics = false }))
+  local f = boxFill()
+  ok(f and math.abs(f.alpha - 0.7) < 1e-9,
+     "30%: the box's paper is laid at seven tenths")
+  eq(pen[4], 1, "and the pen is handed back at full strength")
+  eq(#kinds("rect"), 0,
+     "the string's own cell goes -- the box under it is already its paper, "
+     .. "and a second layer would print a band behind the line")
+  eq(#kinds("cursor"), 0, "and so does the cursor's")
+  local hello
+  for _, printed in ipairs(prints) do
+    if printed.text == "HELLO" then hello = printed end
+  end
+  eq(hello and hello.palette, Chrome.DEFAULT_BOX_PALETTE,
+     "while the string keeps the box's own ink, theme and all -- the HUD's "
+     .. "black is for ink on a photograph, and this is ink in a box")
+
+  mod.stored.box_clear = 100
+  frame(screen({ drawsPics = false }))
+  eq(boxFill(), nil, "100%: no paper at all, border and ink on the picture")
+
+  -- And only over a backdrop: on Gold's own white field there is nothing
+  -- behind a box to see.
+  mod.stored.box_clear = 50
+  mod.stored.enabled = false
+  frame(screen({ drawsPics = false }))
+  eq(boxFill() and boxFill().alpha, 1,
+     "with no backdrop the box is the cart's, whatever the row says")
+  mod.stored.enabled = nil
+  mod.stored.box_clear = nil
+end
+
+-- TIME OF DAY runs last: it reloads the module into a fresh mod, and every
+-- wrapper from then on reads THAT mod's options.
 do
   io.write("TIME OF DAY: the field at night goes through the cart's night\n")
   -- The shader is the GPU half of TIME OF DAY: an affine map of RGB fitted to

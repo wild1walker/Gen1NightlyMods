@@ -3296,6 +3296,74 @@ local function installGen2()
   unpapered("drawEnemyHud")
   unpapered("drawPlayerHud")
 
+  -- ------- CLEAR BOXES: the boxes' own paper, see-through
+  --
+  -- "Consider adding option to enable the white background for text/UI in a
+  -- transparent mode -- full white can be a bit aggressive on the colored
+  -- battle background ... a menu option that switches between 0-100%
+  -- transparency with steps of 10%."
+  --
+  -- CLEAR HUD took the paper away from the HUD outright, because the HUD has
+  -- no box and its paper was only ever the tilemap showing.  The bottom strip
+  -- IS a box -- the message box, the command and move menus, the YES/NO --
+  -- and a box with no paper at all is ink on a photograph, which is legible on
+  -- some backdrops and not on others.  So this is a dial rather than a switch:
+  -- the box keeps its border, its ink and its paper, and the paper is laid at
+  -- the strength the player picks.
+  --
+  -- Every box Gold draws goes through `Chrome.paletteBox`, and the paper is
+  -- the one `rectangle("fill")` in it; the palette shader multiplies by the
+  -- draw colour (`vec4(mapped, px.a) * tint`), so an alpha on that fill
+  -- survives the remap with the theme's own colour.  The paper cell every
+  -- string and every cursor paints under itself is dropped outright while a
+  -- box is see-through, because the box under it is already its paper and a
+  -- second translucent layer would print a band behind every line.
+  --
+  -- Only while a backdrop is up, like everything else in this arm: on Gold's
+  -- own white field there is nothing behind a box to see.
+  local function boxAlpha()
+    if not (active and consumed) then return nil end
+    local clear = tonumber(mod.options:get("box_clear")) or 0
+    if clear <= 0 then return nil end
+    return math.max(0, 1 - math.min(100, clear) / 100)
+  end
+
+  local function translucentFills(alpha, base, ...)
+    local realRect = love.graphics.rectangle
+    love.graphics.rectangle = function(mode, x, y, w, h, ...)
+      if mode ~= "fill" then return realRect(mode, x, y, w, h, ...) end
+      if alpha <= 0 then return end
+      local r, g, b, a = love.graphics.getColor()
+      love.graphics.setColor(r, g, b, (a or 1) * alpha)
+      realRect(mode, x, y, w, h, ...)
+      love.graphics.setColor(r, g, b, a)
+    end
+    local ok, result = pcall(base, ...)
+    love.graphics.rectangle = realRect
+    if not ok then error(result, 0) end
+    return result
+  end
+
+  local basePaletteBox = Chrome.paletteBox
+  if type(basePaletteBox) == "function" then
+    Chrome.paletteBox = function(...)
+      local alpha = boxAlpha()
+      if not alpha then return basePaletteBox(...) end
+      return translucentFills(alpha, basePaletteBox, ...)
+    end
+  else
+    mod.log:warn("src.ui.gen2.Chrome has no paletteBox; CLEAR BOXES has "
+      .. "nothing to reach")
+  end
+
+  local baseCursor = Chrome.cursorThrough
+  if type(baseCursor) == "function" then
+    Chrome.cursorThrough = function(...)
+      if keying or not boxAlpha() then return baseCursor(...) end
+      return translucentFills(0, baseCursor, ...)
+    end
+  end
+
   -- ------- the text's paper cell
   --
   -- Swallowed by shimming the fill for the length of the call rather than by
@@ -3314,7 +3382,14 @@ local function installGen2()
       -- cart's own numbers in place of the themed ones, for the reason under
       -- CART_PALETTE.
       Chrome[name] = function(text, a, b, palette, ...)
-        if not keying then return base(text, a, b, palette, ...) end
+        if not keying then
+          -- CLEAR BOXES: the string's own paper cell goes, its ink is the
+          -- box's.  See `boxAlpha`.
+          if boxAlpha() then
+            return translucentFills(0, base, text, a, b, palette, ...)
+          end
+          return base(text, a, b, palette, ...)
+        end
         local realRect = love.graphics.rectangle
         love.graphics.rectangle = function() end
         local ok, width = pcall(base, text, a, b, CART_PALETTE, ...)
@@ -3701,6 +3776,13 @@ if gen2() then
   -- every frame, so it takes no relaunch.
   optionRows[#optionRows + 1] =
     { key = "daytime", type = "toggle", label = "TIME OF DAY", default = true }
+  -- How much of the battle's boxes' paper the backdrop shows through: OFF is
+  -- the cart's solid boxes, 100% is border and ink on the picture.  Live.
+  -- See `boxAlpha`.
+  local clearSteps = { { "OFF", 0 } }
+  for pct = 10, 100, 10 do clearSteps[#clearSteps + 1] = { pct .. "%", pct } end
+  optionRows[#optionRows + 1] = { key = "box_clear", type = "choice",
+    label = "CLEAR BOXES", default = 0, choices = clearSteps }
 end
 
 if DEV then
