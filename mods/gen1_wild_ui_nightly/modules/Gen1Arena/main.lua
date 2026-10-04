@@ -206,12 +206,19 @@ local loaded = false
 -- is a flat backdrop that has nothing to trim.
 local BAND_MIN, bandTop = 8, setmetatable({}, { __mode = "k" })
 
-local function measureBand(path, iw, ih)
-  if not (love.image and type(love.image.newImageData) == "function") then
-    return nil
+-- `source` is the file's ImageData when the caller already decoded it, or its
+-- path, which costs a second decode of the same PNG.
+local function measureBand(source, iw, ih)
+  local data = source
+  if type(source) == "string" then
+    if not (love.image and type(love.image.newImageData) == "function") then
+      return nil
+    end
+    local ok, decoded = pcall(love.image.newImageData, source)
+    if not ok or not decoded then return nil end
+    data = decoded
   end
-  local ok, data = pcall(love.image.newImageData, path)
-  if not ok or not data then return nil end
+  if type(data) ~= "table" and type(data) ~= "userdata" then return nil end
   local okDim, dw, dh = pcall(data.getDimensions, data)
   if not okDim or dw ~= iw or dh ~= ih then return nil end
   local top = ih
@@ -246,14 +253,34 @@ local function loadImage(layout, name)
   local key = layout .. "/" .. name
   if images[key] ~= nil then return images[key] or nil end
   local path = mod.path .. "/" .. BACKDROP_DIR .. key .. ".png"
-  local ok, img = pcall(love.graphics.newImage, path)
-  if ok and img then
+  -- ONE DECODE.  The flat band below is measured off the file's pixels, and
+  -- that used to be a second `newImageData(path)` -- the whole PNG decoded
+  -- twice, on the first frame of the first battle each backdrop is in, which
+  -- on a handheld is a frame you see.  Decoding to ImageData and making the
+  -- texture out of it is the same picture for half the work.
+  local img, data
+  if love.image and type(love.image.newImageData) == "function" then
+    local okData, decoded = pcall(love.image.newImageData, path)
+    local okDim, dw = false, nil
+    if okData and decoded and type(decoded.getDimensions) == "function" then
+      okDim, dw = pcall(decoded.getDimensions, decoded)
+    end
+    if okDim and type(dw) == "number" then
+      local okImage, made = pcall(love.graphics.newImage, decoded)
+      if okImage and made then img, data = made, decoded end
+    end
+  end
+  if not img then
+    local ok, made = pcall(love.graphics.newImage, path)
+    if ok and made then img = made end
+  end
+  if img then
     -- Nearest filtering: these are pixel backdrops sitting behind pixel
     -- sprites, and the whole composite is integer-scaled afterwards.
     img:setFilter("nearest", "nearest")
     -- Once per file, off the file: see measureBand.
     local iw, ih = img:getDimensions()
-    bandTop[img] = measureBand(path, iw, ih) or false
+    bandTop[img] = measureBand(data or path, iw, ih) or false
     images[key] = img
   else
     images[key] = false
@@ -1015,8 +1042,8 @@ local NOT_A_BUILDING = {
   FOREST = true, CAVERN = true, UNDERGROUND = true,
 }
 
-local function pickBackdrop(battle, layout)
-  local kind = kindSlot(battle)
+local function pickBackdrop(battle, layout, kindOverride)
+  local kind = kindOverride or kindSlot(battle)
   local place = tilesetSlot(battle)
   -- Which town's colour, if any.  Red asks the map id; Gold asks the header's
   -- landmark, which answers for every map in the town rather than for the two
@@ -2080,12 +2107,79 @@ local PAPER_MIN_SIDE = 8
 
 local paperBox = setmetatable({}, { __mode = "k" })
 
--- The pic's pixels, read back off a scratch canvas.  LOVE hands out no way to
--- read an Image directly, and the mod never sees the path the engine loaded
--- it from, so the picture has to be drawn to be looked at.  "replace" so the
--- alpha arrives exactly as the pic carries it rather than blended.
+-- ------- where a pic came FROM, so it can be read off the disk
+--
+-- Reading a pic back off the GPU is a full pipeline flush: the driver has to
+-- finish every draw queued ahead of it before it can hand pixels back.  On a
+-- desktop that is invisible.  On a handheld GPU it is a stall you can see,
+-- and the battle intro is where every one of them landed -- "there is some
+-- lag in the animation that switches from world view to battle view, not
+-- when encountering a wild pokemon but when engaging into a trainer battle".
+-- A trainer battle is the one with a trainer's pic in it, which is one more
+-- picture to measure for its paper and one more to cut out of its square.
+--
+-- Gold loads every battle pic from a file, and keeps the path: the trainer's
+-- is `enemyTrainerPath`, the player's back pic `playerBackPath`, and every
+-- mon's is the key it is cached under in `picCache` (src/ui/gen2/
+-- BattleState.lua).  `Assets.imageData` reads the same file as pixels, on the
+-- CPU, with no GPU in it.  So the pic shim notes where each image it is
+-- handed came from, and a pic with a known file is read from the file.
+-- Red's pics are coloured in code (BattleState:picImage) and have no file;
+-- those are still read back, but never inside a draw any more (see the queue
+-- below `cutoutFor`).
+local picPaths = setmetatable({}, { __mode = "k" })
+
+local function notePicPath(state, image)
+  if type(state) ~= "table" or image == nil or picPaths[image] then return end
+  local path
+  if image == rawget(state, "enemyTrainerImage") then
+    path = rawget(state, "enemyTrainerPath")
+  elseif image == rawget(state, "playerBackImage") then
+    path = rawget(state, "playerBackPath")
+  else
+    local cache = rawget(state, "picCache")
+    if type(cache) == "table" then
+      for key, cached in pairs(cache) do
+        if cached == image then path = key break end
+      end
+    end
+  end
+  if type(path) == "string" then picPaths[image] = path end
+end
+
+mod.exports.arenaPicPath = function(image) return picPaths[image] end
+mod.exports.arenaNotePicPath = notePicPath
+
+local function readFromFile(img, w, h)
+  local path = picPaths[img]
+  if not path then return nil end
+  local okA, Assets = pcall(require, "src.render.Assets")
+  if not (okA and type(Assets) == "table"
+          and type(Assets.imageData) == "function") then
+    return nil
+  end
+  local ok, data = pcall(Assets.imageData, path)
+  if not (ok and data and type(data.getDimensions) == "function") then
+    return nil
+  end
+  local okDim, dw, dh = pcall(data.getDimensions, data)
+  -- The file is the picture only if it is the picture's size: a mod that
+  -- swaps the art in the texture and not on disk is read back instead.
+  if not okDim or dw ~= w or dh ~= h then return nil end
+  return data
+end
+
+-- One scratch canvas per pic size, kept: a readback used to allocate a fresh
+-- canvas every time, which is a texture made and thrown away per picture.
+local scratch = {}
+
+-- The pic's pixels: off its file when the file is known, otherwise read back
+-- off a scratch canvas.  "replace" so the alpha arrives exactly as the pic
+-- carries it rather than blended.
 local function readPic(img)
   local w, h = img:getDimensions()
+  local fromFile = readFromFile(img, w, h)
+  if fromFile then return fromFile end
   -- DPISCALE IS LOAD-BEARING.  love.graphics.newCanvas(w, h) takes the
   -- window's DPI scale unless it is told otherwise, so on a phone at scale 3
   -- a 56x56 request is a 168x168 canvas, the pic is drawn into it three times
@@ -2099,8 +2193,13 @@ local function readPic(img)
   -- Pinned here, and the measurement checks what actually came back as well,
   -- so a host that ignores the request is measured correctly rather than
   -- measured wrong.
-  local ok, pinned = pcall(love.graphics.newCanvas, w, h, { dpiscale = 1 })
-  local canvas = (ok and pinned) or love.graphics.newCanvas(w, h)
+  local size = w .. "x" .. h
+  local canvas = scratch[size]
+  if not canvas then
+    local ok, pinned = pcall(love.graphics.newCanvas, w, h, { dpiscale = 1 })
+    canvas = (ok and pinned) or love.graphics.newCanvas(w, h)
+    scratch[size] = canvas
+  end
   local prevCanvas = love.graphics.getCanvas()
   -- push("all") carries the colour, blend mode, shader and scissor; the canvas
   -- is not part of that state, so it is saved and put back by hand.
@@ -2612,14 +2711,63 @@ local function picCutoutImage(img)
   return cutoutImage[img] or nil
 end
 
--- Called from `core.update`.  Returns the image it built, or nil when there
--- was nothing waiting -- which is what the test drives.
+-- ------- the paper, asked in the draw and built between frames too
+--
+-- MON PAPER used to be built where it was first wanted: inside `drawPic` on
+-- Gold and `drawBattlerPic` on Red, with the battle's canvas bound -- a
+-- readback, a scratch canvas made for it, and on Gold a new texture, on the
+-- first frame each pic was on screen.  That is the same mid-draw work the
+-- cut-out was moved out of in 0.32.65, and on a handheld it is the stutter at
+-- the start of a battle.  It is a cache read now, with the same queue: the
+-- first frame a pic is on screen it stands without its paper, and from the
+-- next one it has it.
+local paperWanted, paperQueue = setmetatable({}, { __mode = "k" }), {}
+
+local function want(kind, img)
+  local key = paperWanted[img]
+  if key and key[kind] then return end
+  key = key or {}
+  key[kind] = true
+  paperWanted[img] = key
+  paperQueue[#paperQueue + 1] = { kind = kind, img = img }
+end
+
+local picPaperImage
+
+local function paperFor(img)
+  local hit = paperImage[img]
+  if hit ~= nil then return hit or nil end
+  want("image", img)
+  return nil
+end
+
+local function paperBoxFor(img)
+  local hit = paperBox[img]
+  if hit ~= nil then return hit or nil end
+  want("box", img)
+  return nil
+end
+
+-- Called from `core.update`: ONE picture per call, cut-outs first.  Returns
+-- the image it built for, or nil when there was nothing waiting -- which is
+-- what the tests drive.
 local function buildQueuedCutouts()
   local img = table.remove(cutoutQueue, 1)
-  if not img then return nil end
-  cutoutWanted[img] = nil
-  picCutoutImage(img)
-  return img
+  if img then
+    cutoutWanted[img] = nil
+    picCutoutImage(img)
+    return img
+  end
+  local job = table.remove(paperQueue, 1)
+  if not job then return nil end
+  local wanted = paperWanted[job.img]
+  if wanted then wanted[job.kind] = nil end
+  if job.kind == "box" then
+    picPaperBox(job.img)
+  else
+    picPaperImage(job.img)
+  end
+  return job.img
 end
 
 mod.exports.picCutoutImage = picCutoutImage
@@ -2629,11 +2777,68 @@ mod.exports.picCutoutImage = picCutoutImage
 mod.exports.cutoutFor = cutoutFor
 mod.exports.buildQueuedCutouts = buildQueuedCutouts
 mod.exports.cutoutQueued = function() return #cutoutQueue end
+mod.exports.paperQueued = function() return #paperQueue end
+
+-- ------- the backdrops a map may need, loaded before a battle needs them
+--
+-- A backdrop is decoded the first time a battle asks for it, which is the
+-- first frame of that battle -- and a trainer battle asks for its own scene
+-- (`trainer_town`, `trainer_field`, a gym's) as well as walking the wild
+-- chain, so the first trainer in each new place paid for files the wild
+-- battles there never touched.  On a handheld that is the stutter at the
+-- start of the fight.
+--
+-- So on entering a map, the scenes its battles would pick are loaded ahead,
+-- ONE PER UPDATE and only on updates with nothing owed to a pic: a wild
+-- battle, a trainer battle, and water, each walked through the same
+-- `pickBackdrop` a battle walks -- so what is loaded is exactly what will be
+-- asked for, and a slot with no file costs its failed lookup now rather than
+-- in the intro.  The art in use is cached the way it always was; this only
+-- moves WHEN the decode happens.
+--
+-- `prewarmJobs` is nil when there is nothing to do, false when a map was
+-- just entered and the list has not been built, and a list while it drains.
+local PREWARM_KINDS = { "wild", "trainer", "surf" }
+
+local prewarmJobs = nil
+
+local function prewarmBattle(game)
+  if gen2() then
+    return { game = game, battle = { wild = true } }
+  end
+  return { game = game }
+end
+
+local function prewarmStep(game)
+  if prewarmJobs == nil then return false end
+  if mod.options:get("enabled") == false or not game then
+    prewarmJobs = nil
+    return false
+  end
+  if prewarmJobs == false then
+    prewarmJobs = {}
+    for _, kind in ipairs(PREWARM_KINDS) do
+      prewarmJobs[#prewarmJobs + 1] = kind
+    end
+    return true
+  end
+  local kind = table.remove(prewarmJobs, 1)
+  if not kind then
+    prewarmJobs = nil
+    return false
+  end
+  pickBackdrop(prewarmBattle(game), artLayout("og"), kind)
+  return true
+end
+
+mod.exports.arenaPrewarmStep = function(game) return prewarmStep(game) end
+mod.exports.arenaPrewarmPending = function() return prewarmJobs end
+mod.exports.paperFor = function(img) return paperFor(img) end
 
 -- Exposed for the headless suite the same way picPaperBox is: it is a pure
 -- question about one image -- which pixels of it are a hole through the mon
 -- -- and getting it wrong paints over a picture.
-local function picPaperImage(img)
+function picPaperImage(img)
   if paperImage[img] == nil then
     local ok, built = pcall(buildPaperImage, img)
     paperImage[img] = (ok and built) or false
@@ -2674,7 +2879,8 @@ end
 local function drawPicPaper(battle, battler, x, y, scale)
   local img = battle:picImage(battler.sprite)
   if not img then return end
-  local box = picPaperBox(img)
+  -- A cache read: built on the next update, never in this draw.
+  local box = paperBoxFor(img)
   if not box then return end
   local r, g, b, a = love.graphics.getColor()
   love.graphics.setColor(1, 1, 1, a)
@@ -3238,9 +3444,13 @@ local function installGen2()
           love.graphics.draw = shim
           return realDraw(image, first, ...)
         end
+        -- Where this picture came from, so the build can read it off the
+        -- disk rather than off the GPU.  See `notePicPath`.
+        notePicPath(self, image)
         local cut = trainerPic and mod.options:get("pic_cutout") ~= false
           and cutoutFor(image) or nil
-        local paper = (not cut) and picPaperImage(image) or nil
+        -- A cache read too, the same as the cut-out: see `paperFor`.
+        local paper = (not cut) and paperFor(image) or nil
         love.graphics.draw = shim
         -- Through whatever the engine has bound for this pic, so the paper is
         -- the mon's own colour 0 -- deliberately NOT the page's paper, which
@@ -3615,14 +3825,29 @@ mod.hooks:wrap("core.update", function(nextLink, game, dt)
   if daytimeShader == nil and gen2() and mod.options:get("daytime") ~= false then
     pcall(ensureDaytimeShader)
   end
-  if mod.options:get("pic_cutout") ~= false then
-    local ok, problem = pcall(buildQueuedCutouts)
-    if not ok then
-      mod.log:warn("a pic could not be cut from its square: %s",
-                   tostring(problem))
+  -- Whatever a draw asked for -- a cut-out, a pic's paper -- one per update.
+  -- Not behind PIC CUTOUT any more, because the paper rides the same queue
+  -- and is its own row; a queue nothing asked for costs two table reads.
+  local ok, problem = pcall(buildQueuedCutouts)
+  if not ok then
+    mod.log:warn("a pic could not be cut from its square: %s",
+                 tostring(problem))
+  elseif not problem then
+    -- Nothing owed to a pic this frame, so the frame is free for the next
+    -- backdrop this map may need.  See `prewarmStep`.
+    local okWarm, warmProblem = pcall(prewarmStep, game)
+    if not okWarm then
+      prewarmJobs = nil
+      mod.log:warn("backdrops were not loaded ahead: %s", tostring(warmProblem))
     end
   end
   return nextLink(game, dt)
+end)
+
+mod.events:on("map.entered", function()
+  -- A new map is the moment to start: see `prewarmStep`.  The jobs are made
+  -- on the next update, where the world has finished arriving.
+  prewarmJobs = false
 end)
 
 mod.hooks:wrap("render.letterbox", function(nextLink, view)

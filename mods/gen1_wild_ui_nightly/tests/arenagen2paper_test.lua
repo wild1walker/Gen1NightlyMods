@@ -78,6 +78,10 @@ local IMAGE_DATA = {
 }
 
 local fills, draws, keyed, prints
+-- What a scratch canvas reads back as, and how many were made: a canvas made
+-- inside a frame is a readback inside a draw, which is the stutter.
+local CANVAS_DATA = function() return IMAGE_DATA end
+local readbacks = 0
 _G.love = _G.love or {}
 
 -- The ImageData the paper mask is built into, so a case can ask which pixels
@@ -126,8 +130,13 @@ love.graphics = {
              setFilter = function() end, getWidth = function() return 160 end,
              getHeight = function() return 144 end }
   end,
+  -- ONE kind of canvas, whose pixels are whatever picture is in front of it
+  -- now -- which is what a real one is.  The mod keeps a scratch canvas per
+  -- pic size and draws each pic into it, so a stub that froze its pixels at
+  -- creation would hand every later pic the first pic's pixels.
   newCanvas = function()
-    return { newImageData = function() return IMAGE_DATA end }
+    readbacks = readbacks + 1
+    return { newImageData = function() return CANVAS_DATA() end }
   end,
   draw = function(image, a, b, c, d)
     draws[#draws + 1] = { image = image, a = a, b = b, c = c, d = d }
@@ -491,10 +500,24 @@ end
 do
   io.write("paper inside a pic\n")
   local outside = love.graphics.draw
+  -- The FIRST frame a pic is on screen only asks for its paper: building it
+  -- reads the pic back and makes a texture, and doing either inside the draw
+  -- is the stutter at the start of a battle on a handheld.
+  local before = readbacks
   frame(screen())
+  eq(readbacks, before, "the first frame reads nothing back inside the draw")
+  eq(#picBlits(), 2, "so it draws the two pics and no paper yet")
+  ok(mod.exports.paperQueued() >= 1, "and remembers the pic as wanted")
 
+  -- The update builds it, between frames, one picture per call.
+  local guard = 0
+  while mod.exports.buildQueuedCutouts() and guard < 20 do guard = guard + 1 end
+  eq(mod.exports.paperQueued(), 0, "the update drains what was asked for")
+
+  frame(screen())
   local blits = picBlits()
-  eq(#blits, 4, "two pics, and each one drawn twice: its paper, then it")
+  eq(#blits, 4, "from the next frame: two pics, and each one drawn twice -- "
+     .. "its paper, then it")
   ok(blits[1] and blits[1].image and blits[1].image.mask,
      "the paper goes down first, or it would cover the pic")
   eq(blits[2] and blits[2].image, IMAGE, "and the pic itself second")
@@ -550,18 +573,16 @@ do
   -- a mod's full-colour replacement art, which has too many shades to be a
   -- 2bpp pic, is refused for the same reason the Gen 1 arm refuses it.
   local solid = { getDimensions = function() return 8, 8 end }
-  local realCanvas = love.graphics.newCanvas
-  love.graphics.newCanvas = function()
-    return { newImageData = function()
-      return {
-        getDimensions = function() return 8, 8 end,
-        getPixel = function(_, x, y) return 0, 0, 0, 1 end,
-      }
-    end }
+  local was = CANVAS_DATA
+  CANVAS_DATA = function()
+    return {
+      getDimensions = function() return 8, 8 end,
+      getPixel = function(_, x, y) return 0, 0, 0, 1 end,
+    }
   end
   eq(mod.exports.picPaperImage(solid), nil,
      "a pic with no hole in it builds no paper and costs one readback")
-  love.graphics.newCanvas = realCanvas
+  CANVAS_DATA = was
 end
 
 -- ---- cutting a cart pic out of its square
@@ -580,19 +601,17 @@ end
 local function shadePic(w, h, plot)
   local img = { getDimensions = function() return w, h end,
                 setFilter = function() end }
-  local realCanvas = love.graphics.newCanvas
-  love.graphics.newCanvas = function()
-    return { newImageData = function()
-      return {
-        getDimensions = function() return w, h end,
-        getPixel = function(_, x, y)
-          local v = plot(x, y)
-          return v, v, v, 1
-        end,
-      }
-    end }
+  local was = CANVAS_DATA
+  CANVAS_DATA = function()
+    return {
+      getDimensions = function() return w, h end,
+      getPixel = function(_, x, y)
+        local v = plot(x, y)
+        return v, v, v, 1
+      end,
+    }
   end
-  return img, function() love.graphics.newCanvas = realCanvas end
+  return img, function() CANVAS_DATA = was end
 end
 
 do
@@ -704,20 +723,18 @@ do
   -- Art that already has transparency is the PAPER's case, not this one.
   local img = { getDimensions = function() return 8, 8 end,
                 setFilter = function() end }
-  local realCanvas = love.graphics.newCanvas
-  love.graphics.newCanvas = function()
-    return { newImageData = function()
-      return {
-        getDimensions = function() return 8, 8 end,
-        getPixel = function(_, x, y)
-          if x == 0 then return 1, 1, 1, 0 end
-          return 0, 0, 0, 1
-        end,
-      }
-    end }
+  local was = CANVAS_DATA
+  CANVAS_DATA = function()
+    return {
+      getDimensions = function() return 8, 8 end,
+      getPixel = function(_, x, y)
+        if x == 0 then return 1, 1, 1, 0 end
+        return 0, 0, 0, 1
+      end,
+    }
   end
   local cut = mod.exports.picCutoutImage(img)
-  love.graphics.newCanvas = realCanvas
+  CANVAS_DATA = was
   eq(cut, nil, "a pic that already has alpha is left to the paper arm")
 end
 
