@@ -47,7 +47,8 @@
   "incompatible": [],
   "games": [
     "gen1",
-    "gen2"
+    "gen2",
+    "gen3"
   ],
   "experimental": false,
   "permissions": [

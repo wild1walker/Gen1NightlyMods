@@ -68,8 +68,10 @@ local function armMod()
     self.on[name] = self.on[name] or {}
     table.insert(self.on[name], fn)
   end }
+  -- The engine's mod log has info, warn and error and nothing else
+  -- (src/mods/Loader.lua); through the bundle's facade any other level is nil.
   self.log = {}
-  for _, level in ipairs({ "info", "warn", "error", "debug" }) do
+  for _, level in ipairs({ "info", "warn", "error" }) do
     self.log[level] = function(_, fmt, ...)
       self.logged[#self.logged + 1] = level .. ": "
         .. (select("#", ...) > 0 and fmt:format(...) or fmt)
