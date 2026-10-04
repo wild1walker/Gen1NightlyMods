@@ -1,7 +1,9 @@
 # Gen1WildUI Nightly
 
 **The visual half of the [Gen1Wild](https://github.com/wild1walker/Gen1Wild)
-suite, as one mod.** Nine features from nine sources.
+suite, as one mod.** Nine features from nine sources, on Red, Blue and Yellow,
+on Gold, Silver and Crystal, and — its battle backdrops — on FireRed, LeafGreen
+and Emerald.
 
 > This is the **nightly** build. It is
 > [Gen1WildUI](https://github.com/wild1walker/Gen1WildUI) with changes that
@@ -283,9 +285,15 @@ So the Gold arm is the frame, on both menus:
 
 Nothing about what the menus *do* is touched: `menuIndex`, `moveIndex` and
 `moveSwapIndex` are still the cart's and are still moved by the cart's own
-input handling. The bug contest's menu (whose third label is `PARKBALL` and a
-count — eleven glyphs where a 10-tile box has seven) and every message keep
-the cart's own box. `COMMAND GRID` and `MOVE GRID` turn each half off.
+input handling. `COMMAND GRID` and `MOVE GRID` turn each half off.
+
+The Bug-Catching Contest's menu gets the grid too. It used to keep the cart's
+own box, because its third label is `PARKBALL` and a count — `PARKBALL×20`,
+eleven glyphs where a box has room for seven — and the grid's labels are cut
+to fit. What made the contest look broken was that the cart's own box, alone
+among the battle's menus, was the old list. So the label is fitted from the
+**front**: the count is the part a player reads, so `×20` stays whole and the
+name gives way to it (`PARK×20`).
 
 #### How a type colour survives a theme here
 
@@ -323,6 +331,17 @@ suspensions rather than a blanket rule:
 So both read as photographs on the card, which is what they are. The `BADGES`
 caption above the faces comes off the same sheet and *is* reshaded, because it
 is a word.
+
+### Pokémon in the GLOBAL BOX count as caught
+
+A Pokémon put into the GLOBAL BOX on one save and taken out on another was
+in your hands and never in your Pokédex: the dex only learns a species from a
+catch, a trade or an egg, and the GLOBAL BOX is none of those. It is now a
+fourth way in — taking one out marks it seen and caught — and so that a save
+which already holds Pokémon this way is not left behind, loading a save sweeps
+the party and every box once and marks whatever is there. On Gold the flag is
+`caught`, not Red's `owned`; the sweep sets the one the game reads. Eggs are
+left alone: an egg is neither seen nor caught until it hatches.
 
 ### POKEMON BOX on Gold: the list becomes a grid
 
@@ -533,6 +552,75 @@ function of the game's own numbers and should be rebuildable from them;
 cannot live here. Kanto is regenerated rather than shared with Red's eleven
 folders, because Gold repaints Kanto — its Cerulean is not Red's Cerulean.
 
+#### At night, and in the morning
+
+**TIME OF DAY**, on by default. Gold's overworld changes palette with the
+clock and its battles did not take a backdrop with them: Route 29 at midnight
+was a noon meadow behind the fight. The picture is now drawn through the same
+night (and morning) the map is — not a blue wash, but an affine map of colour
+fitted, each time the period changes, to the cart's own `DAY` and `NITE`
+palettes for that map (`Palettes.bgSet`), so a cave stays a cave and a town
+at night is the town's night. Only outdoor places take it; a room is lit. The
+fit runs on the GPU as one small shader; a host with no shaders gets the same
+period as a tint.
+
+#### Sea or lake, by what the water holds
+
+Gold's map header has a **fishing group**, and it is a better classifier than
+any list: `OCEAN`, `WHIRL_ISLANDS`, `QWILFISH` and `REMORAID` are the sea;
+`LAKE`, `POND`, `GYARADOS` and `DRATINI` are inland. `SHORE` is also what a
+header with no group says, so it proves nothing and falls back to the list of
+coastal towns — which now includes Cherrygrove. So the Whirl Islands'
+approaches and the Qwilfish routes are the sea, and the Lake of Rage is a
+lake. `tools/audit_gen2_arena.py` replays every map
+header in pret's Crystal disassembly through these tables, to read for the
+wrong kind of place; it is how *"some locations have mismatched backgrounds"*
+was answered.
+
+#### The Lighthouse and the towers
+
+The Olivine Lighthouse, Sprout Tower, the Tin Tower and every traditional
+house now take the plain interior hall. They were taking the trainer scene
+drawn for a gym's junior trainers — a sports floor — which is what read as *"a
+bar or a playground"*. The Tin Tower's roof and Mt. Moon Square are open
+ground, and the Lake of Rage is a field round a lake rather than a town.
+
+#### BATTLE BG = WORLD
+
+With the cart's own **BATTLE BG** option on `WORLD`, the overworld stays
+visible round a battle — and with a backdrop up it used to go black instead,
+on every layout, because the backdrop's own letterbox was painted over it.
+The surround is now the player's: on `WORLD` the world shows round the
+picture, and the bars are only drawn on the other settings.
+
+#### CLEAR BOXES
+
+The battle's boxes — the message box, the command and move menus, YES/NO —
+are solid paper, and over a coloured backdrop that can be a lot of white.
+**CLEAR BOXES** lays their paper at 90% down to 0% (OFF and ten steps of
+ten): the border and the ink stay, and at 100% the text sits straight on the
+picture. The paper cell every string and cursor paints under itself goes while
+a box is see-through, so a line never prints a band across the box's paper.
+Only while a backdrop is up; on Gold's own white field there is nothing behind
+a box to see.
+
+#### The start of a battle on a handheld
+
+A trainer battle opened with a visible stall on low-power devices. Three
+things were paid on its first frame: every backdrop was decoded twice (once
+for the picture, once to measure its flat band), the trainer's pic was read
+back from the GPU mid-draw to cut its outline, and the paper behind it was
+built in the same frame. Now a picture is decoded once, the read-backs happen
+between frames rather than inside one, and the pictures a battle on this map
+will want are prepared a few at a time while you walk.
+
+#### White inside a trainer stays white
+
+The cut-out that removes the white square round a pic used to flood inward
+from every edge pixel — so a trainer whose white shirt touched the frame lost
+the shirt. It now floods only from edge pixels *outside* the figure (the edge
+runs past the outline), so white that is part of the figure stays.
+
 ### BAG on Gold
 
 Three additions to the cart's PACK, not a replacement bag.
@@ -661,6 +749,57 @@ frame finds nothing and is left alone.
 The mattes do not load on Gold, and that is not a gap either: a matte paints
 the page colour under a true-colour rectangle because Red blits one raw past
 the shade pass and brings the white page back with it. Gold has no such pass.
+
+## FireRed, LeafGreen and Emerald
+
+The bundle claims `gen3` too, and on a Gen 3 boot exactly one feature
+installs: **BACKDROPS**. Everything else this bundle draws is a screen the
+GBA already draws for itself, and drew well:
+
+| feature | on Gen 3 |
+|---|---|
+| **BACKDROPS** | **yes** — see below |
+| **POKEDEX** | the cart's own dex has the area map, the size comparison and the cry |
+| **POKEMON BOX** | the cart's own PC is already a grid with the party beside it |
+| **PARTY MENU** | the cart's own party is already in each Pokémon's colours |
+| **BAG** | the cart's own bag has pockets and a description under every item |
+| **BATTLE MENUS** | the cart's own command menu is already a 2x2 |
+| **MENU LAYOUT**, **MOD MANAGER** | FireRed's START menu and mod manager are the engine's own GBA screens; this bundle's options are in **MODS › Gen1WildUI Nightly › OPTIONS** there |
+| **UI THEME** | a GBA window has its own palette and frame; nothing here reaches it |
+| **ITEM INFO**, **ELEVATOR PANEL**, **BATTLE INTRO** | the GBA already has each |
+
+A feature that is not on this list does not half-run on Gen 3: it is not
+loaded at all (`gen3` in `features.lua`, and `runtime/bundle.lua`).
+
+### BACKDROPS on FireRed, LeafGreen and Emerald
+
+This is where the art comes from. Every picture is from the *Battle
+Backgrounds Patch FR* — FireRed battle-field art, 240x112 — and the Red and Gold
+arms spend most of their code fitting it to 160x144 and 304x144. Here it goes
+back onto the field it was drawn for, **1:1**, through `BattleBg.draw`, the one
+call that paints a GBA battle's background.
+
+- **Which picture** starts from the cart's own terrain — grass, long grass,
+  sand, water, pond, mountain, cave, building, or the scene the cart keeps for
+  a gym, a leader or an Elite Four room — so the cart's geography is never
+  second-guessed. The map narrows it: Viridian Forest and Petalburg Woods are
+  the forest, Icefall and Shoal Cave the ice cave, Mt. Ember and the Magma
+  Hideout the volcano, the Pokémon Tower and Mt. Pyre the Tower, the S.S. Anne
+  and the S.S. Tidal the ship, Route 111's sand the desert, water underground
+  the water cave, and a Kanto town its own roof colours. A trainer battle takes
+  the trainer's version of a place where one is drawn.
+- **No picture** where the pack has none: underwater, link battles, and
+  Emerald's own scenes (the Battle Frontier, the legendaries, the Hoenn Elite
+  Four, and Wallace's room, which is under water) keep the cart's background.
+- **The platforms are the cart's.** A GBA battle stands its Pokémon on two
+  ovals, which the cart keeps as their own layers for the intro slide. **BASES**
+  draws them over the picture, sliding exactly as the cart slides them.
+- **The fit** takes the middle 240 columns of the wide art, sets the picture's
+  ground on the field's bottom edge, and mirrors the art's top rows upward
+  where it runs eight short. Nothing is scaled.
+
+If anything in that draw fails it is the cart's background on screen, said
+once in the log — never an error in the battle's own draw.
 
 ## What is different from the standalone mods
 

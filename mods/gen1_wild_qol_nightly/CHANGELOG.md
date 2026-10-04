@@ -2,10 +2,47 @@
 
 
 This is the **nightly** fork of [Gen1WildQOL][stable]. Its versions are the
-nightly channel's, not the stable bundle's; `1.26.0` below is where the fork
-was taken from.
+nightly channel's, not the stable bundle's. The fork was taken from `1.26.0`
+and now stands on `1.33.0` (`nightly.json`).
 
 [stable]: https://github.com/wild1walker/Gen1WildQOL
+
+## [0.33.0] - 2026-10-04
+
+The first build for FireRed, LeafGreen and Emerald. This fork now stands on
+Gen1WildQOL **1.33.0**: ALL 251 and the GS BALL folded into Gen151, and
+`runtime/cartsave2.lua` went because the engine now scopes a Gen 2 cart's
+save itself.
+
+### Added
+
+- **Five features on FireRed, LeafGreen and Emerald.** The manifest claims
+  `gen3`, and each runs through the cart's own seams (`modules/Gen3QOL/`):
+  - **SPRINT** — B runs before the Running Shoes (**RUN BEFORE THE SHOES**)
+    and indoors on Emerald (**RUN INDOORS**). The cart's per-tile rules —
+    long grass, hot springs, Pacifidlog's logs, the Fortree bridge — stand.
+  - **EXP SHARE** — the bench gains beside the fighters: **GEN 5+** (half a
+    fighter's share; the default), **BALANCED**, **AVERAGE** or **CUSTOM**.
+    The fighters and any holder of the cart's Exp. Share are paid exactly as
+    the cart pays them. Level-ups and new moves are shown one by one; the
+    bench's lines fold into *The rest of the party gained EXP. Points!*
+  - **REUSABLE TMS** — a TM is given back after the teach spends it, on both
+    of the cart's paths (a free slot, or the forget-a-move prompt).
+  - **AUTO SAVE** — after battles, catches, evolutions and new maps, or on an
+    interval, through the cart's own save on the first frame the cart would
+    let you save, never mid-step and never twice in fifteen seconds.
+  - **SOUND** — the low-HP siren beeps its count and stops; FireRed raises
+    the same hook with the same ctx.
+
+  The rest are not loaded on Gen 3 — each is a screen or service the GBA
+  already has, or one game's own content; the README says which and why.
+
+### Changed
+
+- `runtime/bundle.lua` knows three generations, not two; on Gen 3 a feature
+  runs only if `features.lua` says `gen3`, and the bundle's menu is not
+  installed (options are in the engine's GBA mod manager).
+- `tools/check.py` checks a feature's Gen 3 entry exists.
 
 ## [0.32.99] - 2026-09-07
 

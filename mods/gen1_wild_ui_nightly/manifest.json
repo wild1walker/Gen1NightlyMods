@@ -1,7 +1,7 @@
 {
   "id": "gen1_wild_ui_nightly",
   "name": "Gen1WildUI Nightly",
-  "version": "0.32.99",
+  "version": "0.33.0",
   "api": 2,
   "entry": "main.lua",
   "profile": "content",
@@ -55,5 +55,5 @@
     "engine_internals"
   ],
   "github": "wild1walker/Gen1NightlyMods",
-  "description": "NIGHTLY. The visual half of the Gen1Wild suite in one mod: battle backdrops, the battle intro, the battle menus, the Pokedex, the box, the party menu, the bag, menu layout and the mod manager -- plus a UI THEME row on the OPTION screen: LIGHT or DARK. Every feature switches on and off by itself. On Gold, Silver and Crystal it is the party's species colours, menu layout, the mod manager and the theme: the other rows are Gen 1 only because Gold already ships what they add."
+  "description": "NIGHTLY. The visual half of the Gen1Wild suite in one mod: battle backdrops, the battle intro, the battle menus, the Pokedex, the box, the party menu, the bag, menu layout and the mod manager -- plus a UI THEME row on the OPTION screen: LIGHT or DARK. Every feature switches on and off by itself. On Gold, Silver and Crystal eight of them run, with backdrops that follow the time of day. On FireRed, LeafGreen and Emerald it is the battle backdrops, back on the GBA field the art was drawn for: the rest of it is screens the GBA already draws."
 }

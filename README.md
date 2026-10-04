@@ -111,6 +111,28 @@ each fork stands on.
 
 Everything below is written up properly in each mod's own `CHANGELOG.md`.
 
+### 0.33.0: the bug thread, and FireRed, LeafGreen and Emerald
+
+Every report in the thread, in the order they came:
+
+- **Pokémon from the GLOBAL BOX count in the Pokédex.** Taking one out marks
+  it seen and caught, and loading a save sweeps the party and the boxes once,
+  so Pokémon already moved that way are counted too.
+- **The world shows round a battle again** with Gold's **BATTLE BG = WORLD**:
+  with a backdrop up the surround had gone black on every layout.
+- **The Bug-Catching Contest's battle menu** is the grid like every other
+  battle, its `PARKBALL×20` fitted so the count stays whole.
+- **Gold's backdrops at night and in the morning**, through the map's own
+  palettes; **the Lighthouse and the towers** are halls, not a gym floor;
+  water is sea or lake by the map's own fishing group.
+- **The start of a trainer battle no longer stalls on a handheld.**
+- **White inside a trainer's pic stays white** instead of being cut out with
+  the square round it.
+- **CLEAR BOXES**: the battle's boxes see-through, OFF to 100% in steps of ten.
+- **FireRed, LeafGreen and Emerald.** Both bundles claim `gen3`. The QOL half
+  brings SPRINT, EXP SHARE, REUSABLE TMS, AUTO SAVE and SOUND; the UI half
+  brings BACKDROPS, onto the GBA field the art was drawn for. See below.
+
 ### Autosave had never written a file on Gold
 
 Not "sometimes", not "in the wrong place" — never, on any Gen 2 boot since
@@ -526,6 +548,29 @@ All twenty-one are committed, the same as Red's eleven, so nothing has to be
 run to play. The script is here because the art is a function of the game's
 own numbers and ought to be rebuildable from them — `palettes.lua` comes from
 your own cartridge import and is the one thing that cannot be committed.
+
+## FireRed, LeafGreen and Emerald
+
+Both bundles run on Gen 3 as of 0.33.0. Gen 3 is opt in per feature
+(`gen3` in each bundle's `features.lua`): a feature runs there only where it
+has a seam on the GBA engine and a reason to exist, and is otherwise not loaded
+at all. On a Gen 3 boot:
+
+- **Gen1WildQOL Nightly** installs **SPRINT** (run before the Running Shoes,
+  and indoors on Emerald), **EXP SHARE** (the bench gains beside the fighters),
+  **REUSABLE TMS**, **AUTO SAVE** (through the cart's own save, whenever the
+  cart would let you save) and **SOUND**.
+- **Gen1WildUI Nightly** installs **BACKDROPS**: the pack's art is FireRed
+  battle-field art in the first place, and here it goes back onto that field
+  1:1, picked from the cart's own terrain and the map, with the cart's platform
+  ovals over it.
+
+The rest stand down, each with its reason in the mod's README: mostly a screen
+the GBA already draws (dex, box, party, bag, battle menus, map popups, the
+caught ball in battle) or a service it already has (Move Reminder, Move
+Deleter, VS Seeker). Options live in the engine's own **MODS** manager there,
+since the bundles' own menus are Red's and Gold's screens. There is no Gen 3
+cart yet; install the two bundles from the index.
 
 ## Licence
 

@@ -1,10 +1,79 @@
 # Changelog
 
 This is the **nightly** fork of [Gen1WildUI][stable]. Its versions are the
-nightly channel's, not the stable bundle's; `1.21.0` below is where the fork
-was taken from.
+nightly channel's, not the stable bundle's. The fork was taken from `1.21.0`
+and now stands on `1.42.0` (`nightly.json`).
 
 [stable]: https://github.com/wild1walker/Gen1WildUI
+
+## [0.33.0] - 2026-10-04
+
+The bug thread, every report in it, and the first build for FireRed,
+LeafGreen and Emerald. This fork now stands on Gen1WildUI **1.42.0** — the
+GLOBAL BOX, the arena's bars, the new grass and the trainer cut-outs all came
+in from there, because the reports were against those builds.
+
+### Added
+
+- **BACKDROPS on FireRed, LeafGreen and Emerald.** The art is FireRed
+  battle-field art in the first place, and on a Gen 3 boot it goes back onto
+  that field 1:1. The cart's own terrain picks the scene and the map narrows it
+  — Viridian Forest and Petalburg Woods, Kanto's towns in their roof colours,
+  Icefall and Shoal Cave, Mt. Ember and the Magma Hideout, the Pokémon Tower
+  and Mt. Pyre, the S.S. Anne and the S.S. Tidal, Route 111's desert, water
+  underground. The cart's platform ovals are drawn over it and slide with the
+  intro (**BASES**). Underwater, link battles and Emerald's own scenes keep the
+  cart's background, and so does anything that fails. It is this bundle's only
+  Gen 3 feature: the GBA already draws its own dex, box, party, bag, battle
+  menus and manager. The manifest claims `gen3`.
+- **TIME OF DAY** (Gold, Silver, Crystal; on): the backdrop is drawn through
+  the map's own night and morning — a colour map fitted to the cart's `DAY`
+  and `NITE` palettes for that map, so a field at midnight is the field's
+  night and not a blue wash. Outdoor places only; a room is lit.
+- **CLEAR BOXES** (Gold, Silver, Crystal; OFF): the battle's boxes —
+  message, commands, moves, YES/NO — laid at 90% down to 0% paper in steps of
+  ten. The border and ink stay; at 100% the text sits on the picture. Only
+  while a backdrop is up.
+
+### Fixed
+
+- **Pokémon from the GLOBAL BOX count as caught in the Pokédex.** Taking one
+  out marks it seen and caught — on Gold the flag the dex reads is `caught`,
+  not Red's `owned` — and loading a save sweeps the party and every box once,
+  so Pokémon already moved that way are counted. Eggs are left alone.
+- **BATTLE BG = WORLD keeps the world round a Gold battle.** With a backdrop
+  up the surround went black on every layout, because the backdrop's own
+  letterbox was painted over the world. On `WORLD` the world shows now; the
+  bars are for the other settings.
+- **The Bug-Catching Contest gets the battle grid.** Its menu was left on the
+  cart's own list because `PARKBALL×20` is too long for a button, and that was
+  the part that looked broken. The label is now fitted from the front, so the
+  count stays whole (`PARK×20`).
+- **The Olivine Lighthouse, Sprout Tower, the Tin Tower and traditional
+  houses** take the indoor hall, not the gym trainers' sports floor that read
+  as "a bar or a playground". The Tin Tower's roof and Mt. Moon Square are open
+  ground; the Lake of Rage is a field round a lake.
+- **Sea or lake by the map's fishing group** on Gold: `OCEAN`, `WHIRL_ISLANDS`,
+  `QWILFISH` and `REMORAID` are the sea, `LAKE`, `POND`, `GYARADOS` and
+  `DRATINI` inland; Cherrygrove is coastal. `tools/audit_gen2_arena.py`
+  replays every Crystal map header through these tables.
+- **A trainer battle no longer stalls as it opens on a handheld.** Each
+  backdrop was decoded twice, the trainer's pic was read back from the GPU in
+  the middle of a frame, and its paper was built in that same frame. One
+  decode now, read-backs between frames, and a battle's likely pictures are
+  prepared a few at a time while you walk.
+- **White inside a trainer's pic stays white.** The cut-out flooded inward from
+  every edge pixel, so a white shirt touching the frame was cut away with the
+  square round it. It floods only from where the edge runs past the figure.
+- **Party icons in colour, and keyed pictures, survive the engine's newer
+  inline palette binds** on Gold (`icons2`, `theme2`, `cutout2`).
+
+### Changed
+
+- `runtime/bundle.lua` knows three generations, not two. On Gen 3 a feature
+  runs only if `features.lua` says `gen3`, and the bundle's own menu, themes
+  and mattes are not installed: options are in the engine's GBA mod manager.
+- `tools/check.py` checks a feature's Gen 3 entry exists.
 
 ## [0.32.99] - 2026-09-07
 

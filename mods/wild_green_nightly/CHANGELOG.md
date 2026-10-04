@@ -3,8 +3,14 @@
 All notable changes to this mod are recorded here, newest first.
 
 This is the **nightly** fork of [Wild Green][stable]. Its versions are the
-nightly channel's, not the stable mod's; `1.26.0` below is where the fork was
-taken from.
+nightly channel's, not the stable mod's. The fork was taken from `1.26.0` and
+now stands on `1.27.0` (`nightly.json`).
+
+## [0.33.0] - 2026-10-04
+
+Nothing in this mod's tree changed: it already matched Wild Green **1.27.0**,
+which `nightly.json` now records as its base. The channel ships one version
+across every archive, so this build carries the number.
 
 ## [0.32.99] - 2026-09-07
 

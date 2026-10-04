@@ -4,7 +4,8 @@
 suite, as one mod.** Thirteen features from eleven sources. Nine are still
 their own mods with their own releases, tracked here and not forked; `EXP SHARE`
 and the three later-generation conveniences began as other people's mods and are
-maintained in this repository now.
+maintained in this repository now. Red, Blue and Yellow; Gold, Silver and
+Crystal; and five of them on FireRed, LeafGreen and Emerald.
 
 Its other half is [Gen1WildUI](https://github.com/wild1walker/Gen1WildUI),
 which carries the visual overhauls. The two know about each other: a feature in
@@ -401,6 +402,80 @@ would land — swapping a correct `walkPhase` for one derived for a cell twice
 the length, and, because its text-box test reads `top.isOverworld` off a stack
 Gold's world is not on, stopping every NPC on the map from animating. That is
 what the gate is for.
+
+## FireRed, LeafGreen and Emerald
+
+The bundle claims `gen3` too, and five features install on a Gen 3 boot. The
+rest are not loaded there at all — not half-run — because each is a screen or
+a rule Red lacked and the GBA already has, or is content for one game:
+
+| feature | on Gen 3 |
+|---|---|
+| **SPRINT** | **yes** — see below |
+| **EXP SHARE** | **yes** |
+| **REUSABLE TMS** | **yes** |
+| **AUTO SAVE** | **yes** |
+| **SOUND** | **yes** |
+| **CAUGHT MARKER** | the GBA battle already shows a Poké Ball by a species you have caught |
+| **AREA BANNER** | the GBA already pops up the map's name |
+| **EASY HM USE** | the GBA already asks when you face a tree, a boulder or the water |
+| **REMEMBER MOVES** | the Move Reminder: Two Island (FireRed, LeafGreen), Fallarbor Town (Emerald) |
+| **FORGET HM MOVES** | the Move Deleter: Fuchsia City (FireRed, LeafGreen), Lilycove City (Emerald) |
+| **TRAINER REMATCH** | the VS Seeker (FireRed, LeafGreen) and Match Call (Emerald) |
+| **FOLLOWERS** | not yet. The engine has a follower slot on Gen 3, but a GBA cart has no overworld sprite for a Pokémon to walk with; it needs art first |
+| **AUTO CONTINUE** | not yet. A GBA boot runs its own title and CONTINUE flow, with no seam for the title's rows |
+| **ALL 151**, **ALL 251**, **GS BALL**, **NPC WALK** | Red's and Gold's own content and timing |
+| **MENU LAYOUT**, **MOD MANAGER** | the engine's own GBA START menu and manager; this bundle's options are in **MODS › Gen1WildQOL Nightly › OPTIONS** there |
+
+Each of the five has a Gen 3 arm of its own in `modules/Gen3QOL/` (SOUND
+needs none), on the cart's own seams, and `tests/gen3qol_test.lua` drives each
+against stand-ins shaped like the engine module it wraps.
+
+### SPRINT on Gen 3
+
+FireRed already runs on B — Gen1Sprint exists to give Red what FireRed has.
+What is left is where the cart still says no: **RUN BEFORE THE SHOES** lets B
+run before the Running Shoes are in the bag, and **RUN INDOORS** lets Emerald
+run in buildings (FireRed already does). The cart's own per-tile rules stand —
+long grass, the hot springs, Pacifidlog's logs, the Fortree bridge — and so do
+the bicycle and diving.
+
+### EXP SHARE on Gen 3
+
+The fighters are paid exactly as the cart pays them, and so is anyone holding
+the cart's own Exp. Share. Everyone else in the party who can still gain gets
+a share beside them: **GEN 5+** (half a fighter's share, the default),
+**BALANCED** (the same, only while below the level of the one that fought),
+**AVERAGE** (only while below the party's average level) or **CUSTOM** (10% to
+100%). Trainer battles, Lucky Eggs and traded Pokémon boost the bench as they
+boost a fighter, and the bench gains effort values as a holder would. Level-ups
+and new moves are shown one by one, as the cart shows them; the bench's
+"gained EXP. Points" lines are folded into one — *The rest of the party gained
+EXP. Points!*
+
+### REUSABLE TMS on Gen 3
+
+A TM is given back after the teach spends it — immediately when there was a
+free move slot, or when the forget-a-move prompt closes when there was not. A
+cancelled teach spends nothing and gets nothing back. Same row as on Red, so
+the switch means the same thing on every cart.
+
+### AUTO SAVE on Gen 3
+
+None of Red's sync, quit or backup machinery is on a GBA boot, so this is
+short: a save comes due after a battle, a catch, an evolution or a new map
+(**AFTER EVENTS**), or every so much play time (**INTERVAL**), and is written
+through the cart's own save on the first frame the cart itself would let you
+press START and save — in the field, nothing pending, no window up, and not
+mid-step. Never twice inside fifteen seconds. Your own START › SAVE resets the
+clock. A Poké Ball in the corner says it happened (**INDICATOR**).
+
+### SOUND on Gen 3
+
+The low-HP siren beeps its set number of times and stops, as on Red and Gold:
+FireRed's battle asks the same `battle.low_health_alarm` hook with the same
+`ctx`, once a frame, so the feature runs unchanged. A "beep" is half a second
+of the siren, as it is on Red.
 
 ## What is different from the standalone mods
 

@@ -5,6 +5,12 @@ All notable changes to this mod are recorded here, newest first.
 This mod exists only on the **nightly** channel and carries the channel's
 version.
 
+## [0.33.0] - 2026-10-04
+
+Nothing in this mod changed. The channel ships one version across every
+archive, so this build carries the number and the two bundles carry the bug
+thread and FireRed, LeafGreen and Emerald.
+
 ## [0.32.99] - 2026-09-07
 
 Nothing in this mod changed. The channel ships one version across every
