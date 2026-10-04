@@ -2622,8 +2622,40 @@ local function buildCutout(img)
     outside[key] = true
     qx[#qx + 1], qy[#qy + 1] = x, y
   end
-  for x = 0, w - 1 do push(x, 0); push(x, h - 1) end
-  for y = 0, h - 1 do push(0, y); push(w - 1, y) end
+  -- ------- and the FRAME closes the figure, as it does for the paper
+  --
+  -- "There are sprites where white areas are being ignored and/or cropped
+  -- incorrectly."  This flood used to start from every field pixel on the
+  -- border.  A trainer's pic and the player's back pic are cut off by their
+  -- own frame -- at the waist, at the shoulders -- so a white shirt or a
+  -- white coat that reaches the bottom edge is field-coloured AND on the
+  -- border, the flood poured in through it, and the backdrop showed through
+  -- the body.
+  --
+  -- The paper arm above learned the rule for exactly this and the cut-out
+  -- never got it: a border pixel is only OUTSIDE if it lies past the figure
+  -- on its own edge.  Where the art runs into the frame, the frame is the
+  -- figure's edge and the flood does not start there.  The cost is the same
+  -- one the paper pays: field enclosed by the figure and the frame together
+  -- -- the gap between two legs that reach the bottom -- keeps its colour,
+  -- which is a sliver of white where the other answer was a hole through a
+  -- shirt.
+  local function seedRow(y)
+    local first, last = edgeSpan(w, function(x) return opaque[y * w + x] end)
+    for x = 0, w - 1 do
+      if not first or x < first or x > last then push(x, y) end
+    end
+  end
+  local function seedColumn(x)
+    local first, last = edgeSpan(h, function(y) return opaque[y * w + x] end)
+    for y = 0, h - 1 do
+      if not first or y < first or y > last then push(x, y) end
+    end
+  end
+  seedRow(0)
+  seedRow(h - 1)
+  seedColumn(0)
+  seedColumn(w - 1)
   while head <= #qx do
     local x, y = qx[head], qy[head]
     head = head + 1

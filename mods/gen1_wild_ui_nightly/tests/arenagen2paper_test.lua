@@ -649,6 +649,38 @@ do
 end
 
 do
+  -- "There are sprites where white areas are being ignored and/or cropped
+  -- incorrectly."  A trainer pic and the player's back pic are cut off by
+  -- their own frame, so the figure runs into the bottom edge -- and a white
+  -- shirt inside it touches that edge as well.  The flood used to start from
+  -- every field pixel on the border, poured in through the shirt, and the
+  -- backdrop showed through the trainer.
+  local function plot(x, y)
+    local inBody = x >= 2 and x <= 7 and y >= 3
+    local inShirt = x >= 3 and x <= 6 and y >= 5
+    if inBody and not inShirt then return 0 end
+    return 1
+  end
+  local img, restore = shadePic(10, 10, plot)
+  local cut = mod.exports.picCutoutImage(img)
+  restore()
+  local mask = cut and cut.mask
+  ok(mask ~= nil, "a trainer cut off at the waist is still cut out")
+  if mask then
+    local function alphaAt(x, y)
+      local px = mask:at(x, y)
+      return px and px[4] or nil
+    end
+    eq(alphaAt(4, 9), 1,
+       "the white shirt where it meets the bottom edge is KEPT")
+    eq(alphaAt(5, 6), 1, "and the shirt above it")
+    eq(alphaAt(0, 9), 0, "the field beside the body on that edge is cut")
+    eq(alphaAt(9, 9), 0, "on both sides")
+    eq(alphaAt(4, 1), 0, "and the field above the head")
+  end
+end
+
+do
   -- Replacement art that BLEEDS TO ITS OWN EDGE.  A gradient across the whole
   -- square is not a figure standing in a field, and the border says so: no
   -- single colour runs all the way round it.  Left alone.

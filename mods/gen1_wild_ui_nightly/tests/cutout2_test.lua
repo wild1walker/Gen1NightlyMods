@@ -302,6 +302,35 @@ do
 end
 
 do
+  -- "There are sprites where white areas are being ignored and/or cropped
+  -- incorrectly."  The trainer card's portrait is the player cut off at the
+  -- chest by its own frame: the body runs into the BOTTOM EDGE, and the white
+  -- shirt inside it touches that edge too.  Every border pixel used to seed
+  -- the flood, so it poured in through the shirt and cut it away.
+  --
+  -- 10x10: a body of ink from (2,3) down to the bottom row, columns 2-7, with
+  -- a white shirt inside it at columns 3-6 from row 5 to the bottom.
+  local function plot(x, y)
+    local inBody = x >= 2 and x <= 7 and y >= 3
+    local inShirt = x >= 3 and x <= 6 and y >= 5
+    if inBody and not inShirt then return 0 end
+    return 1
+  end
+  local out = Cutout2.cut(dataOf(10, 10, plot), 10, 10)
+  ok(out ~= nil, "a figure cut off by its frame is still cut")
+  if out then
+    eq(out:alphaAt(4, 9), 1,
+       "the shirt where it meets the bottom edge is KEPT -- the frame closes "
+       .. "the figure, it is not a way in")
+    eq(out:alphaAt(5, 6), 1, "and the shirt above it")
+    eq(out:alphaAt(0, 9), 0, "while the field beside the body on that edge goes")
+    eq(out:alphaAt(9, 9), 0, "on both sides")
+    eq(out:alphaAt(0, 0), 0, "and the corners of the square")
+    eq(out:alphaAt(4, 1), 0, "and the field above the figure")
+  end
+end
+
+do
   -- The same figure with a GAP in the corner, which is what a replayed L
   -- looks like: the gap is where the engine drew nothing, so it seeds the
   -- fill rather than stopping it.
