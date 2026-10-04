@@ -671,10 +671,15 @@ function Cutout2.new(context)
         if not on() then
           return baseSquare(screen, tx, ty, large, colors, ...)
         end
-        local realWith = GbcPalette.with
+        -- `use` as well as `with`: the engine inlines binds now (see
+        -- runtime/icons2.lua), and `with` reaches `use` anyway.
+        local realWith, realUse = GbcPalette.with, GbcPalette.use
         GbcPalette.with = GbcPalette.keyedWith
+        if type(GbcPalette.useKeyed) == "function" then
+          GbcPalette.use = GbcPalette.useKeyed
+        end
         local okDraw, err = pcall(baseSquare, screen, tx, ty, large, colors, ...)
-        GbcPalette.with = realWith
+        GbcPalette.with, GbcPalette.use = realWith, realUse
         if not okDraw then error(err, 0) end
         return err
       end

@@ -67,7 +67,14 @@ local src = assert(slurp("runtime/cutout2.lua"))
 local sheetSrc = assert(slurp(ENGINE .. "/src/ui/gen2/TileSheet.lua"))
 ok(sheetSrc:find("if colors and GbcPalette.available() then", 1, true) ~= nil,
    "a tile sheet only goes through the palette when it HAS one")
-ok(sheetSrc:find("else\n    body()\n  end", 1, true) ~= nil,
+-- Two spellings of the same draw, and both are the engine's.  Up to 0.3.50
+-- the sheet built a closure and handed it to GbcPalette.with; the frame-time
+-- pass that followed inlines the bind ("GbcPalette.with / withRaw without the
+-- closure: set, draw, restore") and draws the raw arm with a bare G.draw.
+-- What this file relies on is the claim, not the spelling: no palette, no
+-- shader, the file's own pixels.
+ok(sheetSrc:find("else\n    body()\n  end", 1, true) ~= nil
+   or sheetSrc:find("if batch then self:suspend() end\n    G.draw(image, quad", 1, true) ~= nil,
    "and is drawn raw otherwise -- baked pixels, nothing to substitute")
 
 local cardSrc = assert(slurp(ENGINE .. "/src/ui/gen2/TrainerCard.lua"))
@@ -109,7 +116,8 @@ ok(src:find("Cutout2.cut(canvas:newImageData(), w, h, true)", 1, true) ~= nil,
 -- `TileSheet:draw` lays its tiles inside GbcPalette.with when the sheet has a
 -- palette, so the source pixels are 2bpp shades and the COLOUR is the shader:
 -- replaying the blits raw came out greyscale.
-ok(sheetSrc:find("GbcPalette.with(colors, body)", 1, true) ~= nil,
+ok(sheetSrc:find("GbcPalette.with(colors, body)", 1, true) ~= nil
+   or sheetSrc:find("GbcPalette.use(colors)", 1, true) ~= nil,
    "a sheet with a palette draws through a shader, so its file is greyscale")
 ok(src:find("pcall(job.base, job.screen, unpack(job.args))", 1, true) ~= nil,
    "so the block is replayed by calling the engine's own draw")
