@@ -1020,6 +1020,54 @@ do
   mod.stored.bleed = nil
 end
 
+do
+  io.write("BATTLE BG = WORLD keeps the world round the battle\n")
+  -- *"With the mod enabled, the background is always black"* -- a portrait
+  -- phone, BATTLE BG = WORLD, the overworld showing under the battle with the
+  -- mod off and black there with it on.  Gold raises the hook twice on a
+  -- WORLD frame and the one after the battle says `worldActive = false`, so
+  -- the payload cannot be what decides this: the battle's own `bgMode` is.
+  -- Driven exactly as Game2:drawScene drives it -- the world call first, the
+  -- battle, then the second call.
+  local self = screen({ drawsPics = false })
+  self.bgMode = function() return "world" end
+  local view = { ww = 400, wh = 800, ox = 40, oy = 56, vpw = 320, vph = 288 }
+  local before = #(fills or {})
+  bars({ ww = view.ww, wh = view.wh, ox = view.ox, oy = view.oy,
+         vpw = view.vpw, vph = view.vph, worldActive = true })
+  frame(self)
+  ok(tookTheField(self), "the backdrop is still in the field")
+  local afterFrame = #fills
+  local drawsAfterFrame = #draws
+  ok(bars(view), "the hook passes the frame along")
+  eq(#kinds("rect") - #(function()
+       local out = {}
+       for i = 1, afterFrame do
+         if fills[i].kind == "rect" then out[#out + 1] = fills[i] end
+       end
+       return out
+     end)(), 0,
+     "and paints nothing into the bars: the overworld the engine drew there "
+     .. "is what the player chose to see")
+  eq(#draws, drawsAfterFrame, "nor draws the picture into them")
+  ok(mod.exports.arenaSurroundIsWorld(self), "the battle is read as WORLD")
+
+  -- ...and the two other modes still get the bars, so this is a reading of
+  -- the player's choice rather than the bars switched off.
+  self.bgMode = function() return "white" end
+  frame(self)
+  local whiteBefore = #kinds("rect")
+  bars(view)
+  ok(#kinds("rect") > whiteBefore, "WHITE still has its bars answered for")
+  self.bgMode = function() return "black" end
+  frame(self)
+  local blackBefore = #kinds("rect")
+  bars(view)
+  ok(#kinds("rect") > blackBefore, "and so does BLACK")
+  ok(not mod.exports.arenaSurroundIsWorld(self), "which is not read as WORLD")
+  local _ = before
+end
+
 -- ------------------------------------------- the rectangle the bars are the
 -- complement OF
 --

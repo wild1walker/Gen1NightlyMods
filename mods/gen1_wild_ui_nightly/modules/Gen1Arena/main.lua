@@ -1096,6 +1096,9 @@ local bleedImage, bleedW, bleedH = nil, OG_W, OG_H
 -- ...and WHERE the engine put that surface on screen this frame.  See
 -- `panelRect` for why the letterbox payload cannot be asked.
 local bleedPanel = nil
+-- ...and whether the battle that drew it is standing on the WORLD (BATTLE BG
+-- = WORLD).  See `surroundIsWorld`.
+local bleedWorld = false
 local pendingW, pendingH = OG_W, OG_H
 local outerCanvas = nil       -- the canvas bound when the battle draw began
 local consumed = false        -- the field fill has already been replaced
@@ -1520,15 +1523,50 @@ local function artLayout(layout)
   return wantsWideArt() and "wide" or "og"
 end
 
+-- ------- BATTLE BG = WORLD, on Gold
+--
+-- Reported as *"with the mod enabled, the background is always black"*, beside
+-- a screenshot of the same phone with the mod off and the overworld showing
+-- all round the battle.  That player had BATTLE BG set to WORLD.
+--
+-- Red tells this mod about WORLD in the letterbox payload: its battle goes
+-- non-opaque, the world pass runs, and `render.letterbox` arrives once with
+-- `worldActive` set -- which `bleedInto` has always stood down on.  Gold raises
+-- the hook TWICE on a WORLD frame (src/core/Game2.lua, `drawScene`): once with
+-- `worldActive = true` before `world:draw()`, and again with `worldActive =
+-- false` after the battle -- and that second call is the one that comes after
+-- the battle drew and so is the one holding a picture.  So on Gold the test
+-- never fired, and 0.34.0's "the bars stop where the picture does" painted
+-- the letterbox colour over the world wherever the picture could not reach.
+-- On a portrait phone that is everything under the battle.
+--
+-- So the question is put to the battle itself, which is where the engine
+-- keeps the answer: `BattleState:bgMode()` is what Game2 asks to decide
+-- whether to draw the world at all.
+local function surroundIsWorld(state)
+  if not gen2() or type(state) ~= "table" then return false end
+  if type(state.bgMode) ~= "function" then return false end
+  local ok, mode = pcall(state.bgMode, state)
+  return ok and mode == "world"
+end
+
+mod.exports.arenaSurroundIsWorld = surroundIsWorld
+
 local function bleedInto(view)
   local img = bleedImage
-  local panel = bleedPanel
+  local panel, world = bleedPanel, bleedWorld
   -- Claimed, not read: the hook runs once per frame after the battle drew,
   -- and a frame with no battle draw in it must not inherit the last one's
   -- picture.  Clearing on the way past is what makes that true without a
   -- frame counter.
-  bleedImage, bleedPanel = nil, nil
+  bleedImage, bleedPanel, bleedWorld = nil, nil, false
   if not img then return end
+  -- BATTLE BG = WORLD on Gold.  The overworld is already drawn round the
+  -- battle and dimmed by the engine, and that is what the player asked to
+  -- see there -- so the bars are left to it, exactly as the `worldActive`
+  -- test below leaves them on Red.  Asked of the battle rather than of the
+  -- payload because Gold's payload cannot say: see `surroundIsWorld`.
+  if world then return end
   -- The rectangle this whole file is about.  `panelRect` asked the engine
   -- where the battle really went; the payload only knows where a classic
   -- panel would have gone.  Everything else in the payload -- the window,
@@ -2957,6 +2995,7 @@ local function installGen2()
     -- while the live battle is in hand.  See `panelRect`: the letterbox
     -- payload describes a classic panel and this one does not.
     bleedPanel = panelRect(self, width, height)
+    bleedWorld = surroundIsWorld(self)
     lastPanel = bleedPanel
     -- What UI THEME needs to know about this frame, on the instance rather
     -- than through an export, because it is a fact about ONE battle screen
