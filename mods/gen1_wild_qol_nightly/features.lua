@@ -42,6 +42,13 @@
 --   adapter      a file under adapters/, run after the feature installs
 --   suppress_hooks  engine hooks the feature must not register, because the
 --                bundle surfaces that setting itself
+--   gen3         whether, and how, the feature runs on FireRed, LeafGreen and
+--                Emerald.  Absent is NO: Gen 3 is opt in, because a feature
+--                written against Red's screens has no GBA screen to draw on.
+--                `true` runs the feature's own entry; a table names a Gen 3
+--                entry of its own (`dir`, `entry`) and replaces any other
+--                field it gives for that boot, `false` dropping it.  The Gen 3
+--                arms live in modules/Gen3QOL.  See runtime/bundle.lua.
 
 return {
   spec = {
@@ -114,6 +121,9 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen1Sprint", "gen1_sprint" },
+      -- FireRed already runs on B.  What is left is where it still says no:
+      -- before the Running Shoes, and indoors on Emerald.
+      gen3 = { dir = "Gen3QOL", entry = "sprint.lua" },
     },
     {
       id = "interact",
@@ -282,6 +292,11 @@ return {
       maintained = true,
       adapter = "expshare",
       suppress_hooks = { ["ui.options.rows"] = true },
+      -- A GBA cart has the held Exp. Share and no Exp. All, and its battle has
+      -- its own seams: a Gen 3 arm, with its mode in the schema rather than in
+      -- the save (FireRed's OPTION screen has no row for it to live on).
+      gen3 = { dir = "Gen3QOL", entry = "expshare.lua", adapter = false,
+               suppress_hooks = false, maintained = false },
     },
     {
       id = "rematch",
@@ -477,6 +492,8 @@ return {
       enabledKey = "qol_reusable_tms",
       default = true,
       aliases = { "qol_reusable_tms", "ReusableTMs" },
+      -- Same row key, so the switch means the same thing on every cart.
+      gen3 = { dir = "Gen3QOL", entry = "reusable_tms.lua", maintained = false },
     },
 
     -- ---- saving
@@ -492,6 +509,9 @@ return {
       enabledKey = "enabled",
       default = true,
       aliases = { "Gen1AutoSave", "gen1autosave" },
+      -- The cart's own "could you save right now" and its own saveGame; none
+      -- of Red's sync, quit or backup machinery is on a GBA boot.
+      gen3 = { dir = "Gen3QOL", entry = "autosave.lua" },
     },
     {
       id = "autocontinue",
@@ -522,6 +542,8 @@ return {
       -- the whole mod.  So the bundle synthesizes one.
       default = true,
       aliases = { "Gen1SoundQOL", "gen1_sound_qol" },
+      -- FireRed's battle asks the same hook with the same ctx, once a frame.
+      gen3 = true,
     },
 
     -- ---- the furniture
