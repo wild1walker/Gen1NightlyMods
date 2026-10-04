@@ -1181,5 +1181,114 @@ do
   mod.stored.bleed = nil
 end
 
+do
+  io.write("TIME OF DAY: the field at night goes through the cart's night\n")
+  -- The shader is the GPU half of TIME OF DAY: an affine map of RGB fitted to
+  -- the live map's DAY and NITE palettes.  What is asserted here is the DRAW:
+  -- the backdrop is painted with that shader bound and its four uniforms
+  -- sent, the shader the caller had is put back, and a host with no shaders
+  -- gets a tint through setColor instead of nothing.
+  local bound, sent = nil, {}
+  local SHADER = { send = function(_, name, value) sent[name] = value end }
+  local realSet, realGet, realNew = love.graphics.setShader,
+    love.graphics.getShader, love.graphics.newShader
+  love.graphics.setShader = function(s) bound = s end
+  love.graphics.getShader = function() return bound end
+  love.graphics.newShader = function() return SHADER end
+  local day = {}
+  for slot = 1, 8 do
+    day[slot] = { { 216, 248, 216 }, { 168, 168, 168 }, { 104, 104, 104 },
+                  { 56, 56, 56 } }
+  end
+  package.loaded["src.world.gen2.Palettes"] = {
+    bgSet = function(_, _, daytime)
+      if daytime == "DAY" then return day end
+      local out = {}
+      for slot = 1, 8 do
+        out[slot] = {}
+        for i = 1, 4 do
+          local c = day[slot][i]
+          out[slot][i] = { c[1] * 0.5, c[2] * 0.5, c[3] * 0.9 }
+        end
+      end
+      return out
+    end,
+  }
+
+  local function nightScreen(daytime)
+    local self = screen({ drawsPics = false })
+    self.game = { world = {
+      daytime = daytime, palettes = "live",
+      map = { def = { id = "ROUTE_29", tileset = "TILESET_JOHTO",
+                      environment = "ROUTE", group = 24 } },
+      currentLandmarkId = function() return "LANDMARK_ROUTE_29" end,
+    } }
+    return self
+  end
+
+  local seen
+  local realDraw = love.graphics.draw
+  love.graphics.draw = function(image, ...)
+    if type(image) == "table" and image.getWidth then
+      seen = seen or { shader = bound }
+    end
+    return realDraw(image, ...)
+  end
+
+  local caller = { "the caller's shader" }
+  bound = caller
+  seen, sent = nil, {}
+  frame(nightScreen("NITE"))
+  ok(seen and seen.shader == SHADER,
+     "the backdrop is drawn with the TIME OF DAY shader bound")
+  ok(sent.rowR and sent.rowG and sent.rowB and sent.offset,
+     "and its transform sent: three rows and an offset")
+  eq(bound, caller, "and the caller's shader is back afterwards")
+
+  bound, seen = nil, nil
+  frame(nightScreen("DAY"))
+  ok(seen and seen.shader == nil,
+     "by day the backdrop is drawn with no shader at all, as before")
+
+  -- No shaders on this host: the period's answer for white, as a tint.
+  local tints = {}
+  local realColor = love.graphics.setColor
+  love.graphics.setColor = function(r, g, b, a)
+    tints[#tints + 1] = { r, g, b }
+    return realColor(r, g, b, a)
+  end
+  love.graphics.newShader = function() error("no shaders here", 0) end
+  -- A fresh load, so the one compile attempt is made against this host.
+  local fresh = { id = mod.id, path = mod.path, exports = {}, stored = {},
+                  hooked = {}, events_on = {}, logged = {} }
+  for k, v in pairs(mod) do if fresh[k] == nil then fresh[k] = v end end
+  fresh.options = {
+    define = function() end,
+    get = function(_, key) return fresh.stored[key] end,
+    set = function(_, key, value) fresh.stored[key] = value end,
+  }
+  fresh.hooks = { wrap = function(_, name, fn) fresh.hooked[name] = fn end }
+  fresh.events = { on = function(_, name, fn) fresh.events_on[name] = fn end }
+  BattleState.__gen1arena = nil
+  BattleState.drawScene = function(self, bodyFn)
+    drawn[#drawn + 1] = "scene"
+    if bodyFn then bodyFn() else self:drawPanel() end
+  end
+  load_("modules/Gen1Arena/main.lua", fresh)
+  fresh.events_on["game.ready"]({ game = {} })
+  tints = {}
+  frame(nightScreen("NITE"))
+  local tinted = false
+  for _, c in ipairs(tints) do
+    if c[1] < 0.9 and c[3] > c[1] then tinted = true end
+  end
+  ok(tinted, "a host with no shaders paints the backdrop through a night tint")
+
+  love.graphics.setShader, love.graphics.getShader = realSet, realGet
+  love.graphics.newShader, love.graphics.draw = realNew, realDraw
+  love.graphics.setColor = realColor
+  package.loaded["src.world.gen2.Palettes"] = nil
+end
+
 io.write(("arena gen2 paper: %d passed, %d failed\n"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -161,6 +161,9 @@ end
 local GEN2_SLOT_FILE = {
   -- places
   ice_path = "lorelei",        -- 15 Snow Cave -- the Ice Path, exactly
+  -- The plain 10 Indoors room under a name with no trainer scene beside it.
+  -- See TILESET_SLOT_GEN2's note on the Lighthouse.
+  hall = "indoor",
   -- the Elite Four, the Champion, and the fight on Mt Silver
   will = "champion",           -- 19 Space -- Will is the psychic
   koga = "agatha",             -- 17 Desert
@@ -403,7 +406,9 @@ local TILESET_SLOT_GEN2 = {
   TILESET_HOUSE = "indoor",
   TILESET_PLAYERS_HOUSE = "indoor",
   TILESET_PLAYERS_ROOM = "indoor",
-  TILESET_TRADITIONAL_HOUSE = "indoor",
+  -- The Dance Theater and the Wise Trio's room: the Kimono Girls and the
+  -- three sages fight on tatami, not in front of a counter.  See `hall`.
+  TILESET_TRADITIONAL_HOUSE = "hall",
   TILESET_POKECENTER = "indoor",
   TILESET_MART = "indoor",
   TILESET_LAB = "indoor",
@@ -411,7 +416,23 @@ local TILESET_SLOT_GEN2 = {
   TILESET_FACILITY = "indoor",
   TILESET_TRAIN_STATION = "indoor",
   TILESET_RADIO_TOWER = "indoor",
-  TILESET_LIGHTHOUSE = "indoor",
+  -- ------- the Lighthouse, and every other building that is not an office
+  --
+  -- Reported from Gold: "Lighthouse misses battle background, instead it
+  -- renders a bar/playground".  The wild scene and the trainer scene of
+  -- `indoor` are different pictures, and the trainer one -- `trainer_indoor`,
+  -- FireRed's Indoor Trainer scene -- is a room with a counter, a PC and a
+  -- glass door: a Poke Center or an office.  Right for the Radio Tower, a
+  -- lab, the Rocket base.  Wrong for the six floors of a stone lighthouse,
+  -- every one of which is a trainer fight, and just as wrong for the sages of
+  -- Sprout Tower and the Kimono Girls.
+  --
+  -- So those take `hall`: the same plain 10 Indoors room `indoor` is, under a
+  -- name with no trainer scene beside it, so a trainer battle there lands on
+  -- the room rather than on the counter.  It is a FILE alias (GEN2_SLOT_FILE),
+  -- not new art.  The Fast Ship shares this tileset and keeps its own deck and
+  -- cabins through MAP_SLOT_GEN2.
+  TILESET_LIGHTHOUSE = "hall",
   -- The rooms the Elite Four and the Champion stand in.  A boss outranks the
   -- room (BOSS_KIND, below), so these only decide what a battle in one of
   -- those rooms that is NOT the boss looks like -- which on the cart is
@@ -445,7 +466,11 @@ local TILESET_SLOT_GEN2 = {
   -- their own colours to, and it is six: the Ice Path, the mansion, the
   -- Radio Tower, houses, the Battle Tower and the PokeCom Center.  No tower
   -- is on it.
-  TILESET_TOWER = "indoor",
+  --
+  -- And the plain interior for its TRAINERS too, which is the `hall` slot --
+  -- see the Lighthouse above.  The roof of the Tin Tower is not inside at
+  -- all and has its own row in MAP_SLOT_GEN2.
+  TILESET_TOWER = "hall",
 
   TILESET_CAVE = "cave",
   TILESET_DARK_CAVE = "cave",
@@ -538,6 +563,24 @@ local MAP_SLOT_GEN2 = {
   -- The Burned Tower's basement is where the three beasts are, and it is a
   -- collapsed pit rather than a room -- the floor above it is the interior.
   BURNED_TOWER_B1F = "cave",
+
+  -- ------- found by replaying these rules over every map header in Crystal
+  --
+  -- "Some locations have mismatched background" -- so every map the cart has
+  -- was run through this file's own lookup (tools/audit_gen2_arena.py), and
+  -- these were the ones whose answer was the wrong kind of place:
+  --
+  --   the Lake of Rage   a TOWN on the header, so its grass came up against
+  --                      Lake of Rage's own cobblestones -- a town plaza in
+  --                      the middle of the grass where the red GYARADOS is.
+  --   the Tin Tower roof the TILESET_TOWER rule made Ho-Oh's perch a room.  It
+  --                      is the top of the tallest thing in Johto, under the
+  --                      sky: the crag is the nearest scene to that.
+  --   Mt. Moon Square    open ground on top of Mt. Moon, rock rather than
+  --                      grass, which is what 6 Craggy is.
+  LAKE_OF_RAGE = "field",
+  TIN_TOWER_ROOF = "plateau",
+  MOUNT_MOON_SQUARE = "plateau",
 }
 
 -- The header's own classification, used when the tileset is not in the table
@@ -596,10 +639,9 @@ local GROUP_VARIANT_GEN2 = {
 -- change -- no edit here.
 local GEN2_VARIANT_DIR = "gen2/"
 
--- Sea or pond, by landmark, and hand-classified from the geography exactly as
--- the Gen 1 arm's OCEAN_MAP is -- nothing in the map data distinguishes a sea
--- tile from a lake tile on either cart.  Everything not named here is inland
--- and gets the Lake.
+-- Sea or pond -- asked of the cart first (`waterIsSea`, below), and of this
+-- hand-made list only when the cart cannot say.  Everything not named here is
+-- inland and gets the Lake.
 --
 -- Johto's coast is the west and the south: Olivine and Cianwood face the open
 -- water, Routes 40 and 41 are the crossing between them, and Routes 26 to 28
@@ -607,6 +649,7 @@ local GEN2_VARIANT_DIR = "gen2/"
 -- the Gen 1 arm names, because it is the same coast.
 local OCEAN_LANDMARK_GEN2 = {
   -- Johto
+  LANDMARK_CHERRYGROVE_CITY = true,
   LANDMARK_OLIVINE_CITY = true,
   LANDMARK_ROUTE_40 = true,
   LANDMARK_ROUTE_41 = true,
@@ -625,6 +668,41 @@ local OCEAN_LANDMARK_GEN2 = {
   LANDMARK_ROUTE_20 = true,
   LANDMARK_ROUTE_21 = true,
 }
+
+-- ------- the cart says which water it is, by what lives in it
+--
+-- The note above said nothing in the map data tells a sea from a lake.  On
+-- Gold that was never quite true: every map header carries a FISHING GROUP,
+-- and most groups are named for the water -- OCEAN for the open sea, LAKE and
+-- POND inland, and the species ones for the places they live (Qwilfish off
+-- Route 32 and Routes 12 and 13, Gyarados in the Lake of Rage and Fuchsia's
+-- pond, Dratini in the Dragon's Den and Route 45, the Whirl Islands' own).  A
+-- sea is where the cart puts sea fish.
+--
+-- SHORE is the one group that does not say.  It is the coast's -- Olivine,
+-- Cianwood, Route 40 -- and it is also what the header carries when nobody
+-- picked one, inland ponds included (Route 2's).  So SHORE, like NONE, falls
+-- back to the list.
+--
+-- Where the groups do say, they disagree with the list where the list was
+-- wrong: New Bark Town, Route 26 and Route 32 face the sea and were getting
+-- the Lake; Route 28's water and Fuchsia's are ponds and were getting the Sea.
+local SEA_FISH = {
+  OCEAN = true, WHIRL_ISLANDS = true,
+  QWILFISH = true, QWILFISH_SWARM = true, QWILFISH_NO_SWARM = true,
+  REMORAID = true, REMORAID_SWARM = true,
+}
+local LAKE_FISH = {
+  LAKE = true, POND = true, GYARADOS = true, DRATINI = true, DRATINI_2 = true,
+}
+
+local function fishWater(group)
+  if type(group) ~= "string" then return nil end
+  local name = group:gsub("^FISHGROUP_", "")
+  if SEA_FISH[name] then return true end
+  if LAKE_FISH[name] then return false end
+  return nil
+end
 
 -- The bosses, by trainer class.
 --
@@ -747,6 +825,15 @@ local function currentLandmarkGen2(battle)
   end
   local ok, id = pcall(world.currentLandmarkId, world)
   return ok and id or nil
+end
+
+-- Sea or lake for a water battle on Gold: the map's own fishing group, and the
+-- landmark list only where the header has no answer.  See `fishWater`.
+local function waterIsSeaGen2(battle)
+  local def = currentMapDefGen2(battle)
+  local byFish = fishWater(def and def.fishGroup)
+  if byFish ~= nil then return byFish end
+  return OCEAN_LANDMARK_GEN2[currentLandmarkGen2(battle) or ""] == true
 end
 
 -- The place slot, from the header rather than from a guess.  Tileset first,
@@ -985,7 +1072,7 @@ local function pickBackdrop(battle, layout)
     end
     local open
     if gen2() then
-      open = OCEAN_LANDMARK_GEN2[currentLandmarkGen2(battle) or ""]
+      open = waterIsSeaGen2(battle)
     else
       open = OCEAN_MAP[currentMapId(battle) or ""]
     end
@@ -1074,16 +1161,24 @@ local function placeOn(iw, ih, surfW, surfH)
   return scale, (surfW - iw * scale) * 0.5, (surfH - ih * scale) * 0.5
 end
 
+-- The colour a backdrop is drawn in: white, except under TIME OF DAY on a
+-- host with no shader, where it is the period's own tint (see `daytimeTint`).
+local WHITE = { 1, 1, 1 }
+local pictureColor = WHITE
+
 local function drawCover(img, w, h)
   local iw, ih = img:getDimensions()
+  local c = pictureColor
   if iw == w and ih == h then
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(c[1], c[2], c[3], 1)
     love.graphics.draw(img, 0, 0)
+    love.graphics.setColor(1, 1, 1, 1)
     return
   end
   local scale, dx, dy = placeOn(iw, ih, w, h)
-  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.setColor(c[1], c[2], c[3], 1)
   love.graphics.draw(img, dx, dy, 0, scale, scale)
+  love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- ------------------------------------------------------------- the patch
@@ -1139,6 +1234,222 @@ local function withoutShader(draw)
   if not ok then error(err, 0) end
 end
 
+-- ------- TIME OF DAY, on Gold
+--
+-- "Gen1arena on gen2 lacks night version for backgrounds, when playing after
+-- sunset."  Gold has a clock, and the overworld a battle starts from is
+-- painted for the hour: MORN, DAY or NITE, out of `environments[env][daytime]`
+-- (src/world/gen2/Palettes.lua, `bgSet`).  The backdrop was always DAY.
+--
+-- Nothing is redrawn for it.  A night version of a picture is a function of
+-- the picture and of what the cart does to colour at night, and the cart says
+-- exactly what that is: the same eight palettes, once for DAY and once for
+-- NITE.  So the backdrop is put through the TRANSFORM that takes one to the
+-- other -- an affine map of RGB, fitted by least squares to the live map's
+-- own pairs (`fitDaytime`) -- which is why the result reads as Gold at night
+-- rather than as a picture with the lights turned down: the cart's night is
+-- not darker so much as BLUER, light grey 27,31,27 becoming 15,14,24 and the
+-- greens turning teal, and a transform fitted to those pairs carries that.
+-- MORN is the same fit to the morning set, which on the cart is a warmer day.
+--
+-- It runs on the GPU, as a four-uniform shader over the same draw.  A host
+-- with no shaders gets the transform's answer for white as a plain tint,
+-- which is the same mood without the hue shift.
+--
+-- Only OUTDOORS.  `world.daytime` is the period the map is painted in, and a
+-- building's header pins DAY, so a gym or a Center never reaches here; a cave
+-- pins NITE on the cart, but a cave scene is already a cave and a night
+-- version of it is just a darker cave.  The forest is the exception the cart
+-- itself makes: Ilex Forest is pinned to night, and the forest scene takes it.
+local OUTDOOR_PLACE = {
+  field = true, town = true, forest = true, plateau = true, port = true,
+  deck = true, safari = true,
+}
+
+-- What pokecrystal's own bg_tiles.pal fits to, for an engine whose palettes
+-- cannot be read: rows of the 3x3 and the offset, RGB in 0..1.
+local DAYTIME_FALLBACK = {
+  NITE = { r = { 0.3894, 0.2101, 0.0979 }, g = { -0.0207, 0.5635, -0.0246 },
+           b = { -0.0179, 0.7363, 0.2468 },
+           bias = { -0.1095, -0.0581, -0.1147 } },
+  MORN = { r = { 1.0038, 0.0132, 0.0085 }, g = { 0, 1, 0 },
+           b = { -0.0423, -0.1456, 0.9066 }, bias = { -0.009, 0, 0.0994 } },
+}
+
+-- Solve the 4x4 normal equations by elimination.  nil when they are singular
+-- -- a palette set whose colours are all one, which leaves nothing to fit.
+local function solve4(a, b)
+  local m = {}
+  for i = 1, 4 do m[i] = { a[i][1], a[i][2], a[i][3], a[i][4], b[i] } end
+  for col = 1, 4 do
+    local best, at = 0, nil
+    for row = col, 4 do
+      if math.abs(m[row][col]) > best then best, at = math.abs(m[row][col]), row end
+    end
+    if not at or best < 1e-9 then return nil end
+    m[col], m[at] = m[at], m[col]
+    for row = 1, 4 do
+      if row ~= col then
+        local f = m[row][col] / m[col][col]
+        for k = col, 5 do m[row][k] = m[row][k] - f * m[col][k] end
+      end
+    end
+  end
+  return { m[1][5] / m[1][1], m[2][5] / m[2][2], m[3][5] / m[3][3],
+           m[4][5] / m[4][4] }
+end
+
+-- The transform from one eight-palette set to another, fitted to every
+-- colour pair the two share.  Pure: two `bgSet` answers in, rows and offset
+-- out.  The text palette (slot 8) never changes and is left out; and at night
+-- a LIT WINDOW is left out too -- PAL_BG_YELLOW's colour 0 is 30,30,11 after
+-- dark, a light switched on rather than the sky going dark.  It is told apart
+-- by the one thing night never does to anything else: it gets REDDER, and
+-- ends up warm.  (Night does raise blue, all over -- the grass going teal is
+-- the point -- so "brighter in some channel" would throw away the fit.)
+local function fitDaytime(daySet, otherSet, period)
+  if type(daySet) ~= "table" or type(otherSet) ~= "table" then return nil end
+  local ata = { { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } }
+  local aty = { { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } }
+  local pairs_ = 0
+  for slot = 1, 7 do
+    local dayPal, otherPal = daySet[slot], otherSet[slot]
+    for i = 1, 4 do
+      local d = type(dayPal) == "table" and dayPal[i]
+      local o = type(otherPal) == "table" and otherPal[i]
+      if type(d) == "table" and type(o) == "table" then
+        local x = { (d[1] or 0) / 255, (d[2] or 0) / 255, (d[3] or 0) / 255, 1 }
+        local y = { (o[1] or 0) / 255, (o[2] or 0) / 255, (o[3] or 0) / 255 }
+        local lit = period == "NITE"
+          and y[1] > x[1] + 1 / 31 and y[1] >= y[3]
+        if not lit then
+          pairs_ = pairs_ + 1
+          for r = 1, 4 do
+            for c = 1, 4 do ata[r][c] = ata[r][c] + x[r] * x[c] end
+            for ch = 1, 3 do aty[ch][r] = aty[ch][r] + x[r] * y[ch] end
+          end
+        end
+      end
+    end
+  end
+  if pairs_ < 8 then return nil end
+  local rows = {}
+  for ch = 1, 3 do
+    local w = solve4(ata, aty[ch])
+    if not w then return nil end
+    rows[ch] = w
+  end
+  return {
+    r = { rows[1][1], rows[1][2], rows[1][3] },
+    g = { rows[2][1], rows[2][2], rows[2][3] },
+    b = { rows[3][1], rows[3][2], rows[3][3] },
+    bias = { rows[1][4], rows[2][4], rows[3][4] },
+  }
+end
+
+local function applyTransform(tf, r, g, b)
+  local function ch(row, bias)
+    local v = row[1] * r + row[2] * g + row[3] * b + bias
+    return math.max(0, math.min(1, v))
+  end
+  return ch(tf.r, tf.bias[1]), ch(tf.g, tf.bias[2]), ch(tf.b, tf.bias[3])
+end
+
+local DAYTIME_GLSL = [[
+extern vec3 rowR;
+extern vec3 rowG;
+extern vec3 rowB;
+extern vec3 offset;
+vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+  vec4 px = Texel(tex, tc);
+  vec3 rgb = vec3(dot(rowR, px.rgb), dot(rowG, px.rgb), dot(rowB, px.rgb))
+    + offset;
+  return vec4(clamp(rgb, 0.0, 1.0), px.a) * color;
+}
+]]
+
+-- Built once, on an update rather than in a draw, and false for good on a
+-- host that cannot compile it -- the tint then goes through setColor.
+local daytimeShader = nil
+local function ensureDaytimeShader()
+  if daytimeShader ~= nil then return daytimeShader or nil end
+  daytimeShader = false
+  local g = love and love.graphics
+  if not (g and type(g.newShader) == "function") then return nil end
+  local ok, shader = pcall(g.newShader, DAYTIME_GLSL)
+  if ok and shader then daytimeShader = shader end
+  return daytimeShader or nil
+end
+
+-- Per map environment, roof group and period: the fit reads the live map's
+-- palettes, and those change only with those three.
+local daytimeFits = {}
+
+-- The transform this battle's backdrop should be drawn through, or nil for
+-- the picture as authored.  Gold only, TIME OF DAY on, outdoors.
+local function daytimeTint(battle, place)
+  if not gen2() or mod.options:get("daytime") == false then return nil end
+  if not (place and OUTDOOR_PLACE[place]) then return nil end
+  local world = gen2World(battle)
+  local period = world and world.daytime
+  if period ~= "NITE" and period ~= "MORN" then return nil end
+  local def = world.map and world.map.def
+  local key = tostring(def and def.environment) .. "|"
+    .. tostring(def and def.group) .. "|" .. period
+  local fit = daytimeFits[key]
+  if fit == nil then
+    fit = false
+    local okP, Palettes = pcall(require, "src.world.gen2.Palettes")
+    if okP and type(Palettes) == "table" and type(Palettes.bgSet) == "function"
+        and world.palettes then
+      local okD, daySet = pcall(Palettes.bgSet, world.palettes, def, "DAY")
+      local okO, otherSet = pcall(Palettes.bgSet, world.palettes, def, period)
+      if okD and okO then fit = fitDaytime(daySet, otherSet, period) or false end
+    end
+    fit = fit or DAYTIME_FALLBACK[period] or false
+    daytimeFits[key] = fit
+  end
+  return fit or nil
+end
+
+-- The transform for THIS frame's picture, set by the Gen 2 arm before it
+-- paints and kept for the bars at the end of the same frame.
+local pendingTint, bleedTint = nil, nil
+
+-- Draw the picture through the period's transform, or through no shader at
+-- all when there is none -- the same guard `withoutShader` is, plus the tint.
+local function paintPicture(tint, draw)
+  if not tint then return withoutShader(draw) end
+  local g = love.graphics
+  local had = g.getShader and g.getShader() or nil
+  local shader = ensureDaytimeShader()
+  if shader then
+    local okSend = pcall(function()
+      shader:send("rowR", tint.r)
+      shader:send("rowG", tint.g)
+      shader:send("rowB", tint.b)
+      shader:send("offset", tint.bias)
+    end)
+    if not okSend then shader = nil end
+  end
+  if shader then
+    g.setShader(shader)
+  else
+    if had then g.setShader() end
+    local r, gg, b = applyTransform(tint, 1, 1, 1)
+    pictureColor = { r, gg, b }
+  end
+  local ok, err = pcall(draw)
+  pictureColor = WHITE
+  g.setShader(had)
+  if not ok then error(err, 0) end
+end
+
+mod.exports.arenaFitDaytime = fitDaytime
+mod.exports.arenaDaytimeTint = daytimeTint
+mod.exports.arenaApplyTransform = applyTransform
+mod.exports.arenaDaytimeFallback = DAYTIME_FALLBACK
+
 local function paintField()
   if devOption("field_test") then
     love.graphics.setColor(1, 0, 1, 1)
@@ -1146,7 +1457,7 @@ local function paintField()
     love.graphics.setColor(1, 1, 1, 1)
     return
   end
-  withoutShader(function()
+  paintPicture(pendingTint, function()
     drawCover(pendingImage, pendingW, pendingH)
   end)
 end
@@ -1555,6 +1866,8 @@ mod.exports.arenaSurroundIsWorld = surroundIsWorld
 local function bleedInto(view)
   local img = bleedImage
   local panel, world = bleedPanel, bleedWorld
+  local tint = bleedTint
+  bleedTint = nil
   -- Claimed, not read: the hook runs once per frame after the battle drew,
   -- and a frame with no battle draw in it must not inherit the last one's
   -- picture.  Clearing on the way past is what makes that true without a
@@ -1629,16 +1942,21 @@ local function bleedInto(view)
       realRectangle("fill", r.x, r.y, r.w, r.h)
     end
     g.setColor(1, 1, 1, 1)
-    -- Then the picture, at the SURFACE's scale and the surface's alignment, so
-    -- the bars and the field are one continuous photograph with no seam.
-    -- Through no shader, for the reason under paintField: this is the same
-    -- picture, and bars in four greys beside a field in colour would be worse
-    -- than either.
+  end)
+  -- Then the picture, at the SURFACE's scale and the surface's alignment, so
+  -- the bars and the field are one continuous photograph with no seam.
+  -- Through no palette shader, for the reason under paintField: this is the
+  -- same picture, and bars in four greys beside a field in colour would be
+  -- worse than either -- and through the same TIME OF DAY as the field, or the
+  -- seam comes back as a day picture round a night one.
+  paintPicture(tint, function()
+    local c = pictureColor
+    g.setColor(c[1], c[2], c[3], 1)
     for i in ipairs(rects) do
       local quad, at = cut.quads[i], cut.at and cut.at[i]
       if quad and at then g.draw(img, quad, at.x, at.y, 0, sx, sy) end
     end
-
+    g.setColor(1, 1, 1, 1)
   end)
 end
 
@@ -1687,6 +2005,8 @@ mod.exports.gen2SlotFile = GEN2_SLOT_FILE
 mod.exports.gen2BossClass = BOSS_CLASS_GEN2
 mod.exports.gen2Ocean = OCEAN_LANDMARK_GEN2
 mod.exports.gen2MapSlots = MAP_SLOT_GEN2
+mod.exports.gen2FishWater = fishWater
+mod.exports.gen2WaterIsSea = waterIsSeaGen2
 
 -- ------------------------------------------------------- the paper behind
 
@@ -2979,6 +3299,12 @@ local function installGen2()
 
     active, consumed = true, true
     pendingImage, pendingW, pendingH = chosen, width, height
+    -- TIME OF DAY: the place this battle is in decides whether the clock
+    -- reaches the picture at all.  See `daytimeTint`.
+    local okTint, tint = pcall(function()
+      return daytimeTint(self, tilesetSlot(self))
+    end)
+    pendingTint = okTint and tint or nil
 
     -- Down FIRST, on the surface the scene composites onto, so an attack's
     -- scanline scroll moves the panel over it instead of moving it.
@@ -2991,6 +3317,7 @@ local function installGen2()
     end
 
     bleedImage, bleedW, bleedH = chosen, width, height
+    bleedTint = pendingTint
     -- Where the engine is about to put that surface, asked of the engine
     -- while the live battle is in hand.  See `panelRect`: the letterbox
     -- payload describes a classic panel and this one does not.
@@ -3011,7 +3338,7 @@ local function installGen2()
     self.gen1wildArenaField = true
 
     local okDraw, err = pcall(baseScene, self, bodyFn, ...)
-    active, consumed, pendingImage = false, false, nil
+    active, consumed, pendingImage, pendingTint = false, false, nil, nil
     if not okDraw then error(err, 0) end
   end
 
@@ -3126,6 +3453,12 @@ local optionRows = {
 if gen2() then
   optionRows[#optionRows + 1] =
     { key = "hud_clear", type = "toggle", label = "CLEAR HUD", default = true }
+  -- The clock reaches the picture: a battle outdoors after sunset is fought
+  -- against the backdrop as Gold paints the world at night, and in the
+  -- morning against its warmer morning.  See `daytimeTint`.  Live: read on
+  -- every frame, so it takes no relaunch.
+  optionRows[#optionRows + 1] =
+    { key = "daytime", type = "toggle", label = "TIME OF DAY", default = true }
 end
 
 if DEV then
@@ -3277,6 +3610,11 @@ end
 -- cut-out and nothing else -- the pic that could not be cut is drawn as the
 -- cart drew it, square and all.
 mod.hooks:wrap("core.update", function(nextLink, game, dt)
+  -- TIME OF DAY's shader, compiled between frames the first time there is a
+  -- Gold boot to want it; one attempt, and nothing after it either way.
+  if daytimeShader == nil and gen2() and mod.options:get("daytime") ~= false then
+    pcall(ensureDaytimeShader)
+  end
   if mod.options:get("pic_cutout") ~= false then
     local ok, problem = pcall(buildQueuedCutouts)
     if not ok then
