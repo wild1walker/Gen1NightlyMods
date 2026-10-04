@@ -97,14 +97,17 @@ local WIDE_W, WIDE_H = 304, 144
 -- that go away have to take their stored values with them.  A player who
 -- turned FIELD TEST on once to see what it did, and then took an update,
 -- would otherwise keep a magenta battlefield with no row left to turn it off.
--- The nightly channel IS the developer build, so the two diagnostic rows are
--- always here rather than only when the loader was started with dev on.
 --
--- That is the difference between this fork and the release it was taken from,
--- and it is the whole reason the rows can be reached from the test bench: a
--- toggle that only exists under a flag nobody running a nightly has set is a
--- toggle nobody running a nightly can use.  On a release build the line
--- upstream reads `mod.developer == true` and both rows go with it.
+-- So they are only offered in developer mode -- POKEPORT_DEV=1, or
+-- --developer.  `mod.developer` is the engine's own answer and the only one
+-- reachable from a sandboxed mod: neither the POKEPORT_DEV_MODE global nor
+-- os.getenv is, so a row nobody can reach is the alternative.
+--
+-- The nightly channel sets this to `true` outright, because that channel IS
+-- the developer build and a toggle behind a flag nobody running a nightly has
+-- set is a toggle nobody running a nightly can use.  This is the nightly.  On
+-- a release build the line reads `mod.developer == true` and both rows go
+-- with it.
 local DEV = true
 
 local function devOption(key)
@@ -177,6 +180,61 @@ local BACKDROP_DIR = "assets/backdrops/"
 local images = {}
 local loaded = false
 
+-- ------- the flat band along the bottom of a backdrop
+--
+-- Every backdrop is authored with its last rows in ONE flat colour, because
+-- those rows are the ones the cart's message box sits on: 48 of them on the
+-- 160-wide art, which is exactly the box's six tiles, and 40 on the 304-wide
+-- art.  On the game screen they are never seen.
+--
+-- They ARE seen in the bars.  On the classic surface this mod bleeds the WIDE
+-- art into the wings either side (see `artLayout`), and out there the cart has
+-- no message box -- so the band arrives as a slab of flat colour across the
+-- bottom of both wings, which is the report: *"there is still a bar of solid
+-- color at the bottom, can we make it so those are cut off?"*
+--
+-- So they are cut off.  `coverQuads` clamps every bar's source rectangle to
+-- stop at this row, and whatever is left of the bar keeps the letterbox
+-- colour -- the picture ends where the picture stops being a picture.
+--
+-- Measured off the file rather than declared, so re-authored art is measured
+-- rather than trimmed on an assumption.  A band under eight rows is not a
+-- band (a one-row edge is ordinary art), and a "band" over half the picture
+-- is a flat backdrop that has nothing to trim.
+local BAND_MIN, bandTop = 8, setmetatable({}, { __mode = "k" })
+
+local function measureBand(path, iw, ih)
+  if not (love.image and type(love.image.newImageData) == "function") then
+    return nil
+  end
+  local ok, data = pcall(love.image.newImageData, path)
+  if not ok or not data then return nil end
+  local okDim, dw, dh = pcall(data.getDimensions, data)
+  if not okDim or dw ~= iw or dh ~= ih then return nil end
+  local top = ih
+  for y = ih - 1, 0, -1 do
+    local r0, g0, b0, a0 = data:getPixel(0, y)
+    local flat = true
+    for x = 1, iw - 1 do
+      local r, g, b, a = data:getPixel(x, y)
+      if r ~= r0 or g ~= g0 or b ~= b0 or a ~= a0 then flat = false break end
+    end
+    if not flat then break end
+    top = y
+  end
+  local rows = ih - top
+  if rows < BAND_MIN or rows > ih / 2 then return nil end
+  return top
+end
+
+-- Where the picture stops being a picture, for the bars.  nil when the whole
+-- of it is one.
+local function pictureBottom(img)
+  local mark = bandTop[img]
+  if mark == nil or mark == false then return nil end
+  return mark
+end
+
 local function loadImage(layout, name)
   -- On Gold a slot may be an alias for a file drawn under another name; see
   -- GEN2_SLOT_FILE below.  Resolved here so every caller in the chain --
@@ -190,6 +248,9 @@ local function loadImage(layout, name)
     -- Nearest filtering: these are pixel backdrops sitting behind pixel
     -- sprites, and the whole composite is integer-scaled afterwards.
     img:setFilter("nearest", "nearest")
+    -- Once per file, off the file: see measureBand.
+    local iw, ih = img:getDimensions()
+    bandTop[img] = measureBand(path, iw, ih) or false
     images[key] = img
   else
     images[key] = false
@@ -978,6 +1039,41 @@ end
 -- Cover the surface with the backdrop without distorting it: scale to the
 -- larger of the two axis ratios and centre the overflow.  A backdrop authored
 -- at exactly 160x144 or 304x144 lands 1:1 and this is a no-op.
+-- ------- WHERE A BACKDROP SITS ON THE BATTLE SURFACE
+--
+-- One function, because two callers need the same answer and a battle where
+-- they disagree is the picture-in-picture bug: `drawCover` paints the
+-- picture ON the surface and `surfaceFit` carries the same placement out into
+-- the bars, and the moment those two arithmetics drift the screen carries one
+-- photograph at two magnifications with the surface's edge as the join.
+--
+-- Two cases, and which one applies is a fact about the FILE:
+--
+--   The art is SMALLER than the surface, or the same size.  Cover-fit: scale
+--   to the larger of the two axis ratios and centre the overflow, so the
+--   field is covered and nothing is stretched.  Art authored at exactly
+--   160x144 or 304x144 lands 1:1 and this is a no-op.  Every backdrop
+--   shipped so far is this case.
+--
+--   The art is BIGGER than the surface on BOTH axes.  Then it is oversized on
+--   purpose -- authored on a canvas with the battle surface in the middle and
+--   scenery all round it for the letterbox -- and cover-fitting it would
+--   scale it back DOWN to the surface and throw every one of those extra
+--   pixels away.  So it goes down at 1:1 with its centre on the surface's
+--   centre, and the display crops whatever does not fit.  The middle
+--   304x144 (or 160x144) lands exactly where the old art did, which is what
+--   keeps the mon standing where they stand.
+--
+-- The origin is floored so a picture with an odd margin still lands on the
+-- pixel grid rather than half a pixel off it.
+local function placeOn(iw, ih, surfW, surfH)
+  if iw >= surfW and ih >= surfH and not (iw == surfW and ih == surfH) then
+    return 1, math.floor((surfW - iw) / 2), math.floor((surfH - ih) / 2)
+  end
+  local scale = math.max(surfW / iw, surfH / ih)
+  return scale, (surfW - iw * scale) * 0.5, (surfH - ih * scale) * 0.5
+end
+
 local function drawCover(img, w, h)
   local iw, ih = img:getDimensions()
   if iw == w and ih == h then
@@ -985,9 +1081,7 @@ local function drawCover(img, w, h)
     love.graphics.draw(img, 0, 0)
     return
   end
-  local scale = math.max(w / iw, h / ih)
-  local dx = (w - iw * scale) * 0.5
-  local dy = (h - ih * scale) * 0.5
+  local scale, dx, dy = placeOn(iw, ih, w, h)
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.draw(img, dx, dy, 0, scale, scale)
 end
@@ -999,6 +1093,9 @@ local pendingImage = nil      -- backdrop chosen for this frame
 -- ...and the one to carry into the bars around it, claimed by the letterbox
 -- pass at the end of the same frame.  See the note over bleedInto.
 local bleedImage, bleedW, bleedH = nil, OG_W, OG_H
+-- ...and WHERE the engine put that surface on screen this frame.  See
+-- `panelRect` for why the letterbox payload cannot be asked.
+local bleedPanel = nil
 local pendingW, pendingH = OG_W, OG_H
 local outerCanvas = nil       -- the canvas bound when the battle draw began
 local consumed = false        -- the field fill has already been replaced
@@ -1011,6 +1108,34 @@ local realRectangle = love.graphics.rectangle
 -- This used to share the DIAGNOSTIC toggle with the logging and the audit,
 -- which meant anyone running the audit had to play through a magenta game to
 -- get it. Separate toggles: DIAGNOSTIC logs, FIELD TEST paints.
+-- ------- and it is painted with NO SHADER BOUND
+--
+-- Reported three times as "the battle is all greyscale", and the screenshot
+-- says it in one line: every pixel on the screen is one of three DMG shades,
+-- and the ONE thing still in colour is the EXP bar -- which is the one thing
+-- that calls `love.graphics.setShader()` before it paints (Gen1BattleUI
+-- xpbar.lua, "exempt from the palette pass").
+--
+-- These draws are substituted INTO somebody else's draw, from a shim on
+-- `love.graphics.rectangle`, so whatever shader the caller had bound is still
+-- bound when they run.  For a fill that does not matter -- a flat colour
+-- through the shade remap is still a flat colour.  For a PHOTOGRAPH it is the
+-- whole picture: PaletteFX's shader answers every pixel with one of four
+-- palette entries chosen off its RED channel, so a FireRed terrain scene
+-- comes back as four greys and this mod reads as if it never ran.
+--
+-- So the shader is put down for the length of the paint and handed back
+-- exactly as it was.  Not cleared and left cleared: this is the middle of the
+-- cart's own draw, and the shade remap after it is the cart's.
+local function withoutShader(draw)
+  local g = love.graphics
+  local had = g.getShader and g.getShader() or nil
+  if had then g.setShader() end
+  local ok, err = pcall(draw)
+  if had then g.setShader(had) end
+  if not ok then error(err, 0) end
+end
+
 local function paintField()
   if devOption("field_test") then
     love.graphics.setColor(1, 0, 1, 1)
@@ -1018,7 +1143,9 @@ local function paintField()
     love.graphics.setColor(1, 1, 1, 1)
     return
   end
-  drawCover(pendingImage, pendingW, pendingH)
+  withoutShader(function()
+    drawCover(pendingImage, pendingW, pendingH)
+  end)
 end
 
 local function rectangleShim(mode, x, y, w, h, ...)
@@ -1114,22 +1241,80 @@ local function coverFit(iw, ih, ww, wh)
   return scale, (ww - iw * scale) * 0.5, (wh - ih * scale) * 0.5
 end
 
-local function coverQuads(img, iw, ih, view, rects)
-  local scale, dx, dy = coverFit(iw, ih, view.ww or 0, view.wh or 0)
-  if not scale then return nil end
-  local key = ("%d:%d:%d:%d:%d:%d")
+-- ------- the bars are the SAME photograph, at the SAME scale
+--
+-- Reported with a screenshot of a Crystal battle at BATTLE SIZE = FILL: a
+-- rectangle of crisp backdrop in the middle of the screen and a visibly
+-- bigger, blurrier copy of the same scene around it, with a hard seam between
+-- them.  It reads as a cut-out, and the cause is arithmetic rather than art.
+--
+-- The field is painted ON the battle surface: `drawCover` lays the picture
+-- over 160x144 (or 304x144) and the engine then scales that surface to the
+-- window by `view.scale`.  The bars used to be filled by cover-fitting the
+-- same picture to the WHOLE WINDOW, which is a different and always larger
+-- scale.  So the screen carried one photograph at two magnifications with the
+-- surface's edge as the join -- and the wider the window, the worse the
+-- mismatch.
+--
+-- One scale now, the surface's, with the picture aligned to the surface
+-- exactly as `drawCover` aligned it there.  Then the composite is one
+-- continuous image and the seam cannot exist: the bars are the parts of the
+-- picture that fall outside the surface, at the size they are drawn inside it.
+--
+-- Which is also why the picture has to be the WIDE one whenever there are
+-- side bars -- 304x144 against 160x144 is 72 real authored pixels either side
+-- of the surface, and a 160-wide picture has nothing outside itself to show.
+-- See `artLayout`.
+local function surfaceFit(iw, ih, surfW, surfH, view)
+  if not (iw > 0 and ih > 0 and surfW > 0 and surfH > 0) then return nil end
+  local vpw, vph = view.vpw or 0, view.vph or 0
+  if vpw <= 0 or vph <= 0 then return nil end
+  -- The scale the engine actually put the surface on screen at, read off the
+  -- viewport rather than taken from `view.scale`: under BATTLE SIZE = FILL it
+  -- is fractional and the two can disagree.
+  local sx, sy = vpw / surfW, vph / surfH
+  -- `drawCover`'s own placement on the surface, in surface pixels -- the same
+  -- call it makes, not a copy of its arithmetic.  See placeOn.
+  local cover, dx, dy = placeOn(iw, ih, surfW, surfH)
+  -- ...carried out to the window.
+  return cover * sx, cover * sy,
+         (view.ox or 0) + dx * sx, (view.oy or 0) + dy * sy
+end
+
+local function coverQuads(img, iw, ih, view, rects, surfW, surfH)
+  local sx, sy, dx, dy = surfaceFit(iw, ih, surfW, surfH, view)
+  if not sx then return nil end
+  local scale = sx
+  -- The bars stop where the flat band starts; see measureBand.  On the game
+  -- screen those rows are under the cart's message box, in the wings there is
+  -- no message box, and a slab of flat colour is not scenery.
+  local floorV = pictureBottom(img) or ih
+  local key = ("%d:%d:%d:%d:%d:%d:%d:%d:%d")
     :format(view.ww or 0, view.wh or 0, view.ox or 0, view.oy or 0,
-            view.vpw or 0, view.vph or 0)
+            view.vpw or 0, view.vph or 0, surfW or 0, surfH or 0, floorV)
   local cached = quadCache[img]
-  if cached and cached.key == key then return cached, scale, dx, dy end
+  -- Every value the caller needs, on the cached path too.  Dropping `sy` here
+  -- made the FIRST frame right and every frame after it throw -- inside the
+  -- hook's pcall, so it came back as a warning and a battle with no bars.
+  if cached and cached.key == key then return cached, scale, dx, dy, sy end
   cached = { key = key, quads = {} }
   for i, r in ipairs(rects) do
-    cached.quads[i] = love.graphics.newQuad(
-      (r.x - dx) / scale, (r.y - dy) / scale,
-      r.w / scale, r.h / scale, iw, ih)
+    -- Clamped to the picture.  Outside it there is nothing authored, and a
+    -- quad that runs off the source is the stretch this is here to stop -- so
+    -- the bar is trimmed to the part the picture can actually answer for and
+    -- whatever is left keeps the letterbox colour.
+    local u0 = math.max(0, (r.x - dx) / sx)
+    local v0 = math.max(0, (r.y - dy) / sy)
+    local u1 = math.min(iw, (r.x + r.w - dx) / sx)
+    local v1 = math.min(floorV, (r.y + r.h - dy) / sy)
+    if u1 > u0 and v1 > v0 then
+      cached.quads[i] = love.graphics.newQuad(u0, v0, u1 - u0, v1 - v0, iw, ih)
+      cached.at = cached.at or {}
+      cached.at[i] = { x = dx + u0 * sx, y = dy + v0 * sy }
+    end
   end
   quadCache[img] = cached
-  return cached, scale, dx, dy
+  return cached, scale, dx, dy, sy
 end
 
 -- FAITHFUL RATIO's mobile lock, asked the way the renderer asks it.
@@ -1178,15 +1363,184 @@ local function bleedRects(view)
   return out
 end
 
+-- ------- what the bars are when the picture does NOT go into them
+--
+-- EDGE TO EDGE off never meant "leave the bars alone", and leaving them alone
+-- is what the report is: a backdrop standing in a bright white frame, on a PC
+-- window and on a handheld alike, with every other mod disabled.
+--
+-- The white is the engine answering a question this mod has changed the answer
+-- to.  `Renderer:endFrame` fills the void with the paper shade for any state
+-- that sets `letterboxWhite`, and a battle sets it BECAUSE ITS FIELD IS WHITE
+-- PAPER -- so the paper reads as running off the edges of the screen rather
+-- than stopping at a rectangle.  Put a photograph in the field and the paper
+-- is gone.  The surround is then the only white left on the screen, and a
+-- white rectangle around a picture is a frame, not an edge.
+--
+-- So with the picture stopping at the surface the bars go where the engine
+-- puts them for a screen that never asked for paper: flat black, the same
+-- thing BATTLE BG = BLACK and FAITHFUL RATIO's mobile lock already give.
+--
+-- Through the player's UI LETTERBOX rather than over it.  `Letterbox.fill` is
+-- handed BLACK as the authored colour instead of the paper shade, so AUTO --
+-- the mode that was deducing white from `letterboxWhite` -- comes back black,
+-- and BLACK, WHITE and PALETTE still come back as whatever the player asked
+-- for.  Only the deduction changes, which is the only part that was wrong.
+local function barColor()
+  local ok, Letterbox = pcall(require, "src.render.Letterbox")
+  if not ok or type(Letterbox) ~= "table"
+     or type(Letterbox.fill) ~= "function" then
+    return 0, 0, 0
+  end
+  -- The same two lines `Renderer:endFrame` uses to read the paper, including
+  -- where it gets the data from: the palette is per-generation and per-pack,
+  -- and PALETTE mode is a promise about THIS game's ramp.
+  local got, r, g, b = pcall(Letterbox.fill, 0, 0, 0, function()
+    local okFx, PaletteFX = pcall(require, "src.render.PaletteFX")
+    if not okFx or type(PaletteFX) ~= "table"
+       or type(PaletteFX.paperShade) ~= "function" then
+      return nil
+    end
+    local okGame, Game = pcall(require, "src.core.Game")
+    return PaletteFX.paperShade(okGame and Game and Game.data or nil)
+  end)
+  if not got or type(r) ~= "number" then return 0, 0, 0 end
+  return r, g, b
+end
+
+-- ------- which SIZE of the art this screen wants
+--
+-- Not which layout the player set: which shape has to be covered.
+--
+-- BATTLE LAYOUT picks the SURFACE -- 160x144 classic, 304x144 wide -- and the
+-- art used to be picked to match it.  That is right only when the surface is
+-- the whole picture.  The moment the window is wider than the surface there
+-- are side bars, and a 160-wide picture has nothing outside itself to put in
+-- them: every honest answer is either black or a blown-up copy of the field,
+-- and the blown-up copy is what was reported (BATTLE SIZE = FILL, a crisp
+-- rectangle in the middle and a bigger blurry one around it).
+--
+-- A 304x144 picture has 72 authored columns to spare on each side of a 160
+-- surface.  So when there are side bars the WIDE art is asked for even on the
+-- classic surface: `drawCover` centres it at 1:1, which puts its middle 160
+-- columns on the field exactly as before, and the bars get the rest of the
+-- same photograph at the same scale.
+--
+-- Safe for every slot.  All 31 top-level scenes and all 27 town variants
+-- exist in both sizes; the only og-without-wide files are Gold's recoloured
+-- town roofs, which already fall through to the plain scene when their folder
+-- is absent (see GEN2_VARIANT_DIR).
+--
+-- ------- WHERE THE BATTLE SURFACE ACTUALLY IS
+--
+-- The bars are the window minus the battle surface, so everything in this
+-- file stands on one rectangle: where the engine drew the surface, and at
+-- what scale.  `render.letterbox` hands one over, and on Gen 2 IT IS NOT
+-- THAT RECTANGLE.
+--
+-- src/core/Game2.lua:1424 builds the payload as
+--
+--     local scale, ox, oy = self:frameFit(w, h)      -- Chrome.fitScale
+--     vpw = 160 * scale, vph = 144 * scale
+--
+-- -- the CLASSIC 160x144 panel at the CLASSIC integer scale, with no
+-- reference to the battle, its layout or its BATTLE SIZE.  The battle is
+-- drawn somewhere else entirely: src/ui/gen2/WideBattle.lua:50 places a
+-- 304x144 surface at `battle:battlePanelScale(w, h)` and
+-- `Chrome.fitOriginFor(w, h, scale, 38, 18)`, and that scale is FRACTIONAL
+-- under FILL.
+--
+-- On a 1600x900 window with BATTLE LAYOUT = WIDE and BATTLE SIZE = FIXED the
+-- two are:
+--
+--     the battle      40,90   1520x720   (scale 5)
+--     the payload    320,18    960x864   (scale 6)
+--
+-- so the "bars" computed from the payload run from x 0 to 320 -- 280 pixels
+-- of which are ON the battle -- while the 90 rows of real surround above the
+-- battle are left to whatever painted them.  Which is exactly the report:
+-- *"a giant white box around the top"*, and *"the background filled, but then
+-- a square pasted on top of a zoomed in background and zoomed in ui"*.
+-- tools/arenaview renders both, side by side, from these same numbers.
+--
+-- The one case where the payload is right is CLASSIC + FIXED, which is why
+-- this went unnoticed: that is the shape the payload describes.
+--
+-- So the rectangle is asked of the engine directly, through the two calls
+-- WideBattle.draw itself uses, at the moment the battle draws -- which is
+-- also the only moment the live BattleState is in hand to ask.  Anything
+-- missing and this returns nil and the payload is used, which is still right
+-- on Gen 1 (src/render/Renderer.lua:822 builds vpw/vph from `uiSize`, the
+-- real surface) and on Gen 2's classic fixed battle.
+local function panelRect(state, surfW, surfH)
+  if not gen2() then return nil end
+  if type(state) ~= "table" then return nil end
+  if type(state.battlePanelScale) ~= "function" then return nil end
+  local okC, Chrome = pcall(require, "src.ui.gen2.Chrome")
+  if not okC or type(Chrome) ~= "table"
+     or type(Chrome.fitOriginFor) ~= "function" then
+    return nil
+  end
+  local ww, wh = love.graphics.getDimensions()
+  if not (ww and wh and ww > 0 and wh > 0) then return nil end
+  local okS, scale = pcall(state.battlePanelScale, state, ww, wh)
+  if not okS or type(scale) ~= "number" or scale <= 0 then return nil end
+  local okO, ox, oy = pcall(Chrome.fitOriginFor, ww, wh, scale,
+                            surfW / 8, surfH / 8)
+  if not okO or type(ox) ~= "number" or type(oy) ~= "number" then return nil end
+  return { ox = ox, oy = oy, vpw = surfW * scale, vph = surfH * scale,
+           ww = ww, wh = wh, scale = scale }
+end
+
+-- Read off the LAST frame's letterbox rather than measured here, because this
+-- runs inside the battle's draw and the view is the renderer's answer at
+-- composite time.  One frame of lag on a window resize, which is a frame
+-- nobody sees.
+local lastView = nil
+-- The last frame's `panelRect`, which is the same question asked of the
+-- engine rather than of the payload.  Preferred when there is one: on a wide
+-- Gen 2 battle the payload's 160-wide rect says there are side bars on a
+-- window where the 304-wide panel leaves none.
+local lastPanel = nil
+
+local function wantsWideArt()
+  local view = lastPanel or lastView
+  if type(view) ~= "table" then return false end
+  local ww, vpw = view.ww or 0, view.vpw or 0
+  if ww <= 0 or vpw <= 0 then return false end
+  -- A bar at all, rather than a rounding remainder.
+  return (ww - vpw) >= 2
+end
+
+-- The directory to load this battle's backdrop from, given the surface it is
+-- being drawn on.  A wide surface always wants the wide art; a classic one
+-- wants it too as soon as there is anywhere for the extra to go.
+local function artLayout(layout)
+  if layout ~= "og" then return layout end
+  return wantsWideArt() and "wide" or "og"
+end
+
 local function bleedInto(view)
   local img = bleedImage
+  local panel = bleedPanel
   -- Claimed, not read: the hook runs once per frame after the battle drew,
   -- and a frame with no battle draw in it must not inherit the last one's
   -- picture.  Clearing on the way past is what makes that true without a
   -- frame counter.
-  bleedImage = nil
+  bleedImage, bleedPanel = nil, nil
   if not img then return end
-  if mod.options:get("bleed") == false then return end
+  -- The rectangle this whole file is about.  `panelRect` asked the engine
+  -- where the battle really went; the payload only knows where a classic
+  -- panel would have gone.  Everything else in the payload -- the window,
+  -- the dpi, worldActive -- is still the frame's own.
+  if panel and type(view) == "table" then
+    view = {
+      ww = view.ww, wh = view.wh, pw = view.pw, ph = view.ph,
+      ox = panel.ox, oy = panel.oy, vpw = panel.vpw, vph = panel.vph,
+      scale = panel.scale, dpiX = view.dpiX, dpiY = view.dpiY,
+      worldActive = view.worldActive,
+    }
+  end
   -- Nothing painted the field this frame, so there is no edge to stretch.
   -- The bars belong to whatever took the world.
   if worldTaken() then return end
@@ -1196,32 +1550,92 @@ local function bleedInto(view)
   -- FAITHFUL RATIO's mobile lock promises the display outside the GB screen
   -- stays black (src/core/FaithfulRes.lua), and the renderer honours that
   -- ahead of the paper surround.  A backdrop in the bars would break the same
-  -- promise, so it stands down for the same reason the paper does.
+  -- promise, so it stands down for the same reason the paper does -- and the
+  -- bars are already black, so there is nothing for the branch below to do
+  -- either.
   if faithfulLocked() then return end
 
   local rects = bleedRects(view)
   if not rects or not rects[1] then return end
 
+  if mod.options:get("bleed") == false then
+    local r, g, b = barColor()
+    -- Inside the guard like every other full-colour paint in this file: the
+    -- palette shader answers a pixel by its RED channel, so a flat black fill
+    -- through it comes back as the page's shade 3 -- which under a reversed
+    -- DARK ramp is WHITE.  The one colour this is trying not to paint.
+    withoutShader(function()
+      local g2 = love.graphics
+      g2.setColor(r, g, b, 1)
+      for _, rect in ipairs(rects) do
+        realRectangle("fill", rect.x, rect.y, rect.w, rect.h)
+      end
+      g2.setColor(1, 1, 1, 1)
+    end)
+    return
+  end
+
   local iw, ih = img:getDimensions()
   if iw <= 0 or ih <= 0 then return end
-  local cut, scale = coverQuads(img, iw, ih, view, rects)
+  local cut, sx, _, dy, sy = coverQuads(img, iw, ih, view, rects, bleedW, bleedH)
   if not cut then return end
 
+  -- The bars the picture cannot reach get the surround's own colour first, so
+  -- a picture that does not span the whole window leaves the engine's black
+  -- rather than a stretched smear of itself.
+  local r0, g0, b0 = barColor()
   local g = love.graphics
-  g.setColor(1, 1, 1, 1)
-  -- Eight draws at most, each the part of the covering picture that falls
-  -- where that bar is, at the cover's own scale.
-  for i, r in ipairs(rects) do
-    local quad = cut.quads[i]
-    if quad then g.draw(img, quad, r.x, r.y, 0, scale, scale) end
-  end
+  withoutShader(function()
+    g.setColor(r0, g0, b0, 1)
+    for _, r in ipairs(rects) do
+      realRectangle("fill", r.x, r.y, r.w, r.h)
+    end
+    g.setColor(1, 1, 1, 1)
+    -- Then the picture, at the SURFACE's scale and the surface's alignment, so
+    -- the bars and the field are one continuous photograph with no seam.
+    -- Through no shader, for the reason under paintField: this is the same
+    -- picture, and bars in four greys beside a field in colour would be worse
+    -- than either.
+    for i in ipairs(rects) do
+      local quad, at = cut.quads[i], cut.at and cut.at[i]
+      if quad and at then g.draw(img, quad, at.x, at.y, 0, sx, sy) end
+    end
+
+  end)
 end
 
 -- Published for tests/arenavoxel_test.lua: the one decision that stands this
 -- whole mod down, and the one that is silent when it is wrong.
+-- Published for tests/arenashader_test.lua: the guard every full-colour paint
+-- in this file goes through, and the one whose absence is invisible until a
+-- screenshot comes back in four greys.
+mod.exports.paintsWithoutShader = withoutShader
+
 mod.exports.worldTaken = worldTaken
 mod.exports.bleedRects = bleedRects
 mod.exports.bleedCover = coverFit
+-- The arithmetic the seam was in: where the picture sits, and at what scale,
+-- once the engine has put the surface on screen.  Pure -- four numbers and a
+-- view in, a scale and an origin out -- and separated for the same reason
+-- `bleedRects` is.
+mod.exports.bleedSurfaceFit = surfaceFit
+-- Published for tests/arenableed_test.lua: which of the two placements a file
+-- gets, and where it lands.  The field and the bars both go through this, so
+-- it is the one place they can be proved to agree.
+mod.exports.bleedPlaceOn = placeOn
+-- Which SIZE of the art a screen wants, and the view it reads that from.
+-- Exposed together because the decision is only as good as what it is given.
+mod.exports.arenaArtLayout = artLayout
+-- Published for tests/arenagen2paper_test.lua: the rectangle the bars are the
+-- complement of.  It is the one number in this file that cannot be read off
+-- the hook's payload, and the one that was wrong on every Gen 2 battle that
+-- was not CLASSIC + FIXED.
+mod.exports.arenaPanelRect = panelRect
+-- Published for tests/arenableed_test.lua: where the picture stops being a
+-- picture.  See measureBand -- the rows below it are the cart's message box's
+-- paper, and the bars have no message box.
+mod.exports.arenaBandTop = measureBand
+mod.exports.arenaSeeView = function(view) lastView = view end
 
 -- The Gen 2 selection, for tests.  All of it is pure -- a map header and a
 -- battle in, a slot name out -- which is exactly the part that can be wrong
@@ -1684,6 +2098,7 @@ local function buildCutout(img)
   -- is the same shade the hardware would call 0.
   local px, colors, nColors = {}, {}, 0
   local field, fieldRed = nil, -1
+  local tooMany = false
   for y = 0, h - 1 do
     local row = y * w
     for x = 0, w - 1 do
@@ -1695,16 +2110,45 @@ local function buildCutout(img)
                 + math.floor(g * 255 + 0.5) * 256
                 + math.floor(b * 255 + 0.5)
       px[row + x] = key
-      if not colors[key] then
+      if not (colors[key] or tooMany) then
         colors[key] = true
         nColors = nColors + 1
-        if nColors > PAPER_MAX_COLORS then return false end
+        if nColors > PAPER_MAX_COLORS then tooMany = true end
       end
       if r > fieldRed then field, fieldRed = key, r end
     end
   end
   -- A single-colour square is not a picture with a field around it.
   if nColors < 2 or not field then return false end
+
+  -- ------- and the same square, in art that is not 2bpp
+  --
+  -- Reported as "some trainers didn't appear with the background removed",
+  -- with a screenshot of a SAILOR in a white box beside a player whose box
+  -- was gone.  The count above is why: four colours is a cart pic exactly,
+  -- and a replacement trainer -- skin, bandana, shirt, shading -- has a dozen.
+  -- Every one of them was refused and cached as refused, so it kept its
+  -- square for the whole battle while the cart's own pics were cut.
+  --
+  -- The count was standing in for a question it only answers by accident:
+  -- IS THIS A FIGURE IN A FIELD.  A cart pic is, and has four colours; a
+  -- photograph is not, and has hundreds.  Asked directly, the answer is the
+  -- BORDER -- a figure standing in a square has the field, and only the
+  -- field, all the way round it.  Replacement art that bleeds to its own edge
+  -- does not, and is still left alone.
+  --
+  -- Kept as a second gate rather than replacing the first, because the first
+  -- is free and true of every pic the cart ships: a 2bpp pic is let through
+  -- on the count alone, exactly as before, and nothing about those changes.
+  if tooMany then
+    for x = 0, w - 1 do
+      if px[x] ~= field or px[(h - 1) * w + x] ~= field then return false end
+    end
+    for y = 0, h - 1 do
+      local row = y * w
+      if px[row] ~= field or px[row + w - 1] ~= field then return false end
+    end
+  end
 
   -- `opaque` here means "part of the figure", so the flood fill below is the
   -- one above with transparency swapped for the field shade.
@@ -1893,7 +2337,7 @@ local function wrap(original, surfaceW, surfaceH, layout)
     -- The nickname prompt deliberately blanks the field to white; leave it.
     if battle and battle.blankForAskName then return original(...) end
 
-    local img = pickBackdrop(battle, layout)
+    local img = pickBackdrop(battle, artLayout(layout))
     if not img then return original(...) end
 
     pendingImage, pendingW, pendingH = img, surfaceW, surfaceH
@@ -2483,7 +2927,7 @@ local function installGen2()
 
     local chosen
     local okPick, problem = pcall(function()
-      chosen = pickBackdrop(self, layout)
+      chosen = pickBackdrop(self, artLayout(layout))
     end)
     if not okPick then
       mod.log:warn("no backdrop this frame: %s", tostring(problem))
@@ -2509,6 +2953,11 @@ local function installGen2()
     end
 
     bleedImage, bleedW, bleedH = chosen, width, height
+    -- Where the engine is about to put that surface, asked of the engine
+    -- while the live battle is in hand.  See `panelRect`: the letterbox
+    -- payload describes a classic panel and this one does not.
+    bleedPanel = panelRect(self, width, height)
+    lastPanel = bleedPanel
     -- What UI THEME needs to know about this frame, on the instance rather
     -- than through an export, because it is a fact about ONE battle screen
     -- on ONE frame: is the field a picture, or is it the four numbers the
@@ -2608,10 +3057,15 @@ local optionRows = {
   -- of the draw and the crash it caused is gone with it.
   { key = "pic_cutout", type = "toggle", label = "PIC CUTOUT", default = true },
   -- The bars around the battle.  On, the backdrop's own edge is stretched
-  -- into them so the picture runs off the screen; off, they are the paper
-  -- white the engine gives a battle, which with a backdrop up reads as a
-  -- bright frame around the art -- and in a WIDE battle as a big white bar
-  -- above and below it.  See bleedInto.
+  -- into them so the picture runs off the screen; off, the picture stops at
+  -- the surface and the bars go black -- the engine's own default, and what
+  -- UI LETTERBOX says instead when the player has set it.
+  --
+  -- What OFF used to do was leave them as the paper white the engine gives a
+  -- battle, which with a backdrop up is a bright frame around the art and in
+  -- a WIDE battle a big white bar above and below it.  That was reported as
+  -- the toggle being broken, and it was right: nobody turns this off to ask
+  -- for a white frame.  See bleedInto.
   { key = "bleed", type = "toggle", label = "EDGE TO EDGE", default = true },
 }
 
@@ -2795,6 +3249,8 @@ mod.hooks:wrap("core.update", function(nextLink, game, dt)
 end)
 
 mod.hooks:wrap("render.letterbox", function(nextLink, view)
+  -- Kept for the NEXT frame's `artLayout`; see wantsWideArt.
+  if type(view) == "table" then lastView = view end
   local ok, err = pcall(bleedInto, view)
   if not ok then
     bleedImage = nil

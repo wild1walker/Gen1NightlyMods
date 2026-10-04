@@ -72,7 +72,7 @@
 -- party menu's own $ED / $EC pair, because six rows of sixteen fill the pane
 -- exactly and leave no band above a head to put an arrow in.
 
-return function(mod)
+return function(mod, globalPane)
 
   -- ------- the matte behind true-colour art
   --
@@ -326,6 +326,21 @@ return function(mod)
     return mon and pokemon and pokemon[mon.species] or nil
   end
 
+  -- ------- a POKeMON this game has never heard of
+  --
+  -- The GLOBAL BOX holds both generations now, so a Gen 1 game's box can have
+  -- a CHIKORITA sitting in it -- a species RED has no icon for and no entry
+  -- for.  Two places care: the grid draws a question mark instead of nothing
+  -- (a cell that looks empty, counts as full and refuses when you press A is
+  -- worse than one that says "something is here"), and the popup leaves STATS
+  -- off, because the summary screen draws from a species record there isn't.
+  local function unknownHere(game, mon)
+    if not (mon and mon.species) then return false end
+    local pokemon = game and game.data and game.data.pokemon
+    if type(pokemon) ~= "table" then return false end
+    return pokemon[mon.species] == nil
+  end
+
   local function nameOf(game, mon)
     if not mon then return "" end
     local def = defOf(game, mon)
@@ -421,6 +436,23 @@ return function(mod)
   -- the rect drawIcon will cover when it is full colour (mark it and leave it
   -- alone).  drawIcon takes a 16x16 frame out of a taller sheet and draws
   -- anything shorter whole, at whatever size the file is.
+  -- The size a full-colour icon draws at: its own measurements, each clamped
+  -- to the cell.  Split out and published because the clamp is the whole of
+  -- what went wrong and it is pure -- everything around it needs a game, a
+  -- save and a file on disk.
+  --
+  -- Each axis clamps against ITS OWN measurement.  The width used to be
+  -- decided by the height: `w = info.h > ICON and ICON or info.w`.  A sprite
+  -- wider than the cell but no taller kept its full width and was drawn past
+  -- its square, which is the black box a player reported around some POKeMON
+  -- in the box on a dark page.
+  local function iconRect(info)
+    if not (info and info.colour) then return nil end
+    return { w = info.w > ICON and ICON or info.w,
+             h = info.h > ICON and ICON or info.h }
+  end
+  mod.exports.iconRect = iconRect
+
   local function fullColourRect(game, mon)
     if not mon then return nil end
     local hit = iconColour[mon]
@@ -429,11 +461,7 @@ return function(mod)
       if not path or name then
         hit = false
       else
-        local info = scanPath(path)
-        hit = info.colour
-          and { w = info.w > ICON and ICON or info.w,
-                h = info.h > ICON and ICON or info.h }
-          or false
+        hit = iconRect(scanPath(path)) or false
       end
       iconColour[mon] = hit
     end
@@ -537,6 +565,79 @@ return function(mod)
     local was = list[j]
     list[j] = mon
     return was
+  end
+
+  -- ------- the GLOBAL pages
+  --
+  -- Past BOX 12 the header keeps going: GLOBAL 1, and one more page every
+  -- time the last one fills.  They are the same twenty cells drawn by the
+  -- same grid, over a different store -- one this cartridge shares with every
+  -- other save on the installation (globalbox.lua).
+  --
+  -- Three things are different about them, and each is a consequence of the
+  -- store being shared rather than a decision taken here:
+  --
+  --   * There are no GAPS.  A cart box keeps its arrangement in this mod's
+  --     save data, one cell per POKeMON; a shared box cannot, because the
+  --     cell another cartridge's POKeMON sits in is not this save's to
+  --     record.  So the pages are the union in order and always closed up,
+  --     which means a POKeMON put down lands in the first free cell rather
+  --     than the one under the cursor -- and the cursor follows it there, so
+  --     you can see where it went.
+  --   * There is no SWAP.  Putting one down onto an occupied cell would be a
+  --     withdrawal and a deposit at once, and the deposit half re-sorts the
+  --     page under your hand.  A occupied cell simply is not a place to put
+  --     one.
+  --   * There is no SORT and no RELEASE.  A sort would be this save deciding
+  --     the order of POKeMON in other people's saves; RELEASE is the
+  --     cartridge's own verb and the global pages are not the cartridge's.
+  --
+  -- `screen.globalPage` is nil on a cart box and 1..n on a global one.  Every
+  -- read and write below goes through the four `page*` functions rather than
+  -- through boxMonAt/boxTake/boxPut directly, so a call site cannot forget
+  -- which store it is on.
+
+  local function globalSession(screen)
+    return screen and screen.global or nil
+  end
+
+  local function onGlobal(screen)
+    return screen ~= nil and screen.globalPage ~= nil
+      and globalSession(screen) ~= nil
+  end
+
+  local function globalPages(screen)
+    local session = globalSession(screen)
+    if not session then return 0 end
+    local ok, pages = pcall(session.pages, session)
+    return (ok and tonumber(pages)) or 0
+  end
+
+  local function pageMonAt(screen, cell)
+    local save = screen.game.save
+    if not onGlobal(screen) then
+      return boxMonAt(save, save.currentBox, cell)
+    end
+    local session = globalSession(screen)
+    local ok, mon = pcall(session.at, session, screen.globalPage, cell)
+    return ok and mon or nil
+  end
+
+  local function pageCount(screen)
+    local save = screen.game.save
+    if not onGlobal(screen) then
+      return #Boxes.ensure(save)[save.currentBox]
+    end
+    local session = globalSession(screen)
+    local ok, count = pcall(session.countOn, session, screen.globalPage)
+    return (ok and tonumber(count)) or 0
+  end
+
+  local function pageCapacity(screen)
+    if not onGlobal(screen) then return Boxes.CAPACITY end
+    local session = globalSession(screen)
+    local ok, capacity = pcall(session.capacity, session)
+    return (ok and tonumber(capacity)) or Boxes.CAPACITY
   end
 
   -- ------- sorting a box
@@ -715,6 +816,28 @@ return function(mod)
     self.sortUndo = nil
     self.partyRow = {}
     for j = 1, #(game.save.party or {}) do self.partyRow[j] = j end
+    -- The GLOBAL pages, opened once here rather than per frame: opening a
+    -- session reads and decodes every save on the installation, and
+    -- reconciles this one against what the others have claimed.  nil when the
+    -- feature is off or failed to load, and every page* call above already
+    -- reads that as "this screen has twelve boxes".
+    self.globalPage = nil
+    self.global = nil
+    -- what SELECT has marked, in the order it was marked; see "picking several
+    -- up at once"
+    self.picked = {}
+    if type(globalPane) == "function" then
+      local pane = globalPane()
+      if pane then
+        local ok, session = pcall(pane.open, game)
+        if ok and type(session) == "table" then
+          self.global = session
+        else
+          mod.log:warn("the GLOBAL BOX did not open (%s); the cartridge's own "
+            .. "boxes are unaffected", tostring(session))
+        end
+      end
+    end
     return self
   end
 
@@ -783,7 +906,7 @@ return function(mod)
   end
 
   function Screen:capacityFor(pane)
-    return pane == "party" and Party.MAX or Boxes.CAPACITY
+    return pane == "party" and Party.MAX or pageCapacity(self)
   end
 
   function Screen:slotIndex(pane)
@@ -792,8 +915,7 @@ return function(mod)
 
   function Screen:monAt(pane)
     if pane == "party" then return partyMonAtRow(self, self.partySlot) end
-    local save = self.game.save
-    return boxMonAt(save, save.currentBox, self.boxSlot)
+    return pageMonAt(self, self.boxSlot)
   end
 
   -- Which POKeMON is actually SHOWN in a given slot, which is not always the
@@ -805,8 +927,7 @@ return function(mod)
       return self.held.mon
     end
     if pane == "party" then return partyMonAtRow(self, slot) end
-    local save = self.game.save
-    return boxMonAt(save, save.currentBox, slot)
+    return pageMonAt(self, slot)
   end
 
   -- ------- talking to the player
@@ -879,10 +1000,22 @@ return function(mod)
     -- LEFT out of the party is the screen edge and does nothing
   end
 
+  -- One ring: BOX 1 .. BOX 12, then GLOBAL 1 .. GLOBAL n, then round to BOX 1.
+  -- The global pages are counted fresh on every step, because the last one is
+  -- always empty and a deposit into it opens another.
   function Screen:changeBox(delta)
     local save = self.game.save
-    local count = Boxes.COUNT
-    save.currentBox = ((save.currentBox - 1 + delta) % count) + 1
+    local pages = globalPages(self)
+    local count = Boxes.COUNT + pages
+    local at = self.globalPage and (Boxes.COUNT + self.globalPage)
+      or save.currentBox
+    at = ((at - 1 + delta) % count) + 1
+    if at > Boxes.COUNT then
+      self.globalPage = at - Boxes.COUNT
+    else
+      self.globalPage = nil
+      save.currentBox = at
+    end
   end
 
   function Screen:moveHeader(dir)
@@ -975,6 +1108,22 @@ return function(mod)
     end
 
     local cell = self.boxSlot
+    -- A GLOBAL page hands back a TICKET as well as the POKeMON, and the
+    -- ticket is the only way back: out of your OWN outbox it is a removal, out
+    -- of another save's it is a claim, and undoing the two is not the same
+    -- move.  Held onto until the POKeMON is put down somewhere.
+    if onGlobal(self) then
+      local session = globalSession(self)
+      local mon, ticket = session:take(self.game, self.globalPage, cell)
+      if not mon then
+        if ticket and ticket ~= "empty_cell" then
+          self:say(session:refusalText(ticket))
+        end
+        return
+      end
+      self.held = { mon = mon, pane = "box", global = true, ticket = ticket }
+      return
+    end
     local mon = boxMonAt(save, save.currentBox, cell)
     if not mon then return end
     -- the box does NOT close up: the cell this came out of stays empty, and
@@ -993,7 +1142,63 @@ return function(mod)
     if pane == "party" then
       target = partyMonAtRow(self, self.partySlot)
     else
-      target = boxMonAt(save, save.currentBox, self.boxSlot)
+      target = pageMonAt(self, self.boxSlot)
+    end
+
+    -- ---- onto a GLOBAL page
+    --
+    -- Two arms and no third.  A POKeMON that CAME from a global page goes
+    -- back through its own ticket, which puts it in the cell it came out of
+    -- whatever cell the cursor is on -- the pages are a shared queue and
+    -- there is nothing here to rearrange.  Anything else is a deposit, which
+    -- lands in the first free cell for the same reason; the cursor follows it
+    -- so the move is visible rather than guessed at.
+    if pane == "box" and onGlobal(self) then
+      local session = globalSession(self)
+      if held.global then
+        session:untake(held.ticket)
+        self.held = nil
+        local page, cell = session:locate(held.ticket and held.ticket.id)
+        if page then self.globalPage, self.boxSlot = page, cell end
+        if option("placeCry", true) then cry(self.game, held.mon.species) end
+        return
+      end
+      if held.pane == "party" and self:refusesDeposit(held.mon) then return end
+      -- the deposit tail runs on the POKeMON BEFORE the box copies it, so
+      -- what is stored is a stored POKeMON and not a party one
+      self:transfer(held.mon, held.pane, "box")
+      -- `put` is the only place the conversion happens, and it converts before
+      -- it stores -- so a refusal leaves the box untouched and the POKeMON in
+      -- hand, and asking first would only be the same conversion twice.
+      --
+      -- The cell the cursor is on IS part of it now.  The pages used to be a
+      -- queue with no gaps, so a deposit landed in the first free cell
+      -- wherever it was aimed; a global page keeps its holes, so a POKeMON put
+      -- down on cell 7 goes in cell 7.  An occupied cell falls back to the
+      -- first free one, which is the old behaviour and the only sane answer to
+      -- aiming at somewhere full.
+      -- three returns on the way out and only the first says whether it
+      -- worked: `put` answers index, page, cell -- or nil and a reason, whose
+      -- reason would read as a perfectly good page number if the index were
+      -- thrown away.
+      local aimed = session:cellAt(self.globalPage, self.boxSlot)
+      local index, page, cell = session:put(self.game, held.mon, aimed)
+      if not index then
+        self:say(session:refusalText(page))
+        return
+      end
+      self.globalPage, self.boxSlot = page, cell
+      self.held = nil
+      if option("placeCry", true) then cry(self.game, held.mon.species) end
+      return
+    end
+
+    -- A POKeMON carried OUT of a global page cannot swap: the POKeMON it
+    -- would displace has to go back where the carried one came from, and
+    -- "where it came from" is a cell in somebody else's save.
+    if held.global and target then
+      self:say(Strings("There's a POKéMON\nthere already!"))
+      return
     end
 
     -- Ask before anything moves, so a refusal leaves the POKeMON in hand
@@ -1034,7 +1239,7 @@ return function(mod)
       if pane == "party" then
         count, capacity = #self:listFor("party"), Party.MAX
       else
-        count, capacity = #Boxes.ensure(save)[save.currentBox], Boxes.CAPACITY
+        count, capacity = pageCount(self), pageCapacity(self)
       end
       if count >= capacity then
         local t = textOf(self.game)
@@ -1068,12 +1273,323 @@ return function(mod)
     local held = self.held
     if not held then return end
     self.held = nil
+    if held.global then
+      local session = globalSession(self)
+      if session then session:untake(held.ticket) end
+      return
+    end
     if held.pane == "party" then
       partyPut(self, held.row, held.mon)
       self.partyTouched = true
     else
       boxPut(self.game.save, held.box, held.cell, held.mon)
     end
+  end
+
+  -- ------- picking several up at once
+  --
+  -- SELECT used to open SORT.  SORT is a verb about the whole box, so it has
+  -- moved to the popup START opens, where the other verbs are -- and SELECT is
+  -- free for the thing a grid of twenty actually wants: marking.
+  --
+  -- One key, no mode.  SELECT marks the cell under the cursor and marks it
+  -- again to unmark it; with anything marked, A puts the WHOLE MARK down here
+  -- instead of picking one up; B clears the marks before it does anything
+  -- else.  The marks survive a box change, which is the entire point -- mark
+  -- six in BOX 1, walk to BOX 3, press A.
+  --
+  -- An entry records where the POKeMON was rather than just which one it is,
+  -- because that is what the take needs, and it records the PAGE too: a global
+  -- page and a cartridge box are taken from and put into by different calls,
+  -- and a mark that spans both has to know which is which for each POKeMON.
+  local function markIndex(screen, page, cell)
+    for i, entry in ipairs(screen.picked or {}) do
+      if entry.cell == cell and entry.global == page.global
+         and entry.box == page.box then
+        return i
+      end
+    end
+    return nil
+  end
+
+  local function currentPage(screen)
+    return { global = screen.globalPage ~= nil,
+             box = screen.globalPage or screen.game.save.currentBox }
+  end
+
+  local function globalIdAt(screen, cell)
+    local session = globalSession(screen)
+    if not (session and screen.globalPage) then return nil end
+    local ok, entry = pcall(session.entryAt, session, screen.globalPage, cell)
+    return ok and type(entry) == "table" and entry.id or nil
+  end
+
+  function Screen:toggleMark()
+    if self.held then return end
+    if self.pane ~= "box" then return end
+    self.picked = self.picked or {}
+    local page = currentPage(self)
+    local at = markIndex(self, page, self.boxSlot)
+    if at then
+      table.remove(self.picked, at)
+      return
+    end
+    local mon = pageMonAt(self, self.boxSlot)
+    if not mon then return end
+    -- ------- and a GLOBAL mark remembers WHICH ONE, not just where
+    --
+    -- A cartridge box keeps its arrangement beside it, so a cell there is a
+    -- place and stays one however many POKeMON are taken out of it.  The
+    -- GLOBAL BOX is a QUEUE: withdrawing closes it up, and every cell after
+    -- the gap moves down one.  So the cell a mark was made on is not the cell
+    -- that POKeMON is in by the time the mark before it has been taken.
+    --
+    -- The id is what survives that, which is what `Session:locate` is for.
+    self.picked[#self.picked + 1] = {
+      mon = mon, cell = self.boxSlot, global = page.global, box = page.box,
+      id = page.global and globalIdAt(self, self.boxSlot) or nil,
+    }
+  end
+
+  function Screen:markedAt(slot)
+    if not (self.picked and self.picked[1]) then return false end
+    return markIndex(self, currentPage(self), slot) ~= nil
+  end
+
+  function Screen:clearMarks()
+    local had = self.picked and self.picked[1] ~= nil
+    self.picked = {}
+    return had and true or false
+  end
+
+  -- The lowest cell nothing is in.  Gen 1 keeps its arrangement beside the box
+  -- (see layoutFor), so "free" is a question about CELLS and not about the
+  -- compact array's length.
+  local function freeCell(save, boxNumber)
+    local cells = layoutFor(save, boxNumber)
+    local taken = {}
+    for _, cell in ipairs(cells) do taken[cell] = true end
+    for cell = 1, SLOTS do
+      if not taken[cell] then return cell end
+    end
+    return nil
+  end
+
+  -- Everything marked, into the page the cursor is on.
+  --
+  -- Asked in full before anything moves, and put back in full if a put fails
+  -- part way: a move that half-happens across two boxes is the one outcome
+  -- worth writing extra code to avoid.
+  function Screen:placeMarks()
+    local picked = self.picked or {}
+    if not picked[1] then return false end
+    local save = self.game.save
+    local page = currentPage(self)
+    local session = globalSession(self)
+
+    -- how many of them are not already on this page
+    local moving = {}
+    for _, entry in ipairs(picked) do
+      if not (entry.global == page.global and entry.box == page.box) then
+        moving[#moving + 1] = entry
+      end
+    end
+    if not moving[1] then
+      self:clearMarks()
+      return true
+    end
+
+    -- room, asked once for all of them
+    local room = pageCapacity(self) - pageCount(self)
+    if room < #moving then
+      local t = textOf(self.game)
+      self:say(t._BoxFullText or Strings("Oops! This Box is\nfull of POKéMON."))
+      return false
+    end
+
+    -- A global page has rules of its own, and they are asked of ALL of them
+    -- here rather than one at a time as they go in: half a mark deposited and
+    -- half refused is the outcome this whole function exists to avoid.
+    if page.global and session then
+      for _, entry in ipairs(moving) do
+        local refusal = session:refusalFor(self.game, entry.mon)
+        if refusal then
+          self:say(session:refusalText(refusal))
+          return false
+        end
+      end
+    end
+
+    local taken, tickets = {}, {}
+    local function putBack()
+      for i = #taken, 1, -1 do
+        local entry = moving[i]
+        if entry.global then
+          if session then session:untake(tickets[i]) end
+        else
+          boxPut(save, entry.box, entry.cell, taken[i])
+        end
+      end
+    end
+
+    for i, entry in ipairs(moving) do
+      local mon, ticket
+      if entry.global then
+        if not session then putBack() return false end
+        -- Where it is NOW.  Every take before this one closed the queue up
+        -- behind it, so `entry.cell` is where this POKeMON was when the mark
+        -- was made and not where it is; taking by that cell took whichever
+        -- POKeMON had moved into it, and ran off the end of the page saying
+        -- "That can't be sent".
+        local page2, cell2 = session:locate(entry.id)
+        if not page2 then
+          putBack()
+          self:say(session:refusalText("empty_cell"))
+          return false
+        end
+        mon, ticket = session:take(self.game, page2, cell2)
+        if not mon then
+          putBack()
+          self:say(session:refusalText(ticket))
+          return false
+        end
+      else
+        mon = boxTake(save, entry.box, entry.cell)
+        if not mon then putBack() return false end
+      end
+      taken[i], tickets[i] = mon, ticket
+    end
+
+    for _, mon in ipairs(taken) do
+      if page.global then
+        -- Refused BEFORE anything was taken (above), so a failure here is not
+        -- a refusal -- it is the store gone wrong, and the honest answer is to
+        -- say so and leave what is already deposited deposited.  Nothing is
+        -- lost either way: a deposited POKeMON is in the box.
+        local index, why = session:put(self.game, mon)
+        if not index then
+          self:say(session:refusalText(why))
+          return false
+        end
+      else
+        local cell = freeCell(save, page.box)
+        if not cell then putBack() return false end
+        boxPut(save, page.box, cell, mon)
+      end
+      self:transfer(mon, "box", "box")
+    end
+
+    self:clearMarks()
+    if option("placeCry", true) and taken[1] then
+      cry(self.game, taken[1].species)
+    end
+    return true
+  end
+
+  -- ------- SEND, from the box
+  --
+  -- The party menu's SEND takes a POKeMON out of the PARTY: it asks whether
+  -- the party can spare it and it removes it from save.party.  Handing a BOXED
+  -- POKeMON to that would deposit it in the GLOBAL BOX and leave the original
+  -- exactly where it was -- one POKeMON, two places.  So the box's SEND is the
+  -- box's own, and it is the move the cursor already makes: out of this cell,
+  -- into the shared box.
+  --
+  -- No confirm, for the same reason carrying one onto a GLOBAL page has none.
+  -- Inside the box this is a move between pages; the party menu asks because
+  -- there it is a POKeMON leaving your team.
+  function Screen:sendToGlobal(cell)
+    local session = globalSession(self)
+    if not (session and self.pane == "box" and not onGlobal(self)) then return end
+    local save = self.game.save
+    local boxNumber = save.currentBox
+    local mon = boxMonAt(save, boxNumber, cell)
+    if not mon then return end
+
+    -- asked before anything moves, so a refusal leaves the box alone
+    local refusal = session:refusalFor(self.game, mon)
+    if refusal then return self:say(session:refusalText(refusal)) end
+
+    local taken = boxTake(save, boxNumber, cell)
+    if not taken then return end
+    self:transfer(taken, "box", "box")
+    local index, why = session:put(self.game, taken)
+    if not index then
+      -- back in the cell it came out of, and say why
+      boxPut(save, boxNumber, cell, taken)
+      return self:say(session:refusalText(why))
+    end
+    if option("placeCry", true) then cry(self.game, taken.species) end
+  end
+
+  -- ------- SEND, from the party column
+  --
+  -- Reported as "when you select a party member in box send isn't an option",
+  -- and it was left off deliberately.  The reasoning was sound about the wrong
+  -- thing: the PARTY MENU's send removes from save.party directly, and doing
+  -- that from here would leave this screen's own row bookkeeping -- partyRow,
+  -- which is what keeps the visual order and the battle order the same list --
+  -- describing a POKeMON that is not in the party any more.
+  --
+  -- All true, and not a reason to have no row.  This screen already takes
+  -- POKeMON out of the party correctly, every single time the cursor lifts
+  -- one, and `partyTake` is the routine that does it.  What the party half
+  -- needed was its own SEND, not somebody else's.
+  --
+  -- So this is the party's move made the way this screen makes it: the
+  -- pick-up's own last-POKeMON refusal in the pick-up's own words, the
+  -- DEPOSITED happiness a deposit applies, and `partyPut` back into the row it
+  -- came out of if the store turns it away.
+  --
+  -- It CONFIRMS, where the box's SEND does not, and that difference is the one
+  -- the party menu's row already draws: inside the box a send is a move
+  -- between pages, and out of the party it is a POKeMON leaving your team.
+  function Screen:sendPartyToGlobal(row)
+    local session = globalSession(self)
+    if not (session and self.pane == "party") then return end
+    local game = self.game
+    local mon = partyMonAtRow(self, row)
+    if not mon then return end
+
+    -- asked before anything moves, so a refusal leaves the party alone
+    local refusal = session:refusalFor(game, mon)
+    if refusal then return self:say(session:refusalText(refusal)) end
+    -- The pick-up's rule, in the pick-up's words.  A verb in a menu and a
+    -- cursor doing the same thing must not disagree about whether it is
+    -- allowed.
+    local lastMon = textOf(game)._CantDepositLastMonText
+      or Strings("You can't deposit\nthe last POKéMON!")
+    if #self:listFor("party") <= 1 then return self:say(lastMon) end
+
+    local name = nameOf(game, mon)
+    game.stack:push(TextBox.new(game,
+      Strings("Send %s\nto the GLOBAL BOX?", name), nil, {
+      defaultNo = true, noSound = true,
+      choice = function(yes)
+        if not yes then return end
+        -- Everything re-asked: the confirm ran a frame later and the party is
+        -- live underneath it.
+        if partyMonAtRow(self, row) ~= mon then return end
+        if #self:listFor("party") <= 1 then return self:say(lastMon) end
+        local again = session:refusalFor(game, mon)
+        if again then return self:say(session:refusalText(again)) end
+
+        local taken = partyTake(self, row)
+        if not taken then return end
+        -- `transfer` is what the cursor's own party-to-box drop calls: it sets
+        -- partyTouched and applies the DEPOSITED happiness.  Called BEFORE the
+        -- put, because the store keeps a copy.
+        self:transfer(taken, "party", "box")
+        local index, why = session:put(game, taken)
+        if not index then
+          -- back into the row it came out of, and say why
+          partyPut(self, row, taken)
+          return self:say(session:refusalText(why))
+        end
+        if option("placeCry", true) then cry(game, taken.species) end
+        self:say(Strings("Sent %s\nto the GLOBAL BOX!", name))
+      end,
+    }))
   end
 
   -- ------- SORT
@@ -1112,9 +1628,58 @@ return function(mod)
     self.sortUndo = snapshot
   end
 
+  -- ------- SORT, on a GLOBAL page
+  --
+  -- Refused until now, and the reason was true of the old store: order was a
+  -- property of the union of every save's outbox, and the union is other
+  -- saves' files, which this save cannot write.
+  --
+  -- The ARRANGEMENT is not.  It is a map of id to cell in this save's own
+  -- bucket -- see GlobalBox.cellsOf -- so a sort here rewrites one file this
+  -- save owns and asks nobody.  The other cartridge keeps its own order, and
+  -- the two disagreeing is two trainers' PCs disagreeing about where they
+  -- filed the same POKeMON rather than a conflict to resolve.
+  --
+  -- Every key is the cartridge sort's, including the tie-break: table.sort is
+  -- not stable, so the cell each is already in is the last word and POKeMON
+  -- that tie keep the order somebody is looking at.
+  function Screen:sortGlobal(mode)
+    local session = globalSession(self)
+    if not (session and session.writable and session:writable()) then return end
+    local entries = session:entries()
+    if not entries[1] then return end
+
+    local before = session:arrangement()
+    local order = {}
+    for _, entry in ipairs(entries) do
+      order[#order + 1] = { mon = entry.mon, id = entry.id, cell = entry.cell }
+    end
+    for _, entry in ipairs(order) do
+      entry.key = sortKey(self.game, mode, entry)
+    end
+    table.sort(order, function(a, b)
+      if a.key ~= b.key then return a.key < b.key end
+      return a.cell < b.cell
+    end)
+
+    local cells = {}
+    for j, entry in ipairs(order) do cells[entry.id] = j end
+    session:arrange(cells)
+    -- One step back, and it is the WHOLE arrangement rather than a list of
+    -- POKeMON: what a sort changed here is where things sit, so that is what
+    -- an undo puts back.
+    self.sortUndo = { global = true, cells = before }
+  end
+
   function Screen:canUndoSort()
     local undo = self.sortUndo
-    if not undo or undo.box ~= self.game.save.currentBox then return false end
+    if not undo then return false end
+    if undo.global then
+      local session = globalSession(self)
+      return (onGlobal(self) and session and session.writable
+              and session:writable()) and true or false
+    end
+    if onGlobal(self) or undo.box ~= self.game.save.currentBox then return false end
     return sameMembers(Boxes.ensure(self.game.save)[undo.box], undo.mons)
   end
 
@@ -1122,6 +1687,11 @@ return function(mod)
     if not self:canUndoSort() then return end
     local undo = self.sortUndo
     self.sortUndo = nil
+    if undo.global then
+      local session = globalSession(self)
+      if session then session:arrange(undo.cells) end
+      return
+    end
     local save = self.game.save
     local list = Boxes.ensure(save)[undo.box]
     local cells = layoutFor(save, undo.box)
@@ -1144,6 +1714,16 @@ return function(mod)
   -- no rows: Menu writes it INTO the top border it was going to draw anyway.
   function Screen:openSortMenu()
     if self.held then return end
+    -- Reached from the popup START opens, which is a stack state of its own:
+    -- it pops itself before running a row's onSelect (src/ui/Menu.lua), so
+    -- this pushes onto the screen rather than onto the popup.
+
+    -- A GLOBAL page sorts too, and sorts this save's ARRANGEMENT of the shared
+    -- box rather than anybody else's file.  See sortGlobal.
+    local global = onGlobal(self)
+    if global and not (globalSession(self) and globalSession(self):writable()) then
+      return
+    end
     local game = self.game
     local items = {}
     for _, row in ipairs(SORT_LABELS) do
@@ -1151,7 +1731,10 @@ return function(mod)
       items[#items + 1] = {
         label = Strings(row[1]),
         value = mode,
-        onSelect = function() self:sortBox(mode) end,
+        onSelect = function()
+          if global then return self:sortGlobal(mode) end
+          return self:sortBox(mode)
+        end,
       }
     end
     if self:canUndoSort() then
@@ -1187,6 +1770,10 @@ return function(mod)
   -- POKeMON never listed the party.
   function Screen:release()
     local game = self.game
+    -- RELEASE is the cartridge's own verb over the cartridge's own storage.
+    -- A POKeMON on a GLOBAL page may be sitting in another save entirely, and
+    -- "gone forever" is not a thing this save gets to decide about one.
+    if onGlobal(self) then return end
     local cell = self.boxSlot
     local boxNumber = game.save.currentBox
     local mon = boxMonAt(game.save, boxNumber, cell)
@@ -1322,23 +1909,78 @@ return function(mod)
   -- START over a POKeMON.  The vanilla PC's own per-mon rows
   -- (bills_pc.asm DisplayDepositWithdrawMenu) minus the verbs the cursor has
   -- taken over: WITHDRAW and DEPOSIT are what A already does.
+  -- START over a cell.  The per-POKeMON verbs the vanilla PC had, plus the
+  -- ones that are about the BOX -- SORT came here from SELECT, which is now
+  -- the marking key, and it belongs beside the others anyway: every other verb
+  -- this screen has is already behind this button.
+  --
+  -- It opens on an EMPTY cell too now, because SORT is about the box and not
+  -- about what the cursor happens to be on.
   function Screen:openActions()
     if self.held or self.pane == "header" then return end
     local pane = self.pane
     local mon = self:monAt(pane)
-    if not mon then return end
-    local items = {
-      { label = Strings("STATS"), keepOpen = true,
-        onSelect = function() self:openSummary(mon) end },
-    }
-    if pane == "box" then
+    local items = {}
+    -- STATS is not offered for a POKeMON this game has no entry for: the
+    -- summary screen draws from the species record, and there isn't one.  A
+    -- Johto POKeMON sitting on a GLOBAL page is the only way to meet this.
+    if mon and not unknownHere(self.game, mon) then
+      items[#items + 1] = { label = Strings("STATS"), keepOpen = true,
+        onSelect = function() self:openSummary(mon) end }
+    end
+    -- SEND, on BOTH panes, because both are a POKeMON this save is putting in
+    -- the shared box -- but by two different moves, which is the whole reason
+    -- the row was once left off the party half.  See sendPartyToGlobal.
+    --
+    -- Not on a GLOBAL page: sending from the shared box to the shared box is
+    -- not a move, and the cursor is how you take one OUT.  The party column is
+    -- the party whichever page the box half is showing, so its row does not
+    -- ask that question.
+    if mon and globalSession(self)
+        and (pane == "party" or (pane == "box" and not onGlobal(self))) then
+      local cell, row = self.boxSlot, self.partySlot
+      if not globalSession(self):refusalFor(self.game, mon) then
+        items[#items + 1] = { label = Strings("SEND"),
+          onSelect = function()
+            if pane == "party" then return self:sendPartyToGlobal(row) end
+            return self:sendToGlobal(cell)
+          end }
+      end
+    end
+    if mon and pane == "box" and not onGlobal(self) then
       items[#items + 1] = { label = Strings("RELEASE"),
         onSelect = function() self:release() end }
     end
-    -- another mod's rows, between this screen's verbs and the way out
-    for _, row in ipairs(providedRows(self.game, mon, pane)) do
-      items[#items + 1] = row
+    -- and the verbs about the BOX rather than about one POKeMON.  SORT is on a
+    -- GLOBAL page too: it rewrites this save's own arrangement of the shared
+    -- box, which is one file this save owns.  RELEASE is not, and that is not
+    -- the same question -- "gone forever" is not a thing this save gets to
+    -- decide about a POKeMON living in another one.
+    if pane == "box" and (not onGlobal(self)
+                          or (globalSession(self) and globalSession(self):writable())) then
+      items[#items + 1] = { label = Strings("SORT"),
+        onSelect = function() self:openSortMenu() end }
+      if self:canUndoSort() then
+        items[#items + 1] = { label = Strings("UNDO"),
+          onSelect = function() self:undoSort() end }
+      end
     end
+    -- Rows from elsewhere, between this screen's verbs and the way out.  SEND
+    -- is one of them: it is registered by this mod's own entry through the
+    -- same registry Gen1Remember uses, because a row that needs to know about
+    -- the GLOBAL BOX belongs with the code that owns it rather than wired into
+    -- this file twice.  Asked only over a POKeMON -- an empty cell has nothing
+    -- for anyone to offer a verb about.
+    if mon then
+      for _, row in ipairs(providedRows(self.game, mon, pane)) do
+        items[#items + 1] = row
+      end
+    end
+    -- START on an EMPTY cell with no box verbs to offer is a wasted press, so
+    -- nothing opens.  Over a POKeMON it always opens, even when CANCEL is the
+    -- only row -- a Johto POKeMON on a GLOBAL page has no verb this game can
+    -- offer it, and a button that does nothing at all reads as broken.
+    if not (items[1] or mon) then return end
     items[#items + 1] = { label = Strings("CANCEL") }
     -- The vanilla three rows put the box's bottom edge exactly on the last
     -- tile row (ty 10 + th 8 = 18), so a fourth row from a provider would
@@ -1374,10 +2016,26 @@ return function(mod)
       -- under each other the way ui.list_menu's right column did.
       items[#items + 1] = {
         label = Strings("%sBOX %2d %2d/%d",
-          i == game.save.currentBox and "*" or " ", i,
-          #boxes[i], Boxes.CAPACITY),
+          (self.globalPage == nil and i == game.save.currentBox) and "*" or " ",
+          i, #boxes[i], Boxes.CAPACITY),
         value = i,
-        onSelect = function() game.save.currentBox = i end,
+        onSelect = function()
+          self.globalPage = nil
+          game.save.currentBox = i
+        end,
+      }
+    end
+    -- and the shared pages after the cartridge's own, in the same order the
+    -- header walks them
+    local pages = globalPages(self)
+    local session = globalSession(self)
+    for page = 1, pages do
+      items[#items + 1] = {
+        label = Strings("%sGLOBAL%2d %2d/%d",
+          self.globalPage == page and "*" or " ", page,
+          session:countOn(page), session:capacity()),
+        value = Boxes.COUNT + page,
+        onSelect = function() self.globalPage = page end,
       }
     end
 
@@ -1388,9 +2046,14 @@ return function(mod)
     -- The width is one tile more than the labels need (Menu grows a box to
     -- widest + 3 and never past what it is handed), which buys the spare
     -- interior column on the right that the scroll arrow lives in.
+    -- "*GLOBAL12 20/20" is fifteen glyphs where "*BOX 12 20/20" is thirteen,
+    -- and Menu never grows a box past the width it is handed -- so the list
+    -- is two tiles wider, and only when there is a global page in it.
     local th = BOX_LIST_VISIBLE * 2 + 2
+    local wide = pages > 0
     local menu = Menu.new(game, items, {
-      tx = 3, ty = math.max(0, 18 - th), tw = 17, th = th,
+      tx = wide and 2 or 3, ty = math.max(0, 18 - th),
+      tw = wide and 18 or 17, th = th,
       maxVisible = BOX_LIST_VISIBLE,
       -- Menu whites out exactly as many tiles as the title is wide and puts
       -- it straight onto the top rule, so an unpadded title has the rule
@@ -1401,7 +2064,8 @@ return function(mod)
     })
     -- open on the box you are in rather than on BOX 1: with only half the
     -- list visible, starting anywhere else hides where you are
-    menu.index = game.save.currentBox
+    menu.index = self.globalPage and (Boxes.COUNT + self.globalPage)
+      or game.save.currentBox
     menu:clampScroll()
 
     game.stack:push(popup(menu))
@@ -1451,12 +2115,21 @@ return function(mod)
         self:openBoxList()
       elseif self.held then
         self:place()
+      elseif self.picked and self.picked[1] and self.pane == "box" then
+        -- Something is marked, so A is about the MARK: put all of it here.
+        -- Which is why marking is refused while a POKeMON is in hand -- one
+        -- key cannot mean both.
+        self:placeMarks()
       else
         self:grab()
       end
     elseif input:wasPressed("b") then
       if self.held then
         self:returnHeld()
+      elseif self:clearMarks() then
+        -- B undoes the marks before it undoes anything else: leaving the
+        -- screen with six POKeMON marked and nothing said about it is how a
+        -- player loses track of what they were doing.
       else
         play(self.game, "Turn_Off_PC")
         self:close()
@@ -1464,14 +2137,16 @@ return function(mod)
     elseif input:wasPressed("start") then
       self:openActions()
     elseif input:wasPressed("select") then
-      -- SELECT belongs to the BOX: it opens SORT.  From the party it is still
-      -- the shortcut across the middle of the screen, which makes the pair
-      -- read as one key -- SELECT gets you to the box, SELECT again tidies it
-      -- -- and costs nothing, because LEFT and RIGHT already cross the panes.
+      -- SELECT marks.  It used to open SORT, which is a verb about the whole
+      -- box and now lives in the popup START opens, beside the other verbs.
+      --
+      -- From the PARTY it is still the shortcut across the middle of the
+      -- screen: the party is battle order and marking it would mean answering
+      -- what a multi-move does to that, so the key keeps the job it had there.
       if self.pane == "party" then
         self.pane, self.lastPane = "box", "box"
       else
-        self:openSortMenu()
+        self:toggleMark()
       end
     else
       local dir = self:direction()
@@ -1520,13 +2195,93 @@ return function(mod)
     return (self.blink % FLASH_PERIOD) < FLASH_ON
   end
 
+  -- ------- and a claim this screen must take back when something covers it
+  --
+  -- `markTrueColor` does not copy anything.  It says "this RECTANGLE is true
+  -- colour", and the renderer re-blits whatever is in it RAW at composite
+  -- time -- after the whole frame is drawn, popups included.
+  --
+  -- So a menu drawn over the grid is re-blitted raw wherever it overlaps an
+  -- icon's claim.  A Gen 1 menu is black on WHITE, and DARK inverts the page
+  -- around it, so the overlap comes back the one colour the theme did not
+  -- touch: white blocks, in a grid, exactly the size and position of the cells
+  -- underneath, with the menu's own text over them.  Reported as "anything
+  -- that goes over a POKeMON gets inverted", and every screen here that marks
+  -- art under a popup has it.
+  --
+  -- An icon a menu is covering has no business claiming true colour: nobody
+  -- can see it.  So the claim is not made -- the icon goes through the palette
+  -- pass like the rest of the frame, under an opaque box, and the menu comes
+  -- out the colour the theme painted it.
+  --
+  -- Measured off the states ABOVE this one, because that is what a popup is
+  -- here: `Menu` and `TextBox` are stack states with their own tile geometry
+  -- (src/ui/Menu.lua:19). A state above that cannot be measured is treated as
+  -- covering everything, which costs the icons their colours for as long as it
+  -- is open and cannot leave a white block behind.
+  local function overlayCover(screen)
+    local stack = screen.game and screen.game.stack
+    local states = type(stack) == "table" and stack.states or nil
+    if type(states) ~= "table" then return nil, false end
+    local rects, above = {}, false
+    for i = 1, #states do
+      if above then
+        local state = states[i]
+        local tx = type(state) == "table" and tonumber(state.tx) or nil
+        local ty = type(state) == "table" and tonumber(state.ty) or nil
+        local tw = type(state) == "table" and tonumber(state.tw) or nil
+        local th = type(state) == "table" and tonumber(state.th) or nil
+        if not (tx and ty and tw and th) then return nil, true end
+        rects[#rects + 1] = { x = tx * 8, y = ty * 8, w = tw * 8, h = th * 8 }
+      elseif states[i] == screen then
+        above = true
+      end
+    end
+    return rects, false
+  end
+
+  local function covered(screen, x, y, w, h)
+    local rects, everything = overlayCover(screen)
+    if everything then return true end
+    for _, r in ipairs(rects or {}) do
+      if x < r.x + r.w and r.x < x + w and y < r.y + r.h and r.y < y + h then
+        return true
+      end
+    end
+    return false
+  end
+
+  Screen.coveredByOverlay = covered
+
+  -- The art lookup, on the class so a suite can hand it a rectangle: whether
+  -- a species has full-colour art is a question about PNG bytes, and the
+  -- decision this file actually makes -- claim it, or not, depending on what
+  -- is over it -- is the part worth driving.
+  Screen.artRect = fullColourRect
+
+  -- The rectangle this icon claims as true colour, or nil for "claim
+  -- nothing".  One place, so `drawIcon` cannot claim what the matte skipped or
+  -- the other way round.
+  function Screen:artRectFor(mon, x, y)
+    local rect = self.artRect(self.game, mon)
+    if not rect then return nil end
+    if covered(self, x, y, rect.w, rect.h) then return nil end
+    return rect
+  end
+
   function Screen:drawIcon(mon, x, y, selected)
     if not mon then return end
+    if unknownHere(self.game, mon) then
+      ink(BLACK)
+      -- centred in the cell the icon would have filled, which is 16 wide
+      Font.draw("?", x + 4, y + 4)
+      return
+    end
     -- full-colour art must sit out the shade remap, or the pass repaints it
     -- off its red channel and an orange POKeMON comes out white.  Sitting the
     -- pass out means sitting the THEME out too, so the page under the art is
     -- painted first -- see matte above.
-    local rect = fullColourRect(self.game, mon)
+    local rect = self:artRectFor(mon, x, y)
     if rect then matte(x, y, rect.w, rect.h) end
     love.graphics.setColor(1, 1, 1, 1)
     pcall(PartyMenu.drawIcon, self.game, mon, x, y, false, 0,
@@ -1548,8 +2303,9 @@ return function(mod)
     arrow(8, 8, "left")
     arrow(148, 8, "right")
     if self.pane == "header" then arrow(16, 8, "right") end
-    Font.draw(Strings("BOX %d", game.save.currentBox), 24, 8)
-    local count = ("%d/%d"):format(#Boxes.active(game.save), Boxes.CAPACITY)
+    Font.draw(self.globalPage and Strings("GLOBAL %d", self.globalPage)
+      or Strings("BOX %d", game.save.currentBox), 24, 8)
+    local count = ("%d/%d"):format(pageCount(self), pageCapacity(self))
     Font.draw(count, 144 - Font.width(count), 8)
   end
 
@@ -1601,6 +2357,15 @@ return function(mod)
       if not (carried and not self:flashOn()) then
         self:drawIcon(self:monDrawnAt("box", slot), x + ICON_DX, y + ICON_DY,
                       selected)
+      end
+      if self:markedAt(slot) then
+        -- A marked cell wears a filled square in its top-left corner: SELECT
+        -- put it there and SELECT takes it away, and A puts every one of them
+        -- down wherever the cursor is.  Drawn in the corner rather than as a
+        -- second cursor, because the cursor already means "here" and a cell
+        -- can be both.
+        ink(BLACK)
+        love.graphics.rectangle("fill", x + 2, y + 2, 3, 3)
       end
       if selected then
         -- the cursor sits in the band over the POKeMON's head and points at

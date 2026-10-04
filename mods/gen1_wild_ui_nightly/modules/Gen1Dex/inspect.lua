@@ -235,12 +235,17 @@ return function(mod, C)
 
   -- ------- and the width, by the same arithmetic
   --
-  -- The box is the full twenty tiles, so its interior is x 8..151 and the
-  -- right border owns 152 onward.  The empty-state line was drawn at NAME_X,
-  -- which is where a mon's NAME goes because a CURSOR sits at 8 in front of
-  -- it; "NOTHING LIVES HERE" is eighteen glyphs, and from 16 they end at 160
-  -- with the last one drawn through the border.  It is a message, not a row,
-  -- so it goes where the box's other text goes.
+  -- Both boxes on this screen are the full twenty tiles, so both have the
+  -- same interior: text starts one tile in at x 8, and the right border owns
+  -- 152 onward.  Eighteen glyphs, which is what HEAD_GLYPHS already says
+  -- about the box above -- said once here rather than twice by coincidence.
+  --
+  -- The empty-state line was drawn at NAME_X, which is where a mon's NAME
+  -- goes because a CURSOR sits at 8 in front of it.  "NOTHING LIVES HERE" is
+  -- eighteen glyphs; from 16 they end at 160, and the last one was drawn
+  -- straight through the right border.  It is a message, not a row -- there
+  -- is no cursor beside it and nothing to line it up with -- so it goes where
+  -- the box's other text goes.
   local TEXT_X = 8
   local LIST_RIGHT = 20 * 8 - 8 - 1        -- last interior pixel: x 151
   local EMPTY = "NOTHING LIVES HERE"

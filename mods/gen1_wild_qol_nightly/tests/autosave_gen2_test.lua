@@ -57,7 +57,7 @@ package.loaded["src.core.GameVersion"] = {
 
 local function fakeMod(stored)
   local self = {
-    id = "gen1_wild_qol_nightly",
+    id = "gen1_wild_qol",
     path = ".",
     exports = {},
     stored = stored or {},

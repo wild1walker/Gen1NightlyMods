@@ -60,7 +60,8 @@ end
 
 local ENGINE do
   local candidates = { os.getenv("GEN1RECOMP") }
-  for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+  for _, prefix in ipairs({ "..", "../../..", "../../../..", "../..",
+                            "../../../../.." }) do
     for _, name in ipairs({ "gen1recompog", "gen1recomp", "bryanthaboi/gen1recomp" }) do
       candidates[#candidates + 1] = prefix .. "/" .. name
     end
@@ -140,7 +141,7 @@ package.loaded["src.ui.gen2.Chrome"] = Chrome
 local SummaryMenu = require("src.ui.gen2.SummaryMenu")
 
 local mod = {
-  id = "gen1_wild_ui_nightly",
+  id = "gen1_wild_ui",
   log = { info = noop, warn = noop, error = noop },
   options = { get = function() return nil end },
   hooks = { wrapped = {}, wrap = function(h, name, fn) h.wrapped[name] = fn end },

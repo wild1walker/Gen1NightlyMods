@@ -41,9 +41,9 @@ local function load_(path)
   return assert(load(source, "@" .. path))()
 end
 
-local Build = load_("modules/Gen251/build.lua")
-local Roll = load_("modules/Gen251/roll.lua")
-local P = load_("modules/Gen251/placements.lua")
+local Build = load_("modules/Gen151/gen2/build.lua")
+local Roll = load_("modules/Gen151/gen2/roll.lua")
+local P = load_("modules/Gen151/gen2/placements.lua")
 
 -- A Gold-shaped encounter table set, small enough to reason about.
 local function tables()
@@ -317,7 +317,7 @@ end
 do
   io.write("the ten trade evolutions\n")
 
-  local Trade = load_("modules/Gen251/trade.lua")
+  local Trade = load_("modules/Gen151/gen2/trade.lua")
   local function would(entry, mon, ctx) return Trade.wouldTrade(entry, mon, ctx) end
 
   local KADABRA = { method = "EVOLVE_TRADE", into = "ALAKAZAM" }
@@ -362,7 +362,7 @@ end
 do
   io.write("the statics that stay until they are caught\n")
 
-  local Statics = load_("modules/Gen251/statics.lua")
+  local Statics = load_("modules/Gen151/gen2/statics.lua")
 
   -- Gen 2 spells it `caught`; Gen 1 spells it `owned`.  Reading the Gen 1
   -- name would return nil for every species, and nil is indistinguishable
@@ -409,7 +409,7 @@ end
 do
   io.write("the roamers that go back to roaming\n")
 
-  local Statics = load_("modules/Gen251/statics.lua")
+  local Statics = load_("modules/Gen151/gen2/statics.lua")
   local ROSTER = {
     { species = "RAIKOU", level = 40, map = "ROUTE_42" },
     { species = "ENTEI", level = 40, map = "ROUTE_37" },
@@ -453,7 +453,7 @@ end
 do
   io.write("Crystal's SUICUNE goes back to roaming\n")
 
-  local Statics = load_("modules/Gen251/statics.lua")
+  local Statics = load_("modules/Gen151/gen2/statics.lua")
   local ROW = { species = "SUICUNE", level = 40, map = "ROUTE_38" }
 
   local lost = { pokedex = { seen = { SUICUNE = true }, caught = {} },

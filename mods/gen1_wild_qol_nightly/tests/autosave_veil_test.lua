@@ -54,7 +54,7 @@ end
 -- its exports.
 local function fakeMod()
   local self = {
-    id = "gen1_wild_qol_nightly",
+    id = "gen1_wild_qol",
     path = ".",
     exports = {},
     stored = {},

@@ -42,7 +42,8 @@ end
 
 local ENGINE do
   local candidates = { os.getenv("GEN1RECOMP") }
-  for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+  for _, prefix in ipairs({ "..", "../../..", "../../../..", "../..",
+                            "../../../../.." }) do
     candidates[#candidates + 1] = prefix .. "/bryanthaboi/gen1recomp"
     candidates[#candidates + 1] = prefix .. "/gen1recomp"
   end
@@ -108,7 +109,7 @@ end
 local stored = { ui_theme = "dark" }
 local wrapped = {}
 local mod = {
-  id = "gen1_wild_ui_nightly",
+  id = "gen1_wild_ui",
   log = setmetatable({}, { __index = function() return noop end }),
   hooks = { wrap = function(_, name, fn) wrapped[name] = fn end },
   events = { on = noop, once = noop },

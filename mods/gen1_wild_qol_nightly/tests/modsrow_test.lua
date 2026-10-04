@@ -25,7 +25,8 @@ package.path = "./?.lua;" .. package.path
 -- it says so and stands down rather than passing on a stub.
 local ENGINE do
   local candidates = { os.getenv("GEN1RECOMP") }
-  for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+  for _, prefix in ipairs({ "..", "../../..", "../../../..", "../..",
+                            "../../../../.." }) do
     candidates[#candidates + 1] = prefix .. "/bryanthaboi/gen1recomp"
     candidates[#candidates + 1] = prefix .. "/gen1recomp"
   end

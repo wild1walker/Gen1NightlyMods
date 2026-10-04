@@ -1,4 +1,4 @@
--- Headless coverage of the GS BALL arm (modules/Gen2Celebi/main.lua).
+-- Headless coverage of the GS BALL arm (modules/Gen151/gen2/celebi.lua).
 --
 -- The whole feature is one byte, so the only thing that can be wrong is WHEN
 -- it is written.  Two ways, and both lose a playthrough:
@@ -38,7 +38,7 @@ local function load_(path)
   return assert(load(source, "@" .. path))()
 end
 
-local Celebi = load_("modules/Gen2Celebi/main.lua")
+local Celebi = load_("modules/Gen151/gen2/celebi.lua")
 
 -- ------------------------------------------------------------ arming a save
 

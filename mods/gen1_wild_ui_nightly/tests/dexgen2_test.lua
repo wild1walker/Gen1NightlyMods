@@ -281,7 +281,7 @@ do
       end })
 
   local mod = {
-    id = "gen1_wild_ui_nightly", path = "modules/Gen1Dex",
+    id = "gen1_wild_ui", path = "modules/Gen1Dex",
     exports = {}, stored = {},
   }
   mod.options = {

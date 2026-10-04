@@ -177,9 +177,12 @@ return function(mod)
   -- by itself once the last page has typed out.
   local ASK = "Want to battle\nagain?"
   local PRICED = ASK .. "\fThat will be\n\194\165%d. OK?"
-  -- The refusal NAMES the price: "You don't have enough money." on its own
-  -- reads identically whether the price is out of reach or the purse is
-  -- being read from a field that is not there, and both have happened.
+  -- The refusal NAMES the price.  "You don't have enough money." is the
+  -- cart's own line and it is the right first page, but on its own it is
+  -- unanswerable: a player who is refused every single time cannot tell a
+  -- price they cannot afford from a purse the mod is failing to read, and
+  -- neither could the bug report that followed.  The second page is the
+  -- quote, in the same shape PRICED gives it.
   local BROKE = "You don't have\nenough money.\fA rematch costs\n\194\165%d."
 
   mod.options:define({

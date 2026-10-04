@@ -1,4 +1,4 @@
--- Headless coverage of BACKDROPS' Gold selection (modules/Gen1Arena/main.lua).
+-- Headless coverage of BACKDROPS' Gold selection (main.lua).
 --
 -- The drawing needs a window and cannot be tested here.  The SELECTION can,
 -- and it is the whole of what is Gen 2-specific: a map header and a battle in,

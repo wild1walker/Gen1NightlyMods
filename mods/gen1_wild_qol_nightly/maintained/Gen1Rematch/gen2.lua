@@ -106,11 +106,17 @@ end
 -- ------- the money
 --
 -- THE PURSE IS NOT WHERE RED KEEPS IT.  Red's save carries `save.money`
--- (src/ui/ShopMenu.lua); Gold's carries `save.player.money`
--- (src/core/gen2/Save.lua:496).  Reading Red's field here answered 0 for every
--- save ever made, so the gate below refused every rematch with "you don't have
--- enough money" and the two writes in startBattle charged and refunded a field
--- nothing else in the engine reads.
+-- (src/ui/ShopMenu.lua, src/ui/TrainerCard.lua); Gold's carries
+-- `save.player.money` (src/core/gen2/Save.lua:496, and :186 seeds it at 3000
+-- on a new game).  Reading Red's field here answered 0 for every save ever
+-- made, so the gate below refused every rematch with "you don't have enough
+-- money" and the two writes in startBattle charged and refunded a field
+-- nothing else in the engine reads -- a stake that was never taken, on a
+-- purse that never moved.
+--
+-- So the purse is asked for by name, once, and both halves go through the
+-- same pair: a getter that cannot silently answer 0, and a setter that
+-- cannot silently write somewhere harmless.
 local function purseOf(save)
   local player = type(save) == "table" and save.player
   return (type(player) == "table" and tonumber(player.money)) or 0
@@ -268,7 +274,6 @@ function Gen2.offer(ctx, record)
     return world:showText(ctx.say(ctx.text.BROKE):format(price),
                           function() ctx.done() end)
   end
-
 
   local ask = price > 0 and ctx.say(ctx.text.PRICED):format(price)
     or ctx.say(ctx.text.ASK)

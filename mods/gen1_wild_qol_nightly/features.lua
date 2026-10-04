@@ -396,8 +396,13 @@ return {
       group = "pokemon",
       install_seq = 19,
       priority = 900,
-      dir = "Gen251",
-      entry = "main.lua",
+      -- Gen151's repository, not one of its own.  ALL 251 ships beside ALL 151
+      -- because the research behind them is one body of work, and its files
+      -- live under `gen2/` there: build.lua, placements.lua and roll.lua exist
+      -- on both sides with the same names and different contents, so the
+      -- folder is what keeps a Johto lookup off a Kanto table.
+      dir = "Gen151",
+      entry = "gen2/main.lua",
       label = "ALL 251",
       description = "EVERY ONE OF THE 251 OBTAINABLE IN ONE SAVE, ON ONE "
         .. "CARTRIDGE, WITHOUT TRADING.",
@@ -419,8 +424,8 @@ return {
       group = "pokemon",
       install_seq = 18,
       priority = 900,
-      dir = "Gen2Celebi",
-      entry = "main.lua",
+      dir = "Gen151",
+      entry = "gen2/celebi.lua",
       label = "GS BALL",
       description = "UNLOCKS CRYSTAL'S OWN CELEBI EVENT, WHICH SHIPPED "
         .. "FINISHED AND UNREACHABLE.",

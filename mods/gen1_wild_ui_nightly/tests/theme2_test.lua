@@ -82,7 +82,7 @@ local Theme2 = chunkOf("runtime/theme2.lua")
 local function fakeContext(stored)
   local generation = 0
   local mod = {
-    id = "gen1_wild_ui_nightly",
+    id = "gen1_wild_ui",
     logged = {},
     log = {
       info = function(_, ...) end,

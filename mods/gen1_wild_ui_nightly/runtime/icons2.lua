@@ -213,9 +213,9 @@ function Icons2.install(context)
     PartyMenu.iconFor = function(menu, mon, ...)
       local image, frame = baseIconFor(menu, mon, ...)
       -- Frame 0 is the one the cart rests on, so a still icon is the icon the
-      -- cart would draw between flips rather than a second pose.
-      -- Frame 0 is also cell 0 on a six-frame sheet -- standing, facing
-      -- south -- so a still icon needs nothing from the rule above.
+      -- cart would draw between flips rather than a second pose.  It is also
+      -- cell 0 on a six-frame sheet -- standing, facing south -- so a still
+      -- icon needs nothing from the rule below.
       if image and not menu.gen1wildAnimate then return image, 0 end
       return image, walkFrame(image, frame)
     end

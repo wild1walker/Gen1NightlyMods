@@ -161,7 +161,7 @@ end
 package.loaded["src.ui.gen2.Chrome"] = Chrome
 
 local mod = {
-  id = "gen1_wild_ui_nightly",
+  id = "gen1_wild_ui",
   path = "modules/Gen1BattleUI",
   exports = {},
   stored = {},

@@ -45,7 +45,8 @@ end
 
 local ENGINE do
   local candidates = { os.getenv("GEN1RECOMP") }
-  for _, prefix in ipairs({ "../../..", "../../../..", "../..", "../../../../.." }) do
+  for _, prefix in ipairs({ "..", "../../..", "../../../..", "../..",
+                            "../../../../.." }) do
     for _, name in ipairs({ "gen1recompog", "gen1recomp", "bryanthaboi/gen1recomp" }) do
       candidates[#candidates + 1] = prefix .. "/" .. name
     end

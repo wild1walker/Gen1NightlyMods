@@ -5,17 +5,17 @@
     "gen1_wild_ui_nightly": {
       "upstream": "wild1walker/Gen1WildUI",
       "upstream_id": "gen1_wild_ui",
-      "base": "1.21.0"
+      "base": "1.42.0"
     },
     "wild_green_nightly": {
       "upstream": "wild1walker/Gen1MakeItGreen",
       "upstream_id": "wild_green",
-      "base": "1.26.0"
+      "base": "1.27.0"
     },
     "gen1_wild_qol_nightly": {
       "upstream": "wild1walker/Gen1WildQOL",
       "upstream_id": "gen1_wild_qol",
-      "base": "1.26.0"
+      "base": "1.33.0"
     }
   }
 }

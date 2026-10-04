@@ -39,6 +39,12 @@ local function eq(actual, expected, description)
   ok(same, description)
 end
 
+local function slurp(path)
+  local handle = assert(io.open(path, "r"), path .. " is missing")
+  local body = handle:read("*a")
+  handle:close()
+  return body
+end
 local function load_(path, ...)
   local handle = assert(io.open(path, "r"), path .. " is missing")
   local source = handle:read("*a")
@@ -95,6 +101,99 @@ local bleedCover = mod.exports.bleedCover
 ok(type(bleedCover) == "function", "and the cover fit with it")
 ok(mod.hooked["render.letterbox"] ~= nil,
   "and the mod takes the seam the engine documents for void art")
+
+-- ---------------------------------------------- one picture, one scale
+
+-- Reported with a screenshot: a crisp rectangle of backdrop in the middle of
+-- a Crystal battle and a visibly bigger, blurrier copy of the same scene
+-- around it, with a hard seam between them.
+--
+-- The field is painted ON the battle surface and the engine scales that
+-- surface to the window.  The bars used to be filled by cover-fitting the
+-- same picture to the WHOLE WINDOW instead -- a different and always larger
+-- scale -- so the screen carried one photograph at two magnifications with
+-- the surface's edge as the join.
+--
+-- This is the arithmetic that replaced it: the picture's scale and origin, in
+-- window pixels, taken from where the SURFACE landed.
+do
+  io.write("the bars are the same picture at the same scale\n")
+
+  local surfaceFit = mod.exports.bleedSurfaceFit
+  ok(type(surfaceFit) == "function", "the placement is exposed")
+
+  -- 160x144 doubled and centred in a 400x400 window.
+  local view = { ww = 400, wh = 400, ox = 40, oy = 56, vpw = 320, vph = 288 }
+
+  -- A WIDE picture on the classic surface: `drawCover` centres it at 1:1, so
+  -- its middle 160 columns are the field and 72 columns hang off each side.
+  local sx, sy, dx, dy = surfaceFit(304, 144, 160, 144, view)
+  eq(sx, 2, "the picture is drawn at the surface's own scale, not the window's")
+  eq(sy, 2, "on both axes")
+  eq(dx, 40 - 72 * 2,
+     "starting 72 authored columns left of the surface, which is exactly what "
+     .. "a 304-wide picture has to spare against a 160-wide one")
+  eq(dy, 56, "and level with it")
+
+  -- The same picture, same surface, under BATTLE SIZE = FILL: the engine puts
+  -- the surface on screen at a fractional scale, and the picture follows it
+  -- rather than being re-fitted to the window.
+  local fill = { ww = 400, wh = 400, ox = 20, oy = 0, vpw = 360, vph = 324 }
+  sx, sy, dx = surfaceFit(304, 144, 160, 144, fill)
+  eq(sx, 360 / 160, "FILL's fractional scale is the surface's, and the "
+     .. "picture takes it too -- which is the whole of the seam")
+  eq(dx, 20 - 72 * (360 / 160), "and the offset scales with it")
+
+  -- An OG picture on the classic surface covers it exactly, so there is
+  -- nothing outside it: the origin IS the surface's origin.
+  sx, sy, dx, dy = surfaceFit(160, 144, 160, 144, view)
+  eq(sx, 2, "an exactly-sized picture is 1:1 on the surface")
+  eq(dx, 40, "and starts where the surface starts")
+  eq(dy, 56, "on both axes -- there is no outside to show")
+
+  -- A degenerate view has no answer rather than a wrong one.
+  eq(tostring(surfaceFit(304, 144, 160, 144,
+                         { ww = 400, wh = 400, vpw = 0, vph = 0 })),
+     "nil", "a surface with no area is not a placement")
+  eq(tostring(surfaceFit(0, 144, 160, 144, view)), "nil",
+     "and neither is a picture with none")
+end
+
+-- --------------------------------------- which size of the art it asks for
+
+do
+  io.write("the art is picked for the shape, not for the setting\n")
+
+  local artLayout = mod.exports.arenaArtLayout
+  local seeView = mod.exports.arenaSeeView
+  ok(type(artLayout) == "function" and type(seeView) == "function",
+     "the choice and the view it reads are both exposed")
+
+  -- Nothing seen yet: the surface is all there is, so the classic art is right.
+  seeView(nil)
+  eq(artLayout("og"), "og", "with no frame behind it, the surface's own size")
+  eq(artLayout("wide"), "wide", "and a wide surface is always wide")
+
+  -- A window exactly the surface's width: no bars, nothing to spare, no
+  -- reason to reach for a bigger picture.
+  seeView({ ww = 320, wh = 400, ox = 0, oy = 56, vpw = 320, vph = 288 })
+  eq(artLayout("og"), "og", "a window with no side bars keeps the small art")
+
+  -- Side bars: a 160-wide picture has nothing outside itself to put in them,
+  -- and a 304-wide one has 72 authored columns each side.  This is the
+  -- reported case -- BATTLE SIZE = FILL, classic layout, a wide window.
+  seeView({ ww = 1000, wh = 400, ox = 340, oy = 56, vpw = 320, vph = 288 })
+  eq(artLayout("og"), "wide",
+     "side bars ask for the wide art even on the classic surface, because "
+     .. "that is the only picture with anything to put in them")
+  eq(artLayout("wide"), "wide", "and the wide surface is unchanged")
+
+  -- A one-pixel remainder from an odd window is not a bar.
+  seeView({ ww = 321, wh = 400, ox = 0, oy = 56, vpw = 320, vph = 288 })
+  eq(artLayout("og"), "og", "a rounding remainder is not somewhere to put a picture")
+
+  seeView(nil)
+end
 
 local function by(rects)
   local out = {}
@@ -242,6 +341,177 @@ do
   eq(bleedCover(160, 0, 800, 400), nil, "...on either axis")
   eq(bleedCover(160, 144, 0, 400), nil, "no window")
   eq(bleedCover(160, 144, 800, 0), nil, "...on either axis")
+end
+
+-- ------------------------------------------- where the picture stops being
+-- a picture
+--
+-- Every backdrop is authored with its last rows in ONE flat colour, because
+-- those are the rows the cart's message box sits on: 48 of them on the
+-- 160-wide art, exactly the box's six tiles, and 40 on the 304-wide art.  On
+-- the game screen nobody ever sees them.
+--
+-- The BARS see them.  On the classic surface this mod bleeds the wide art
+-- into the wings either side, and out there the cart has no message box -- so
+-- the band arrives as a slab of flat colour across the bottom of both wings.
+-- That is the report, with the two of them circled in red: *"there is still a
+-- bar of solid color at the bottom, can we make it so those are cut off?"*
+--
+-- Measured off the file rather than declared, so the answer follows the art.
+
+-- An ImageData as LOVE hands one over, from a row-painting function.
+local function fakeData(w, h, at)
+  return {
+    getDimensions = function() return w, h end,
+    getPixel = function(_, x, y)
+      local r, g, b = at(x, y)
+      return r, g, b, 1
+    end,
+  }
+end
+
+local bandTop = mod.exports.arenaBandTop
+
+do
+  io.write("the flat band is measured off the picture\n")
+  local made = {}
+  love.image = { newImageData = function(path) return made[path] end }
+
+  -- The wide art: 40 flat rows under 104 rows of scenery.
+  made["wide"] = fakeData(304, 144, function(x, y)
+    if y >= 104 then return 0.87, 1, 0.32 end
+    return (x % 7) / 7, (y % 5) / 5, 0.5
+  end)
+  eq(bandTop("wide", 304, 144), 104, "the wide art's band starts at row 104")
+
+  -- The classic art: 48, which is the message box's six tiles exactly.
+  made["og"] = fakeData(160, 144, function(x, y)
+    if y >= 96 then return 0.87, 1, 0.32 end
+    return (x % 7) / 7, (y % 5) / 5, 0.5
+  end)
+  eq(bandTop("og", 160, 144), 96, "and the classic art's at row 96")
+
+  -- A single flat edge row is ordinary art, not a band, and trimming it would
+  -- take a row off every backdrop that happens to end on one colour.
+  made["edge"] = fakeData(304, 144, function(x, y)
+    if y >= 143 then return 0, 0, 0 end
+    return (x % 7) / 7, (y % 5) / 5, 0.5
+  end)
+  eq(bandTop("edge", 304, 144), nil, "a one-row edge is not a band")
+
+  -- ...and a picture that is mostly one colour is a flat backdrop with
+  -- nothing to trim, not a picture with an enormous band.
+  made["flat"] = fakeData(304, 144, function(_, y)
+    if y >= 20 then return 0.2, 0.2, 0.2 end
+    return 0.9, 0.9, 0.9
+  end)
+  eq(bandTop("flat", 304, 144), nil,
+     "and neither is a band over half the picture")
+
+  -- A file the host will not hand back, or hands back at another size, is
+  -- measured as no band rather than guessed at.
+  eq(bandTop("missing", 304, 144), nil, "an unreadable file has no band")
+  made["wrong"] = fakeData(160, 144, function() return 0, 0, 0 end)
+  eq(bandTop("wrong", 304, 144), nil, "and neither has one at the wrong size")
+
+  love.image = nil
+  eq(bandTop("wide", 304, 144), nil,
+     "a host with no love.image trims nothing, which is what it did before")
+end
+
+do
+  io.write("...and the bars are clamped to it\n")
+  -- Source-shape, because the clamp is one `math.min` inside `coverQuads` and
+  -- coverQuads needs a live Image to drive.  What can go wrong here is the
+  -- clamp being dropped, or being written against `ih` again, and both of
+  -- those are visible in the text.
+  local text = slurp("modules/Gen1Arena/main.lua")
+  ok(text:find("local floorV = pictureBottom(img) or ih", 1, true) ~= nil,
+     "the bars take the picture's floor, and the whole picture when it has "
+     .. "no band")
+  ok(text:find("local v1 = math.min(floorV, (r.y + r.h - dy) / sy)",
+                1, true) ~= nil,
+     "and every bar's source rectangle stops there")
+  ok(text:find("surfW or 0, surfH or 0, floorV)", 1, true) ~= nil,
+     "with the floor in the quad cache's key, or the first backdrop's band "
+     .. "would be used for every backdrop after it")
+end
+
+-- ---------------------------------------- art bigger than the battle surface
+--
+-- The backdrops shipped so far are authored at exactly the surface's size, so
+-- `drawCover` lands them 1:1 and there is nothing outside them: the bars get
+-- the wide art on the classic surface and black everywhere else.
+--
+-- Art authored on a BIGGER canvas -- the battle surface in the middle and
+-- scenery all round it -- is the way out of that, and it needs the opposite
+-- rule.  Cover-fitting a 608x288 file onto a 304x144 surface scales it back
+-- DOWN to 304x144 (cover = max(304/608, 144/288) = 0.5) and throws every
+-- extra pixel away, which is the trap in `drawCover`'s arithmetic: with the
+-- same aspect as the surface, bigger art covers exactly the surface and
+-- nothing more, no matter how big it is.
+--
+-- So oversized art goes down at 1:1, centred, and the display crops it.
+
+local placeOn = mod.exports.bleedPlaceOn
+
+do
+  io.write("art the size of the surface, or smaller, is covered as before\n")
+  local s, dx, dy = placeOn(304, 144, 304, 144)
+  eq(s, 1, "the exact size lands 1:1")
+  eq(dx, 0, "at the origin")
+  eq(dy, 0, "on both axes")
+
+  s, dx, dy = placeOn(160, 144, 304, 144)
+  eq(s, 304 / 160, "art narrower than the surface is scaled up to cover it")
+  eq(dy, (144 - 144 * (304 / 160)) * 0.5, "and the overflow is centred")
+
+  s = placeOn(304, 144, 160, 144)
+  eq(s, 1, "the wide art on the classic surface stays 1:1 -- it already "
+     .. "covers it, and 72 authored columns either side are the wings")
+end
+
+do
+  io.write("...and art bigger than the surface is placed 1:1 and cropped\n")
+  local s, dx, dy = placeOn(608, 288, 304, 144)
+  eq(s, 1, "a 608x288 backdrop is NOT scaled down to the surface")
+  eq(dx, -152, "its centre sits on the surface's centre")
+  eq(dy, -72, "on both axes")
+
+  s, dx, dy = placeOn(608, 288, 160, 144)
+  eq(s, 1, "the same file on the classic surface, also 1:1")
+  eq(dx, -224, "centred there too")
+  eq(dy, -72, "which puts the same middle 160x144 on the game screen")
+
+  -- An odd margin still has to land on the pixel grid: half a pixel of
+  -- offset is a row of the picture blended across two rows of the screen,
+  -- and these are pixel backdrops behind pixel sprites.
+  s, dx, dy = placeOn(305, 145, 304, 144)
+  eq(dx, -1, "an odd margin is floored rather than left on a half pixel")
+  eq(dy, -1, "on both axes")
+
+  -- Bigger on one axis only is NOT the oversized case: 1:1 would leave the
+  -- surface's own field uncovered on the other, which is a hole in the
+  -- battle rather than scenery in the bars.
+  s = placeOn(608, 144, 304, 144)
+  eq(s, 1, "as wide as you like at the surface's exact height is still 1:1")
+  s = placeOn(608, 100, 304, 144)
+  eq(s, 144 / 100, "but art SHORTER than the surface is covered, not placed")
+  s = placeOn(200, 288, 304, 144)
+  eq(s, 304 / 200, "and so is art narrower than it")
+end
+
+do
+  io.write("...and the bars are told the same thing the field was\n")
+  -- The picture-in-picture bug was the field and the bars disagreeing about
+  -- this placement.  They cannot now: both go through placeOn, and this is
+  -- the join, checked on the oversized case where the two rules differ most.
+  local VIEW = { ww = 1600, wh = 900, ox = 40, oy = 90, vpw = 1520, vph = 720 }
+  local sx, sy, x, y = mod.exports.bleedSurfaceFit(608, 288, 304, 144, VIEW)
+  eq(sx, 5, "the picture is drawn at the surface's own scale")
+  eq(sy, 5, "on both axes, so it is not stretched")
+  eq(x, 40 - 152 * 5, "and it starts 152 backdrop pixels left of the surface")
+  eq(y, 90 - 72 * 5, "and 72 above it -- one photograph, one magnification")
 end
 
 io.write(("\n%d passed, %d failed\n"):format(passed, failed))

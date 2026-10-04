@@ -90,7 +90,7 @@ local install = chunkOf("modules/Gen1Party/main.lua")
 local function fakeMod(stored)
   local self
   self = {
-    id = "gen1_wild_ui_nightly",
+    id = "gen1_wild_ui",
     path = ".",
     defined = nil,
     warnings = 0,

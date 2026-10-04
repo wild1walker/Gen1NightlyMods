@@ -61,7 +61,7 @@ local DIR = "modules/Gen1MenuManager"
 -- instrumented where the assertions are: what was pushed, and what was logged.
 local function fakeMod()
   local self = {
-    id = "gen1_wild_qol_nightly",
+    id = "gen1_wild_qol",
     path = DIR,
     exports = {},
     stored = { select_shortcut = true, menu_row = true, pc_row = true },

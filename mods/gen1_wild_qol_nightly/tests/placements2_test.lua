@@ -29,7 +29,7 @@ local function eq(actual, expected, description)
   ok(same, description)
 end
 
-local P = assert(loadfile("modules/Gen251/placements.lua"))()
+local P = assert(loadfile("modules/Gen151/gen2/placements.lua"))()
 
 -- The tiers the table is allowed to ask for, copied from Gen151's rarity.lua
 -- rather than required from it: this file has no engine and no sibling mod.

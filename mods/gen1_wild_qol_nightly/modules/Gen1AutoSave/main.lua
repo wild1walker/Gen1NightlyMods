@@ -45,7 +45,7 @@
 -- LuaJIT, which is 5.1: the GLOBAL `unpack` is the one that exists there and
 -- `table.unpack` is nil (the sandbox copies the host's `table` faithfully,
 -- Sandbox.lua:154, so there is nothing to fill it in).  Standalone Lua 5.4 --
--- which is what a bench runs under -- is the other way round.  Resolved once,
+-- which is what tests/ runs under -- is the other way round.  Resolved once,
 -- here, because the expression that used to do it inline was wrong in a way
 -- only the game could show.  See the QUIT wrap below.
 local unpackArgs = unpack or table.unpack
@@ -1982,7 +1982,7 @@ return function(mod)
             -- ever passed on; and a zero-argument call made that one value
             -- nil, fell through to the `or`, and reached for a `table.unpack`
             -- LuaJIT does not have.  Under 5.4 the same line works, which is
-            -- why every bench was green for it.
+            -- why the bench was green for it.
             item.onSelect = function(...)
               local n, args = select("#", ...), { ... }
               return offerQuit(game, function()
